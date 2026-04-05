@@ -1,0 +1,15 @@
+.ProseMirror { outline: none; color: var(--text); font-family: var(--ff-body); font-size: 14px; line-height: 1.75; }
+.ProseMirror p { margin-bottom: 10px; }
+.ProseMirror p:last-child { margin-bottom: 0; }
+.ProseMirror h1,.ProseMirror h2,.ProseMirror h3 { font-family: var(--ff-disp); letter-spacing: 0.04em; margin: 16px 0 8px; color: var(--text); }
+.ProseMirror h1 { font-size: 26px; } .ProseMirror h2 { font-size: 20px; } .ProseMirror h3 { font-size: 16px; }
+.ProseMirror ul,.ProseMirror ol { padding-left: 18px; margin-bottom: 10px; }
+.ProseMirror li { margin-bottom: 3px; }
+.ProseMirror strong { font-weight: 600; color: var(--text); }
+.ProseMirror em { font-style: italic; color: var(--text-sub); }
+.ProseMirror code { font-family: var(--ff-mono); font-size: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 1px 5px; color: var(--red); }
+.ProseMirror pre { background: var(--surface); border: 1px solid var(--border-red); border-radius: var(--radius-md); padding: 12px 16px; overflow-x: auto; margin-bottom: 12px; }
+.ProseMirror pre code { background: none; border: none; padding: 0; color: var(--text-sub); }
+.ProseMirror blockquote { border-left: 2px solid var(--red); padding-left: 14px; color: var(--text-sub); margin: 12px 0; font-style: italic; }
+.ProseMirror hr { border: none; border-top: 1px solid var(--border-red); margin: 16px 0; }
+.ProseMirror p.is-editor-empty:first-child::before { content: attr(data-placeholder); float: left; color: var(--text-dim); pointer-events: none; height: 0; font-style: italic; }
