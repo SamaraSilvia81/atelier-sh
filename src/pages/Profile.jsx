@@ -50,7 +50,7 @@ export default function Profile() {
     <div className="page-wrap">
       <header style={{ borderBottom: '1px solid var(--border)', padding: '14px 32px', background: 'var(--header-bg)', backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 100, flexShrink: 0 }}>
         <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, letterSpacing: '0.2em', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>
-          ETE Cícero Dias · 2026 <span style={{ color: 'var(--border-bright)', margin: '0 10px' }}>·</span>
+          atelier.sh <span style={{ color: 'var(--border-bright)', margin: '0 10px' }}>·</span>
           <span style={{ color: 'var(--text-sub)' }}>perfil</span>
         </div>
       </header>

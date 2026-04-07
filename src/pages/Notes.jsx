@@ -186,7 +186,7 @@ function NoteEditor({ note, onUpdate }) {
 
 // ── Modal: enviar ao GitHub ───────────────────────────────────────────
 function PushModal({ note, group, onClose }) {
-  const [repo, setRepo] = useState('ETE-CiceroDias/ete-docs-mod3')
+  const [repo, setRepo] = useState('sua-org/repositorio')
   const [path, setPath] = useState(`devolutivas/${group?.name?.toLowerCase().replace(/\s+/g,'-') || 'grupo'}/${note?.title?.toLowerCase().replace(/\s+/g,'-') || 'nota'}.md`)
   const [msg,  setMsg]  = useState(`docs: devolutiva ${group?.name || ''} — ${note?.title || ''}`)
   const [status, setStatus] = useState(null)
@@ -390,7 +390,7 @@ export default function Notes({ org }) {
     <div className="page-wrap" style={{ height: '100vh', overflow: 'hidden' }}>
       <header style={{ borderBottom: '1px solid var(--border)', padding: '14px 32px', background: 'var(--header-bg)', backdropFilter: 'blur(12px)', flexShrink: 0 }}>
         <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, letterSpacing: '0.2em', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>
-          ETE Cícero Dias · 2026
+          atelier.sh
           <span style={{ color: 'var(--border-bright)', margin: '0 10px' }}>·</span>
           <span style={{ color: 'var(--text-sub)' }}>{org?.name || 'sem org'}</span>
           <span style={{ color: 'var(--border-bright)', margin: '0 10px' }}>·</span>

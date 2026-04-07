@@ -1,22 +1,26 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
-export function useGroups(orgId) {
-  const [groups, setGroups] = useState([])
+export function useGroups(orgId, projectId = null) {
+  const [groups,  setGroups]  = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!orgId) { setGroups([]); setLoading(false); return }
     fetchGroups()
-  }, [orgId])
+  }, [orgId, projectId])
 
   async function fetchGroups() {
     setLoading(true)
-    const { data } = await supabase
+    let query = supabase
       .from('groups')
       .select('*')
       .eq('org_id', orgId)
       .order('created_at', { ascending: true })
+
+    if (projectId) query = query.eq('project_id', projectId)
+
+    const { data } = await query
     setGroups(data || [])
     setLoading(false)
   }
@@ -24,20 +28,15 @@ export function useGroups(orgId) {
   async function createGroup(payload) {
     const { data, error } = await supabase
       .from('groups')
-      .insert({ ...payload, org_id: orgId })
-      .select()
-      .single()
+      .insert({ ...payload, org_id: orgId, project_id: projectId || payload.project_id })
+      .select().single()
     if (!error) setGroups(prev => [...prev, data])
     return { data, error }
   }
 
   async function updateGroup(id, payload) {
     const { data, error } = await supabase
-      .from('groups')
-      .update(payload)
-      .eq('id', id)
-      .select()
-      .single()
+      .from('groups').update(payload).eq('id', id).select().single()
     if (!error) setGroups(prev => prev.map(g => g.id === id ? data : g))
     return { data, error }
   }

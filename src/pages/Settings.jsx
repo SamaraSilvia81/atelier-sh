@@ -1,14 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useOrgs } from '../hooks/useOrgs'
 import { useSettings } from '../hooks/useSettings'
+import { useRole } from '../hooks/useRole'
 import { fetchWorkspaces, getTrelloAuthUrl } from '../lib/trello'
 import { useTheme, THEMES } from '../hooks/useTheme.jsx'
+import OrgMembersModal from '../components/layout/OrgMembersModal'
 import { useSounds } from '../hooks/useSounds'
 import { Save, ExternalLink, RefreshCw, Eye, EyeOff, Volume2, VolumeX, Cloud, Check } from 'lucide-react'
 
 export default function Settings({ currentOrgId }) {
   const { orgs, updateOrg } = useOrgs()
   const org = orgs.find(o => o.id === currentOrgId)
+  const { isAdmin } = useRole(currentOrgId)
+  const [showMembers, setShowMembers] = useState(false)
   const { theme, setTheme } = useTheme()
   const sounds = useSounds()
   const { settings, loading: loadingSettings, saving: savingSettings, save: saveSettings } = useSettings()
@@ -94,10 +98,11 @@ export default function Settings({ currentOrgId }) {
   )
 
   return (
+    <>
     <div className="page-wrap">
       <header style={{ borderBottom: '1px solid var(--border)', padding: '14px 32px', background: 'var(--header-bg)', backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 100, flexShrink: 0 }}>
         <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, letterSpacing: '0.2em', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>
-          ETE Cícero Dias · 2026 <span style={{ color: 'var(--border-bright)', margin: '0 10px' }}>·</span>
+          atelier.sh <span style={{ color: 'var(--border-bright)', margin: '0 10px' }}>·</span>
           <span style={{ color: 'var(--text-sub)' }}>configurações</span>
         </div>
       </header>
@@ -111,7 +116,7 @@ export default function Settings({ currentOrgId }) {
           <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.28em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 18 }}>// organização atual</div>
           <div className="field"><label style={lbl}>nome</label><input value={orgForm.name} onChange={e => setOrgForm(p => ({...p, name: e.target.value}))} style={{ ...inp, flex: 'none', width: '100%' }} /></div>
           <div className="field"><label style={lbl}>descrição</label><input value={orgForm.description} onChange={e => setOrgForm(p => ({...p, description: e.target.value}))} placeholder="opcional" style={{ ...inp, flex: 'none', width: '100%' }} /></div>
-          <div className="field"><label style={lbl}>org github</label><input value={orgForm.github_org} onChange={e => setOrgForm(p => ({...p, github_org: e.target.value}))} placeholder="ex: ETE-CiceroDias" style={{ ...inp, flex: 'none', width: '100%' }} /></div>
+          <div className="field"><label style={lbl}>org github</label><input value={orgForm.github_org} onChange={e => setOrgForm(p => ({...p, github_org: e.target.value}))} placeholder="ex: MinhaOrg, empresa-xyz..." style={{ ...inp, flex: 'none', width: '100%' }} /></div>
           <button onClick={saveOrg} className="btn btn-primary"><Save size={12} /> {saved === 'org' ? '✓ salvo' : 'salvar'}</button>
         </div>}
 
@@ -125,7 +130,10 @@ export default function Settings({ currentOrgId }) {
             </a>
           </div>
           <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius)', padding: 12, fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.8, borderLeft: '2px solid var(--border-red)', marginTop: 14 }}>
-            <div style={{ color: 'var(--text-sub)', marginBottom: 4 }}>// use token clássico (não fine-grained) com escopo:</div>
+            <div style={{ color: 'var(--text-sub)', marginBottom: 4 }}>// uso do GitHub é opcional — cada organização decide:</div>
+            <div>• configure o push de devolutivas se quiser usar integração com repos</div>
+            <div>• sem token configurado, o Atelier funciona normalmente sem GitHub</div>
+            <div style={{ marginTop: 8, color: 'var(--text-sub)' }}>// use token clássico (não fine-grained) com escopo:</div>
             <div>• <span style={{ color: 'var(--red)' }}>repo</span> — acesso completo + push</div>
           </div>
         </div>
@@ -216,6 +224,30 @@ export default function Settings({ currentOrgId }) {
           </button>
         </div>
 
+        {org && isAdmin && (
+          <div style={S}>
+            <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 18, letterSpacing: '0.05em', marginBottom: 4 }}>MEMBROS</div>
+            <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.28em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 18 }}>// convidar e gerenciar colaboradores</div>
+            <p style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 14 }}>
+              Convide pessoas para sua organização por e-mail. Membros com role <span style={{ color: 'var(--text-sub)' }}>admin</span> podem criar e editar grupos e projetos. <span style={{ color: 'var(--text-sub)' }}>Viewers</span> têm acesso somente leitura.
+            </p>
+            <button onClick={() => setShowMembers(true)} className="btn btn-primary" style={{ fontSize: 11 }}>
+              gerenciar membros
+            </button>
+          </div>
+        )}
+
+        {/* Membros — só admin */}
+        {isAdmin && org && (
+          <div style={S}>
+            <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 18, letterSpacing: '0.05em', marginBottom: 4 }}>MEMBROS</div>
+            <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.28em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 18 }}>// convide colaboradores para esta organização</div>
+            <button onClick={() => setShowMembers(true)} className="btn btn-primary" style={{ gap: 8 }}>
+              gerenciar membros e convites
+            </button>
+          </div>
+        )}
+
         <div style={S}>
           <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 18, letterSpacing: '0.05em', marginBottom: 4 }}>MIGRAR DADOS</div>
           <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.28em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 18 }}>// importar do dashboard mod1</div>
@@ -223,6 +255,9 @@ export default function Settings({ currentOrgId }) {
         </div>
       </div>
     </div>
+
+      {showMembers && org && <OrgMembersModal org={org} onClose={() => setShowMembers(false)} />}
+    </>
   )
 }
 

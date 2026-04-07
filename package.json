@@ -1,7 +1,7 @@
 {
-  "name": "atelier-sh",
+  "name": "atelier-sh-v30",
   "private": true,
-  "version": "0.0.0",
+  "version": "30.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

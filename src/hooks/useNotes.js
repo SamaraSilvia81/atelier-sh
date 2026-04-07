@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from './useAuth'
 
-// Hook por grupo (NotesPanel)
 export function useNotes(groupId, orgId) {
-  const [notes, setNotes] = useState([])
+  const { user }  = useAuth()
+  const [notes,   setNotes]   = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -23,7 +24,7 @@ export function useNotes(groupId, orgId) {
 
   async function createNote(payload = {}) {
     const { data, error } = await supabase.from('notes')
-      .insert({ group_id: groupId, org_id: orgId, title: payload.title || 'Nova anotação', content: payload.content || '', pinned: false })
+      .insert({ group_id: groupId, org_id: orgId, title: payload.title || 'Nova anotação', content: payload.content || '', pinned: false, author_id: user?.id, project_id: payload.project_id || null })
       .select().single()
     if (!error) setNotes(prev => [data, ...prev])
     return { data, error }
@@ -46,31 +47,35 @@ export function useNotes(groupId, orgId) {
   return { notes, loading, createNote, updateNote, deleteNote, togglePin, refresh: fetchNotes }
 }
 
-// Hook por org (página de Anotações)
-export function useOrgNotes(orgId) {
-  const [notes, setNotes] = useState([])
+export function useOrgNotes(orgId, projectId = null) {
+  const { user }  = useAuth()
+  const [notes,   setNotes]   = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!orgId) { setNotes([]); setLoading(false); return }
     fetchAll()
-  }, [orgId])
+  }, [orgId, projectId])
 
   async function fetchAll() {
     setLoading(true)
-    const { data } = await supabase
+    let query = supabase
       .from('notes')
       .select('*, groups(id, name, color)')
       .eq('org_id', orgId)
       .order('pinned', { ascending: false })
       .order('updated_at', { ascending: false })
+
+    if (projectId) query = query.eq('project_id', projectId)
+
+    const { data } = await query
     setNotes(data || [])
     setLoading(false)
   }
 
-  async function createNote(groupId, title = 'Nova anotação') {
+  async function createNote(groupId, title = 'Nova anotação', extraPayload = {}) {
     const { data, error } = await supabase.from('notes')
-      .insert({ group_id: groupId, org_id: orgId, title, content: '', pinned: false })
+      .insert({ group_id: groupId, org_id: orgId, title, content: '', pinned: false, author_id: user?.id, project_id: projectId || null, ...extraPayload })
       .select('*, groups(id, name, color)').single()
     if (!error) setNotes(prev => [data, ...prev])
     return { data, error }
