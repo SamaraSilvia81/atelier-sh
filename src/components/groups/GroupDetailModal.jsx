@@ -382,9 +382,10 @@ export default function GroupDetailModal({ group, trelloToken, onClose, onEdit, 
                     </div>
                   ))}
 
-                  {/* KANBAN: colunas horizontais com scroll */}
+                  {/* KANBAN: colunas horizontais com scroll no TOPO */}
                   {trelloView === 'kanban' && (
-                    <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8 }}>
+                    <div style={{ overflowX: 'auto', transform: 'rotateX(180deg)', paddingBottom: 4 }}>
+                    <div style={{ display: 'flex', gap: 12, transform: 'rotateX(180deg)', paddingTop: 8 }}>
                       {trelloLists.map(list => (
                         <div key={list.id} style={{ minWidth: 200, maxWidth: 220, flexShrink: 0, background: 'var(--surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', padding: '10px 10px 12px' }}>
                           <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.2em', color: 'var(--red)', textTransform: 'uppercase', marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -418,6 +419,7 @@ export default function GroupDetailModal({ group, trelloToken, onClose, onEdit, 
                           </div>
                         </div>
                       ))}
+                    </div>
                     </div>
                   )}
                 </>
@@ -481,27 +483,44 @@ export default function GroupDetailModal({ group, trelloToken, onClose, onEdit, 
             </div>
           )}
 
-          {/* ── FIGMA ── */}
-          {tab === 'figma' && (
-            <div>
-              {!localStorage.getItem('atelier_figma_token')
-                ? <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: '#c8922a' }}>configure o token do Figma nas configurações</div>
-                : loading.fig ? <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-dim)' }}>carregando_</div>
-                : figma ? (
-                  <div>
-                    {/* Thumbnail + info */}
-                    {figma.thumbnailUrl && (
-                      <a href={figma.url} target="_blank" rel="noopener" style={{ display: 'block', marginBottom: 14, borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border)', position: 'relative' }}>
-                        <img src={figma.thumbnailUrl} alt={figma.name} style={{ width: '100%', maxHeight: 180, objectFit: 'cover', display: 'block' }} />
-                        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: 'all 0.2s', fontFamily: 'var(--ff-mono)', fontSize: 12, color: '#fff', gap: 6 }}
-                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.5)'; e.currentTarget.style.opacity = 1 }}
-                          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,0,0,0)'; e.currentTarget.style.opacity = 0 }}>
-                          <ExternalLink size={14} /> abrir no Figma
-                        </div>
+          {tab === 'figma' && (() => {
+            const embedUrl = group.figma_url
+              ? `https://www.figma.com/embed?embed_host=share&url=${encodeURIComponent(group.figma_url)}`
+              : null
+            const hasToken = !!localStorage.getItem('atelier_figma_token')
+            return (
+              <div>
+                {/* Iframe embed — sempre disponível se tiver URL */}
+                {embedUrl && (
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.25em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ color: '#a259ff' }}>◈</span> visualizar arquivo
+                    </div>
+                    <div style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-red)', background: '#1a1a1a' }}>
+                      <iframe
+                        src={embedUrl}
+                        style={{ width: '100%', height: 480, border: 'none', display: 'block' }}
+                        allowFullScreen
+                        title="Figma Embed"
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                      <a href={group.figma_url} target="_blank" rel="noopener"
+                        style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.08em', color: '#a259ff', border: '1px solid #a259ff40', textDecoration: 'none', background: 'rgba(162,89,255,0.06)' }}>
+                        <ExternalLink size={11} /> abrir no figma
                       </a>
-                    )}
+                    </div>
+                  </div>
+                )}
 
-                    {/* Cabeçalho do arquivo */}
+                {/* Dados da API (se tiver token) */}
+                {!hasToken && !embedUrl && (
+                  <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: '#c8922a' }}>configure o token do Figma nas configurações</div>
+                )}
+                {hasToken && loading.fig && <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-dim)' }}>carregando_</div>}
+                {hasToken && figma && (
+                  <div>
+                    <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.25em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 8 }}>// detalhes do arquivo</div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 10 }}>
                       <div>
                         <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 15, color: '#a259ff', marginBottom: 3 }}>◈ {figma.name}</div>
@@ -509,12 +528,8 @@ export default function GroupDetailModal({ group, trelloToken, onClose, onEdit, 
                           modificado {timeAgo(figma.lastModified)} · v{figma.version}
                         </div>
                       </div>
-                      <a href={figma.url} target="_blank" rel="noopener" className="btn btn-ghost" style={{ fontSize: 10, borderColor: '#a259ff40', color: '#a259ff', flexShrink: 0 }}>
-                        <ExternalLink size={11} /> abrir arquivo
-                      </a>
                     </div>
 
-                    {/* Páginas com deep links */}
                     {figma.pages?.length > 0 && (
                       <div>
                         <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.25em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 8 }}>
@@ -540,17 +555,10 @@ export default function GroupDetailModal({ group, trelloToken, onClose, onEdit, 
                       </div>
                     )}
                   </div>
-                ) : (
-                  <div>
-                    <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-dim)', marginBottom: 12 }}>não foi possível carregar via API — abrindo direto:</div>
-                    <a href={group.figma_url} target="_blank" rel="noopener" className="btn btn-ghost" style={{ fontSize: 11, color: '#a259ff', borderColor: '#a259ff40' }}>
-                      <ExternalLink size={12} /> abrir no figma ↗
-                    </a>
-                  </div>
-                )
-              }
-            </div>
-          )}
+                )}
+              </div>
+            )
+          })()}
         </div>
       </div>
 

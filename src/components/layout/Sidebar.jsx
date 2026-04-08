@@ -4,10 +4,12 @@ import { useAuth } from '../../hooks/useAuth'
 import { useOrgs } from '../../hooks/useOrgs'
 import { useTheme } from '../../hooks/useTheme.jsx'
 import { useProjects } from '../../hooks/useProjects'
+import { useGroups } from '../../hooks/useGroups'
 import { useRole } from '../../hooks/useRole'
 import {
   LayoutDashboard, FileText, Settings, LogOut, Plus, ChevronLeft, ChevronRight,
-  Sun, Moon, Menu, X, Check, CircleUser, Pencil, FolderKanban, ExternalLink
+  Sun, Moon, Menu, X, Check, CircleUser, Pencil, FolderKanban, ExternalLink,
+  Users, ChevronDown, ChevronUp
 } from 'lucide-react'
 import OrgModal from './OrgModal'
 import OrgMembersModal from './OrgMembersModal'
@@ -16,27 +18,39 @@ import ProjectModal from '../projects/ProjectModal'
 const EXTENSION_URL = 'https://chrome.google.com/webstore/detail/atelier-sh'
 
 export default function Sidebar({ currentOrgId, setCurrentOrgId, currentProjectId, setCurrentProjectId, collapsed, setCollapsed }) {
-  const { user, signOut }                       = useAuth()
+  const { user, signOut }                         = useAuth()
   const { orgs, createOrg, updateOrg, deleteOrg } = useOrgs()
-  const { theme, toggleTheme }                   = useTheme()
+  const { theme, toggleTheme }                    = useTheme()
   const currentOrg = orgs.find(o => o.id === currentOrgId) || orgs[0]
-  const { role, isAdmin }                        = useRole(currentOrgId)
+  const { role, isAdmin }                         = useRole(currentOrgId)
   const { projects, createProject, updateProject } = useProjects(currentOrgId)
+  const { groups }                                = useGroups(currentOrgId, currentProjectId)
   const navigate  = useNavigate()
   const location  = useLocation()
   const isDark    = !theme.endsWith('-light')
 
-  const [showOrgModal,     setShowOrgModal]     = useState(false)
-  const [showMembers,      setShowMembers]       = useState(false)
-  const [editingOrg,       setEditingOrg]        = useState(null)
-  const [showOrgMenu,      setShowOrgMenu]       = useState(false)
-  const [showProjectModal, setShowProjectModal]  = useState(false)
-  const [editingProject,   setEditingProject]    = useState(null)
-  const [mobileOpen,       setMobileOpen]        = useState(false)
-  const [orgSaved,         setOrgSaved]          = useState(false)
+  const [showOrgModal,      setShowOrgModal]      = useState(false)
+  const [showMembers,       setShowMembers]        = useState(false)
+  const [editingOrg,        setEditingOrg]         = useState(null)
+  const [showOrgMenu,       setShowOrgMenu]        = useState(false)
+  const [showProjectModal,  setShowProjectModal]   = useState(false)
+  const [editingProject,    setEditingProject]     = useState(null)
+  const [mobileOpen,        setMobileOpen]         = useState(false)
+  const [orgSaved,          setOrgSaved]           = useState(false)
+  const [showGroupsPreview, setShowGroupsPreview]  = useState(true)
 
   function isActive(p) { return p === '/' ? location.pathname === '/' : location.pathname.startsWith(p) }
-  function navTo(path)  { navigate(path); setMobileOpen(false); if (path === '/') setCurrentProjectId(null) }
+
+  function navTo(path) {
+    navigate(path)
+    setMobileOpen(false)
+  }
+
+  function selectProject(id) {
+    setCurrentProjectId(id)
+    if (location.pathname !== '/') navigate('/')
+    setMobileOpen(false)
+  }
 
   function selectOrg(id) {
     setCurrentOrgId(id)
@@ -73,7 +87,7 @@ export default function Sidebar({ currentOrgId, setCurrentOrgId, currentProjectI
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
 
-        {/* Logo + Org switcher */}
+        {/* Logo */}
         <div style={{ padding: c ? '16px 0' : '18px 18px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: c ? 'center' : 'space-between', minHeight: 62 }}>
           {c ? (
             <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 18, color: 'var(--red)' }}>⬡</span>
@@ -92,77 +106,141 @@ export default function Sidebar({ currentOrgId, setCurrentOrgId, currentProjectI
           )}
         </div>
 
-        {/* Org selector */}
-        {!c && (
-          <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border)', position: 'relative' }}>
+        {/* ── Org selector ── */}
+        <div style={{ padding: c ? '8px 4px' : '8px 10px', borderBottom: '1px solid var(--border)', position: 'relative' }}>
+          {c ? (
+            <button
+              onClick={() => setShowOrgMenu(v => !v)}
+              title={`org: ${currentOrg?.name || '—'}`}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '9px 0', borderRadius: 'var(--radius)', background: showOrgMenu ? 'var(--red-dim)' : 'var(--surface)', border: `1px solid ${showOrgMenu ? 'var(--border-red)' : 'var(--border)'}`, cursor: 'pointer' }}>
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: currentOrg?.color || 'var(--red)', display: 'block' }} />
+            </button>
+          ) : (
             <button onClick={() => setShowOrgMenu(v => !v)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 'var(--radius)', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontFamily: 'var(--ff-mono)', fontSize: 11, letterSpacing: '0.08em', cursor: 'pointer' }}>
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: currentOrg?.color || 'var(--red)', flexShrink: 0 }} />
               <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase' }}>{currentOrg?.name || 'sem org'}</span>
               <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', flexShrink: 0 }}>{role || ''}</span>
             </button>
+          )}
 
-            {showOrgMenu && (
-              <div onClick={e => e.stopPropagation()} style={{ position: 'fixed', top: 'auto', left: col ? 'var(--sidebar-col)' : 'var(--sidebar-w)', marginLeft: 8, width: 230, background: 'var(--bg-card)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius-md)', zIndex: 500, padding: 6, boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
-                <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.3em', color: 'var(--text-dim)', textTransform: 'uppercase', padding: '4px 8px 8px' }}>organizações</div>
-                {orgs.map(org => (
-                  <div key={org.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <button onClick={() => selectOrg(org.id)} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: currentOrgId === org.id ? 'var(--text)' : 'var(--text-sub)', background: currentOrgId === org.id ? 'var(--red-dim)' : 'transparent', border: currentOrgId === org.id ? '1px solid var(--border-red)' : '1px solid transparent', textAlign: 'left' }}>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: org.color || 'var(--red)', flexShrink: 0 }} />
-                      {org.name}
-                      {currentOrgId === org.id && orgSaved && <span style={{ marginLeft: 'auto', color: '#5aab6e', display: 'flex', alignItems: 'center', gap: 3, fontSize: 10 }}><Check size={10} /> salvo</span>}
+          {showOrgMenu && (
+            <div onClick={e => e.stopPropagation()} style={{ position: 'fixed', top: 62, left: c ? 'var(--sidebar-col)' : 'var(--sidebar-w)', marginLeft: 8, width: 230, background: 'var(--bg-card)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius-md)', zIndex: 500, padding: 6, boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+              <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.3em', color: 'var(--text-dim)', textTransform: 'uppercase', padding: '4px 8px 8px' }}>organizações</div>
+              {orgs.map(org => (
+                <div key={org.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <button onClick={() => selectOrg(org.id)} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: currentOrgId === org.id ? 'var(--text)' : 'var(--text-sub)', background: currentOrgId === org.id ? 'var(--red-dim)' : 'transparent', border: currentOrgId === org.id ? '1px solid var(--border-red)' : '1px solid transparent', textAlign: 'left' }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: org.color || 'var(--red)', flexShrink: 0 }} />
+                    {org.name}
+                    {currentOrgId === org.id && orgSaved && <span style={{ marginLeft: 'auto', color: '#5aab6e', display: 'flex', alignItems: 'center', gap: 3, fontSize: 10 }}><Check size={10} /> salvo</span>}
+                  </button>
+                  {isAdmin && (
+                    <button onClick={() => { setEditingOrg(org); setShowOrgModal(true); setShowOrgMenu(false) }} style={{ padding: '6px 7px', borderRadius: 'var(--radius)', border: '1px solid transparent', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer' }}>
+                      <Pencil size={11} />
                     </button>
-                    {isAdmin && (
-                      <button onClick={() => { setEditingOrg(org); setShowOrgModal(true); setShowOrgMenu(false) }} style={{ padding: '6px 7px', borderRadius: 'var(--radius)', border: '1px solid transparent', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer' }}>
-                        <Pencil size={11} />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                <div style={{ borderTop: '1px solid var(--border)', margin: '6px 0' }} />
-                {isAdmin && (
-                  <button onClick={() => { setShowMembers(true); setShowOrgMenu(false) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-                    <span style={{ fontSize: 12 }}>⊹</span> membros
-                  </button>
-                )}
-                {isAdmin && (
-                  <button onClick={() => { setEditingOrg(null); setShowOrgModal(true); setShowOrgMenu(false) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--red)' }}>
-                    <Plus size={12} /> nova organização
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Seletor de projeto */}
-        {!c && projects.length > 0 && (
-          <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border)' }}>
-            <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.28em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 5 }}>projeto</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <button onClick={() => setCurrentProjectId(null)} style={{ ...navBtn(!currentProjectId), fontSize: 10, padding: '6px 10px' }}>
-                <FolderKanban size={11} style={{ flexShrink: 0 }} />
-                todos os projetos
-              </button>
-              {projects.map(p => (
-                <button key={p.id} onClick={() => setCurrentProjectId(p.id)} style={{ ...navBtn(currentProjectId === p.id), fontSize: 10, padding: '6px 10px' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: p.type === 'individual' ? '50%' : 2, background: currentProjectId === p.id ? 'var(--red)' : 'var(--text-dim)', flexShrink: 0 }} />
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'left' }}>{p.name}</span>
-                </button>
+                  )}
+                </div>
               ))}
+              <div style={{ borderTop: '1px solid var(--border)', margin: '6px 0' }} />
               {isAdmin && (
+                <button onClick={() => { setShowMembers(true); setShowOrgMenu(false) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                  <Users size={12} /> membros
+                </button>
+              )}
+              {isAdmin && (
+                <button onClick={() => { setEditingOrg(null); setShowOrgModal(true); setShowOrgMenu(false) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--red)' }}>
+                  <Plus size={12} /> nova organização
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── Seletor de projeto ── */}
+        {projects.length > 0 && (
+          <div style={{ padding: c ? '6px 4px' : '8px 10px', borderBottom: '1px solid var(--border)' }}>
+            {!c && <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.28em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 5 }}>projeto</div>}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {c ? (
+                <button onClick={() => selectProject(null)} title="todos os projetos" style={{ ...navBtn(!currentProjectId), padding: '9px 0' }}>
+                  <FolderKanban size={13} style={{ flexShrink: 0 }} />
+                </button>
+              ) : (
+                <button onClick={() => selectProject(null)} style={{ ...navBtn(!currentProjectId), fontSize: 10, padding: '6px 10px' }}>
+                  <FolderKanban size={11} style={{ flexShrink: 0 }} />
+                  todos os projetos
+                </button>
+              )}
+
+              {projects.map(p => (
+                c ? (
+                  <button key={p.id} onClick={() => selectProject(p.id)} title={p.name}
+                    style={{ ...navBtn(currentProjectId === p.id), padding: '9px 0' }}>
+                    <span style={{ width: 8, height: 8, borderRadius: p.type === 'individual' ? '50%' : 2, background: currentProjectId === p.id ? 'var(--red)' : 'var(--text-dim)', flexShrink: 0, display: 'block' }} />
+                  </button>
+                ) : (
+                  <button key={p.id} onClick={() => selectProject(p.id)} style={{ ...navBtn(currentProjectId === p.id), fontSize: 10, padding: '6px 10px' }}>
+                    <span style={{ width: 6, height: 6, borderRadius: p.type === 'individual' ? '50%' : 2, background: currentProjectId === p.id ? 'var(--red)' : 'var(--text-dim)', flexShrink: 0 }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'left' }}>{p.name}</span>
+                  </button>
+                )
+              ))}
+
+              {isAdmin && !c && (
                 <button onClick={() => { setEditingProject(null); setShowProjectModal(true) }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--text-dim)', border: '1px dashed var(--border)', background: 'transparent', cursor: 'pointer', marginTop: 2 }}>
                   <Plus size={10} /> novo projeto
+                </button>
+              )}
+              {isAdmin && c && (
+                <button onClick={() => { setEditingProject(null); setShowProjectModal(true) }} title="novo projeto"
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '7px 0', borderRadius: 'var(--radius)', color: 'var(--text-dim)', border: '1px dashed var(--border)', background: 'transparent', cursor: 'pointer', marginTop: 2 }}>
+                  <Plus size={11} />
                 </button>
               )}
             </div>
           </div>
         )}
 
-        {/* Nav principal */}
+        {/* ── Preview de grupos ── */}
+        {currentProjectId && groups.length > 0 && (
+          <div style={{ padding: c ? '6px 4px' : '8px 10px', borderBottom: '1px solid var(--border)' }}>
+            {!c && (
+              <button
+                onClick={() => setShowGroupsPreview(v => !v)}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.28em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: showGroupsPreview ? 5 : 0, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                <span>grupos ({groups.length})</span>
+                {showGroupsPreview ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+              </button>
+            )}
+            {(showGroupsPreview || c) && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {groups.slice(0, c ? 6 : 8).map(g => {
+                  const statusColor = g.status === 'active' ? '#5aab6e' : g.status === 'attention' ? '#c8922a' : 'var(--border)'
+                  return c ? (
+                    <div key={g.id} title={g.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px 0' }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor, display: 'block' }} />
+                    </div>
+                  ) : (
+                    <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '4px 10px', borderRadius: 'var(--radius)' }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor, flexShrink: 0 }} />
+                      <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, letterSpacing: '0.04em' }}>{g.name}</span>
+                    </div>
+                  )
+                })}
+                {groups.length > 8 && !c && (
+                  <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', padding: '2px 10px', letterSpacing: '0.1em' }}>
+                    +{groups.length - 8} mais
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Nav principal ── */}
         <nav style={{ flex: 1, padding: c ? '10px 6px' : '10px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
           {[
             { icon: LayoutDashboard, label: 'projetos',  path: '/' },
-            { icon: FileText,        label: 'anotações',  path: '/notes' },
+            { icon: FileText,        label: 'anotações', path: '/notes' },
           ].map(({ icon: Icon, label, path }) => (
             <button key={path} onClick={() => navTo(path)} title={c ? label : ''} style={navBtn(isActive(path))}>
               <Icon size={14} style={{ flexShrink: 0 }} />
@@ -170,14 +248,13 @@ export default function Sidebar({ currentOrgId, setCurrentOrgId, currentProjectI
             </button>
           ))}
 
-          {/* Link extensão Chrome */}
           <a href={EXTENSION_URL} target="_blank" rel="noreferrer" title={c ? 'extensão chrome' : ''} style={{ ...navBtn(false), textDecoration: 'none', marginTop: 8, borderStyle: 'dashed', color: 'var(--red)', borderColor: 'var(--border-red)', opacity: 0.7 }}>
             <ExternalLink size={13} style={{ flexShrink: 0 }} />
             {!c && 'extensão chrome'}
           </a>
         </nav>
 
-        {/* Rodapé */}
+        {/* ── Rodapé ── */}
         <div style={{ padding: c ? '8px 6px' : '8px 8px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 2 }}>
           {[
             { icon: CircleUser, label: 'perfil',        path: '/profile' },

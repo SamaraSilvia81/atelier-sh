@@ -4,10 +4,10 @@ import { useAuth }    from '../hooks/useAuth'
 import GroupCard      from '../components/groups/GroupCard'
 import GroupModal     from '../components/groups/GroupModal'
 import NotesPanel     from '../components/notes/NotesPanel'
-import { Plus, LayoutGrid, List, X, ChevronLeft, BarChart2 } from 'lucide-react'
+import { LayoutGrid, List, ChevronLeft } from 'lucide-react'
 import { useSounds }  from '../hooks/useSounds'
 
-export default function GroupsDashboard({ org, project, projectId, role, isAdmin, trelloToken, onBack }) {
+export default function GroupsDashboard({ org, project, projectId, isAdmin, trelloToken, onBack }) {
   const { user }    = useAuth()
   const { groups, loading, createGroup, updateGroup, deleteGroup } = useGroups(org?.id, projectId)
   const sounds      = useSounds()
@@ -126,13 +126,15 @@ export default function GroupsDashboard({ org, project, projectId, role, isAdmin
             <strong style={{ color: 'var(--text-muted)' }}>{filtered.length}</strong> grupos
           </span>
           <div style={{ display: 'flex', gap: 2 }}>
-            {[['grid', LayoutGrid], ['list', List]].map(([v, Icon]) => (
+            {[['grid', LayoutGrid], ['list', List]].map(([v, IconComponent]) => (
               <button key={v} onClick={() => setView(v)} style={{
                 padding: 7, borderRadius: 'var(--radius)',
                 background: view === v ? 'var(--surface)' : 'transparent',
                 color: view === v ? 'var(--red)' : 'var(--text-dim)',
                 border: '1px solid transparent',
-              }}><Icon size={13} /></button>
+              }}>
+                <IconComponent size={13} />
+              </button>
             ))}
           </div>
           {isAdmin && (
@@ -197,7 +199,7 @@ export default function GroupsDashboard({ org, project, projectId, role, isAdmin
         )}
       </main>
 
-      <SiteFooter org={org} />
+      <SiteFooter />
 
       {showModal && isAdmin && (
         <GroupModal
@@ -210,27 +212,13 @@ export default function GroupsDashboard({ org, project, projectId, role, isAdmin
       )}
 
       {notesGroup && (
-        <div style={{ position: 'fixed', inset: 0, background: 'var(--overlay)', zIndex: 300, display: 'flex', alignItems: 'stretch', justifyContent: 'flex-end' }}
-          onClick={e => e.target === e.currentTarget && setNotesGroup(null)}>
-          <div style={{ width: '100%', maxWidth: 520, background: 'var(--bg)', boxShadow: '-8px 0 32px rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 16, letterSpacing: '0.06em' }}>{notesGroup.name}</div>
-                <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.2em', color: 'var(--text-dim)', textTransform: 'uppercase' }}>// anotações</div>
-              </div>
-              <button onClick={() => setNotesGroup(null)} style={{ color: 'var(--text-muted)', cursor: 'pointer' }}><X size={16} /></button>
-            </div>
-            <div style={{ flex: 1, overflow: 'hidden' }}>
-              <NotesPanel group={notesGroup} orgId={org?.id} isAdmin={isAdmin} />
-            </div>
-          </div>
-        </div>
+        <NotesPanel group={notesGroup} orgId={org?.id} isAdmin={isAdmin} onClose={() => setNotesGroup(null)} />
       )}
     </div>
   )
 }
 
-function SiteFooter({ org }) {
+function SiteFooter() {
   return (
     <footer style={{
       borderTop: '1px solid var(--border)', padding: '14px var(--content-pad)',
