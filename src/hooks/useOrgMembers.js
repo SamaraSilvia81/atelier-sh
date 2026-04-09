@@ -71,6 +71,19 @@ export function useOrgMembers(orgId) {
     return { data, error }
   }, [orgId, user?.id])
 
+  // Cria convite sem e-mail — gera só o link para compartilhar
+  const createInviteLink = useCallback(async (role = 'viewer') => {
+    const { data, error } = await supabase
+      .from('org_invites')
+      .insert({ org_id: orgId, email: `link-${Date.now()}@link.atelier`, role, invited_by: user.id })
+      .select().single()
+    if (!error && data) {
+      setInvites(prev => [...prev, data])
+      await logActivity(orgId, user.id, 'invited', 'invite', data.id, `link (${role})`, { role, via: 'link' })
+    }
+    return { data, error }
+  }, [orgId, user?.id])
+
   const revokeInvite = useCallback(async (inviteId) => {
     const target = invites.find(i => i.id === inviteId)
     const { error } = await supabase.from('org_invites').update({ status: 'expired' }).eq('id', inviteId)
@@ -117,7 +130,7 @@ export function useOrgMembers(orgId) {
   return {
     members, invites, myRole, loading, error,
     isAdmin, isViewer,
-    invite, revokeInvite, updateRole, removeMember, acceptInvite,
+    invite, createInviteLink, revokeInvite, updateRole, removeMember, acceptInvite,
     refresh: load,
   }
 }

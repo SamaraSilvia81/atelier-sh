@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { X, UserMinus, Mail, Trash2, AlertCircle, RefreshCw, ChevronDown, ChevronRight, Shield, Eye, Pencil, Zap, Layers } from 'lucide-react'
+import { X, UserMinus, Mail, Trash2, AlertCircle, RefreshCw, ChevronDown, ChevronRight, Shield, Eye, Pencil, Zap, Layers, Copy, CheckCircle2 } from 'lucide-react'
 import { useOrgMembers } from '../../hooks/useOrgMembers'
 import { useMemberPermissions } from '../../hooks/useMemberPermissions'
 import { useGroups } from '../../hooks/useGroups'
@@ -247,23 +247,36 @@ function MemberRow({ member, isAdmin, orgId, groups, perms, setPermission, remov
 
 export default function OrgMembersModal({ org, onClose, initialTab = 'members', forceAdmin = false }) {
   const orgId = org?.id
-  const { members, invites, loading, error, isAdmin: isAdminMember, invite, revokeInvite, updateRole, removeMember, refresh } = useOrgMembers(orgId)
+  const { members, invites, loading, error, isAdmin: isAdminMember, invite, createInviteLink, revokeInvite, updateRole, removeMember, refresh } = useOrgMembers(orgId)
   const { perms, setPermission, removePermission } = useMemberPermissions(orgId)
   const { groups } = useGroups(orgId)
 
   // forceAdmin: owner da org que não está em org_members ainda
   const isAdmin = forceAdmin || isAdminMember
 
-  const [tab,        setTab]        = useState(initialTab)  // 'members' | 'invites'
+  const [tab,        setTab]        = useState(initialTab)  // 'members' | 'invites' | 'invite'
+  const [inviteMode, setInviteMode] = useState('link')      // 'email' | 'link'
   const [email,      setEmail]      = useState('')
   const [role,       setRole]       = useState('viewer')
   const [saving,     setSaving]     = useState(false)
   const [err,        setErr]        = useState(null)
   const [toRemove,   setToRemove]   = useState(null)
+  const [copiedId,   setCopiedId]   = useState(null)
 
   const mono = { fontFamily: 'var(--ff-mono)' }
 
-  async function handleInvite() {
+  function buildLink(token) {
+    return `${window.location.origin}/invite?token=${token}`
+  }
+
+  async function copyLink(inv) {
+    const url = buildLink(inv.token)
+    await navigator.clipboard.writeText(url)
+    setCopiedId(inv.id)
+    setTimeout(() => setCopiedId(null), 2000)
+  }
+
+  async function handleInviteByEmail() {
     if (!email.trim()) return
     setSaving(true); setErr(null)
     const { error } = await invite(email, role)
@@ -271,6 +284,18 @@ export default function OrgMembersModal({ org, onClose, initialTab = 'members', 
     else { setEmail(''); setTab('invites') }
     setSaving(false)
   }
+
+  async function handleInviteByLink() {
+    setSaving(true); setErr(null)
+    const { data, error } = await createInviteLink(role)
+    if (error) setErr(error.message)
+    else if (data) {
+      await copyLink(data)
+      setTab('invites')
+    }
+    setSaving(false)
+  }
+
 
   async function handleConfirmRemove() {
     if (!toRemove) return
@@ -373,96 +398,185 @@ export default function OrgMembersModal({ org, onClose, initialTab = 'members', 
               {tab === 'invites' && (
                 <div>
                   {invites.length === 0 ? (
-                    <div style={{ ...mono, fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.1em', padding: '24px 0', textAlign: 'center' }}>
-                      nenhum convite pendente
-                    </div>
-                  ) : invites.map(inv => (
-                    <div key={inv.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border)', gap: 8 }}>
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ ...mono, fontSize: 11, color: 'var(--text-sub)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {inv.email}
-                        </div>
-                        <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
-                          <span style={{ ...mono, fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{inv.role}</span>
-                          <span style={{ ...mono, fontSize: 9, color: 'var(--text-dim)' }}>·</span>
-                          <span style={{ ...mono, fontSize: 9, color: 'var(--text-dim)' }}>
-                            expira {new Date(inv.expires_at).toLocaleDateString('pt-BR')}
-                          </span>
-                        </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '32px 0', textAlign: 'center' }}>
+                      <div style={{ ...mono, fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>
+                        nenhum convite pendente
                       </div>
                       {isAdmin && (
-                        <button
-                          onClick={() => revokeInvite(inv.id)}
-                          title="Revogar convite"
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', padding: 2, transition: 'color var(--fast)' }}
-                          onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
-                          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}
-                        >
-                          <Trash2 size={13} />
+                        <button onClick={() => setTab('invite')} className="btn btn-primary" style={{ fontSize: 10, marginTop: 4 }}>
+                          + criar convite
                         </button>
                       )}
                     </div>
-                  ))}
+                  ) : invites.map(inv => {
+                    const isLink = inv.email?.startsWith('link-')
+                    const link   = buildLink(inv.token)
+                    const copied = copiedId === inv.id
+                    return (
+                      <div key={inv.id} style={{ borderBottom: '1px solid var(--border)', padding: '12px 0' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                              <span style={{ ...mono, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase',
+                                padding: '2px 6px', borderRadius: 'var(--radius)',
+                                background: isLink ? 'var(--red-dim)' : 'var(--surface)',
+                                color: isLink ? 'var(--red)' : 'var(--text-dim)',
+                                border: `1px solid ${isLink ? 'var(--border-red)' : 'var(--border)'}`,
+                              }}>
+                                {isLink ? '🔗 link' : '✉ e-mail'}
+                              </span>
+                              <span style={{ ...mono, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
+                                padding: '2px 6px', borderRadius: 'var(--radius)',
+                                background: 'var(--surface)', color: 'var(--text-muted)',
+                                border: '1px solid var(--border)',
+                              }}>
+                                {inv.role}
+                              </span>
+                              <span style={{ ...mono, fontSize: 9, color: 'var(--text-dim)' }}>
+                                expira {new Date(inv.expires_at).toLocaleDateString('pt-BR')}
+                              </span>
+                            </div>
+                            {!isLink && (
+                              <div style={{ ...mono, fontSize: 11, color: 'var(--text-sub)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {inv.email}
+                              </div>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                            {/* copiar link */}
+                            <button
+                              onClick={() => copyLink(inv)}
+                              title="Copiar link de convite"
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 4,
+                                ...mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase',
+                                padding: '4px 8px', borderRadius: 'var(--radius)', cursor: 'pointer',
+                                border: copied ? '1px solid #5aab6e' : '1px solid var(--border)',
+                                background: copied ? 'rgba(90,171,110,0.1)' : 'var(--surface)',
+                                color: copied ? '#5aab6e' : 'var(--text-muted)',
+                                transition: 'all var(--fast)',
+                              }}
+                            >
+                              {copied ? <><CheckCircle2 size={11} /> copiado!</> : <><Copy size={11} /> copiar link</>}
+                            </button>
+                            {isAdmin && (
+                              <button
+                                onClick={() => revokeInvite(inv.id)}
+                                title="Revogar convite"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', padding: 4, transition: 'color var(--fast)' }}
+                                onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
+                                onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* preview do link */}
+                        <div style={{
+                          marginTop: 6, padding: '6px 10px',
+                          background: 'var(--bg-alt)', borderRadius: 'var(--radius)',
+                          border: '1px solid var(--border)',
+                          display: 'flex', alignItems: 'center', gap: 8,
+                        }}>
+                          <span style={{ ...mono, fontSize: 9, color: 'var(--text-dim)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {link}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
 
               {/* ── TAB: CONVIDAR ── */}
               {tab === 'invite' && isAdmin && (
                 <div>
-                  <div style={{ ...mono, fontSize: 9, letterSpacing: '0.2em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 16 }}>
-                    // enviar convite por e-mail
+                  {/* toggle modo */}
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
+                    {[
+                      { val: 'link',  label: '🔗 gerar link',    sub: 'qualquer pessoa com o link entra' },
+                      { val: 'email', label: '✉ por e-mail',     sub: 'convite enviado por e-mail' },
+                    ].map(m => (
+                      <button key={m.val} onClick={() => setInviteMode(m.val)} style={{
+                        flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 3,
+                        padding: '10px 12px', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                        border: inviteMode === m.val ? '1px solid var(--border-red)' : '1px solid var(--border)',
+                        background: inviteMode === m.val ? 'var(--red-dim)' : 'var(--surface)',
+                        transition: 'all var(--fast)',
+                      }}>
+                        <span style={{ ...mono, fontSize: 10, letterSpacing: '0.1em', color: inviteMode === m.val ? 'var(--text)' : 'var(--text-muted)' }}>{m.label}</span>
+                        <span style={{ ...mono, fontSize: 9, color: 'var(--text-dim)' }}>{m.sub}</span>
+                      </button>
+                    ))}
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {/* role */}
                     <div>
-                      <label style={{ display: 'block', ...mono, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--text-dim)', marginBottom: 5 }}>e-mail</label>
-                      <input
-                        value={email}
-                        onChange={e => setEmail(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleInvite()}
-                        placeholder="email@exemplo.com"
-                        type="email"
-                        autoFocus
-                        style={{ width: '100%', ...mono, fontSize: 11, background: 'var(--bg-alt)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', outline: 'none', boxSizing: 'border-box' }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', ...mono, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--text-dim)', marginBottom: 5 }}>role inicial</label>
+                      <label style={{ display: 'block', ...mono, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--text-dim)', marginBottom: 6 }}>role</label>
                       <div style={{ display: 'flex', gap: 6 }}>
                         {ROLES.map(r => (
-                          <button
-                            key={r.val}
-                            onClick={() => setRole(r.val)}
-                            style={{
-                              flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2,
-                              padding: '9px 12px', borderRadius: 'var(--radius-md)', cursor: 'pointer',
-                              border: role === r.val ? '1px solid var(--border-red)' : '1px solid var(--border)',
-                              background: role === r.val ? 'var(--red-dim)' : 'var(--surface)',
-                              transition: 'all var(--fast)',
-                            }}
-                          >
+                          <button key={r.val} onClick={() => setRole(r.val)} style={{
+                            flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2,
+                            padding: '9px 12px', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                            border: role === r.val ? '1px solid var(--border-red)' : '1px solid var(--border)',
+                            background: role === r.val ? 'var(--red-dim)' : 'var(--surface)',
+                            transition: 'all var(--fast)',
+                          }}>
                             <span style={{ ...mono, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: role === r.val ? 'var(--text)' : 'var(--text-muted)' }}>{r.label}</span>
                             <span style={{ ...mono, fontSize: 9, color: 'var(--text-dim)' }}>{r.desc}</span>
                           </button>
                         ))}
                       </div>
                     </div>
+
+                    {/* e-mail (só no modo e-mail) */}
+                    {inviteMode === 'email' && (
+                      <div>
+                        <label style={{ display: 'block', ...mono, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--text-dim)', marginBottom: 6 }}>e-mail</label>
+                        <input
+                          value={email}
+                          onChange={e => setEmail(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && handleInviteByEmail()}
+                          placeholder="email@exemplo.com"
+                          type="email"
+                          autoFocus
+                          style={{ width: '100%', ...mono, fontSize: 11, background: 'var(--bg-alt)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '9px 12px', outline: 'none', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                    )}
+
                     {err && (
                       <div style={{ ...mono, fontSize: 11, color: 'var(--red)', display: 'flex', alignItems: 'center', gap: 6 }}>
                         <AlertCircle size={12} /> {err}
                       </div>
                     )}
+
                     <button
-                      onClick={handleInvite}
-                      disabled={saving || !email.trim()}
+                      onClick={inviteMode === 'link' ? handleInviteByLink : handleInviteByEmail}
+                      disabled={saving || (inviteMode === 'email' && !email.trim())}
                       className="btn btn-primary"
                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: saving ? 0.7 : 1 }}
                     >
-                      <Mail size={13} />
-                      {saving ? 'enviando...' : 'enviar convite'}
+                      {saving
+                        ? 'gerando...'
+                        : inviteMode === 'link'
+                          ? <><Copy size={13} /> gerar e copiar link</>
+                          : <><Mail size={13} /> enviar convite</>
+                      }
                     </button>
+
+                    {inviteMode === 'link' && (
+                      <div style={{ ...mono, fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.6, padding: '8px 10px', background: 'var(--surface)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                        O link gerado vai aparecer na aba <strong style={{ color: 'var(--text-muted)' }}>convites</strong> e já será copiado automaticamente. Expira em 7 dias.
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
+
             </>
           )}
         </div>
