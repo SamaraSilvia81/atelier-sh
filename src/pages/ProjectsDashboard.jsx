@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useProjects } from '../hooks/useProjects'
 import { useGroups }   from '../hooks/useGroups'
-import { Plus, LayoutGrid, List, FolderKanban, User, ChevronRight } from 'lucide-react'
+import { Plus, LayoutGrid, List, FolderKanban, User, ChevronRight, Pencil } from 'lucide-react'
 import ProjectModal from '../components/projects/ProjectModal'
 import { useSounds } from '../hooks/useSounds'
 
@@ -12,102 +12,144 @@ function statusLabel(s) {
   return                        { label: 'inativo',  color: 'var(--text-dim)' }
 }
 
-function ProjectCard({ project, groupCount, onOpen, view }) {
+function VisibilityBadge({ visibility }) {
+  if (!visibility || visibility === 'org') return null
+  return (
+    <span style={{
+      fontFamily: 'var(--ff-mono)', fontSize: 8, letterSpacing: '0.16em',
+      textTransform: 'uppercase', color: 'var(--text-dim)',
+      border: '1px solid var(--border)', borderRadius: 3,
+      padding: '1px 5px', flexShrink: 0,
+    }}>
+      privado
+    </span>
+  )
+}
+
+function ProjectCard({ project, groupCount, onOpen, onEdit, isAdmin, view }) {
   const st = statusLabel(project.status)
   const isGrid = view === 'grid'
 
   return (
-    <button
-      onClick={() => onOpen(project)}
-      style={{
-        display: 'flex', flexDirection: isGrid ? 'column' : 'row',
-        alignItems: isGrid ? 'flex-start' : 'center',
-        gap: isGrid ? 14 : 0,
-        textAlign: 'left', cursor: 'pointer',
-        background: 'var(--bg-card)', border: '1px solid var(--border)',
-        borderRadius: isGrid ? 'var(--radius-md)' : 0,
-        borderBottom: isGrid ? undefined : '1px solid var(--border)',
-        padding: isGrid ? '20px 20px 16px' : '12px 20px',
-        transition: 'all var(--fast)',
-        width: '100%',
-      }}
+    <div style={{
+      display: 'flex', flexDirection: isGrid ? 'column' : 'row',
+      alignItems: isGrid ? 'flex-start' : 'center',
+      gap: isGrid ? 14 : 0,
+      background: 'var(--bg-card)', border: '1px solid var(--border)',
+      borderRadius: isGrid ? 'var(--radius-md)' : 0,
+      borderBottom: isGrid ? undefined : '1px solid var(--border)',
+      padding: isGrid ? '20px 20px 16px' : '12px 20px',
+      transition: 'all var(--fast)',
+      position: 'relative',
+    }}
       onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-red)'; e.currentTarget.style.background = 'var(--surface)' }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = isGrid ? 'var(--border)' : 'transparent'; e.currentTarget.style.background = 'var(--bg-card)' }}
     >
-      {/* ícone tipo */}
-      <div style={{
-        width: isGrid ? 36 : 28, height: isGrid ? 36 : 28,
-        borderRadius: 8, flexShrink: 0,
-        background: 'var(--red-dim)', border: '1px solid var(--border-red)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        marginRight: isGrid ? 0 : 14,
-      }}>
-        {project.type === 'individual'
-          ? <User size={isGrid ? 16 : 13} style={{ color: 'var(--red)' }} />
-          : <FolderKanban size={isGrid ? 16 : 13} style={{ color: 'var(--red)' }} />
-        }
-      </div>
+      {/* botão editar — hover, só admin */}
+      {isAdmin && (
+        <button
+          onClick={e => { e.stopPropagation(); onEdit(project) }}
+          title="Editar projeto"
+          style={{
+            position: 'absolute', top: 10, right: 10,
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)', padding: '4px 6px',
+            cursor: 'pointer', color: 'var(--text-dim)',
+            display: 'flex', alignItems: 'center',
+            opacity: 0, transition: 'opacity var(--fast)',
+          }}
+          className="project-card-edit"
+        >
+          <Pencil size={11} />
+        </button>
+      )}
 
-      {/* info principal */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: isGrid ? 6 : 2 }}>
-          <div style={{
-            fontFamily: 'var(--ff-disp)', fontSize: isGrid ? 18 : 14,
-            letterSpacing: '0.04em', color: 'var(--text)',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
-            {project.name}
-          </div>
-          {/* badge status */}
-          <span style={{
-            fontFamily: 'var(--ff-mono)', fontSize: 8, letterSpacing: '0.18em',
-            textTransform: 'uppercase', color: st.color,
-            border: `1px solid ${st.color}`, borderRadius: 3,
-            padding: '1px 5px', flexShrink: 0, opacity: 0.9,
-          }}>
-            {st.label}
-          </span>
+      {/* área clicável para entrar no projeto */}
+      <button
+        onClick={() => onOpen(project)}
+        style={{
+          display: 'flex', flexDirection: isGrid ? 'column' : 'row',
+          alignItems: isGrid ? 'flex-start' : 'center',
+          gap: isGrid ? 14 : 0,
+          width: '100%', background: 'none', border: 'none',
+          cursor: 'pointer', textAlign: 'left', padding: 0,
+        }}
+      >
+        {/* ícone tipo */}
+        <div style={{
+          width: isGrid ? 36 : 28, height: isGrid ? 36 : 28,
+          borderRadius: 8, flexShrink: 0,
+          background: 'var(--red-dim)', border: '1px solid var(--border-red)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          marginRight: isGrid ? 0 : 14,
+        }}>
+          {project.type === 'individual'
+            ? <User size={isGrid ? 16 : 13} style={{ color: 'var(--red)' }} />
+            : <FolderKanban size={isGrid ? 16 : 13} style={{ color: 'var(--red)' }} />
+          }
         </div>
 
-        {project.description && (
-          <div style={{
-            fontFamily: 'var(--ff-mono)', fontSize: 10, color: 'var(--text-dim)',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            marginBottom: isGrid ? 10 : 0,
-          }}>
-            {project.description}
+        {/* info principal */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: isGrid ? 6 : 2 }}>
+            <div style={{
+              fontFamily: 'var(--ff-disp)', fontSize: isGrid ? 18 : 14,
+              letterSpacing: '0.04em', color: 'var(--text)',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {project.name}
+            </div>
+            <span style={{
+              fontFamily: 'var(--ff-mono)', fontSize: 8, letterSpacing: '0.18em',
+              textTransform: 'uppercase', color: st.color,
+              border: `1px solid ${st.color}`, borderRadius: 3,
+              padding: '1px 5px', flexShrink: 0, opacity: 0.9,
+            }}>
+              {st.label}
+            </span>
+            <VisibilityBadge visibility={project.visibility} />
           </div>
-        )}
 
-        {/* contadores */}
-        {isGrid && (
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          {project.description && (
+            <div style={{
+              fontFamily: 'var(--ff-mono)', fontSize: 10, color: 'var(--text-dim)',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              marginBottom: isGrid ? 10 : 0,
+            }}>
+              {project.description}
+            </div>
+          )}
+
+          {isGrid && (
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+                {groupCount} {project.type === 'individual' ? 'pessoa(s)' : 'grupo(s)'}
+              </span>
+              <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-dim)' }}>
+                {project.type === 'individual' ? '// individual' : '// equipes'}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {!isGrid && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
             <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
               {groupCount} {project.type === 'individual' ? 'pessoa(s)' : 'grupo(s)'}
             </span>
-            <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-dim)' }}>
-              {project.type === 'individual' ? '// individual' : '// equipes'}
-            </span>
+            <ChevronRight size={14} style={{ color: 'var(--text-dim)' }} />
           </div>
         )}
-      </div>
+      </button>
 
-      {/* lista: contadores à direita */}
-      {!isGrid && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
-          <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
-            {groupCount} {project.type === 'individual' ? 'pessoa(s)' : 'grupo(s)'}
-          </span>
-          <ChevronRight size={14} style={{ color: 'var(--text-dim)' }} />
-        </div>
-      )}
-    </button>
+      <style>{`.project-card-edit { opacity: 0 } div:hover > .project-card-edit { opacity: 1 }`}</style>
+    </div>
   )
 }
 
 export default function ProjectsDashboard({ org, isAdmin, onSelectProject }) {
   const sounds = useSounds()
-  const { projects, loading, createProject, updateProject } = useProjects(org?.id)
+  const { projects, loading, createProject, updateProject, deleteProject } = useProjects(org?.id)
   const { groups } = useGroups(org?.id)
 
   const [view,         setView]         = useState('grid')
@@ -115,7 +157,6 @@ export default function ProjectsDashboard({ org, isAdmin, onSelectProject }) {
   const [editingProj,  setEditingProj]  = useState(null)
   const [search,       setSearch]       = useState('')
 
-  // conta grupos por projeto
   function groupCount(projectId) {
     return groups.filter(g => g.project_id === projectId).length
   }
@@ -132,6 +173,18 @@ export default function ProjectsDashboard({ org, isAdmin, onSelectProject }) {
     if (!result?.error) { setEditingProj(null); sounds.play('success') }
     else sounds.play('error')
     return result
+  }
+
+  async function handleDeleteProject(id) {
+    const result = await deleteProject(id)
+    if (!result?.error) { setEditingProj(null); sounds.play('success') }
+    else sounds.play('error')
+    return result
+  }
+
+  function openEditModal(project) {
+    setEditingProj(project)
+    setShowModal(true)
   }
 
   if (!org) return (
@@ -213,7 +266,9 @@ export default function ProjectsDashboard({ org, isAdmin, onSelectProject }) {
                 project={p}
                 groupCount={groupCount(p.id)}
                 view={view}
+                isAdmin={isAdmin}
                 onOpen={onSelectProject}
+                onEdit={openEditModal}
               />
             ))}
 
@@ -249,6 +304,7 @@ export default function ProjectsDashboard({ org, isAdmin, onSelectProject }) {
           project={editingProj}
           onClose={() => { setShowModal(false); setEditingProj(null) }}
           onSave={handleSaveProject}
+          onDelete={editingProj ? handleDeleteProject : undefined}
         />
       )}
     </div>

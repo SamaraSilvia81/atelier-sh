@@ -1,6 +1,19 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './useAuth'
+import { logActivity } from './useActivityLog'
+
+// Busca perfis por user_ids manualmente (fallback quando o join FK não existe)
+async function fetchProfilesFor(userIds) {
+  if (!userIds.length) return {}
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, name, avatar')
+    .in('id', userIds)
+  const map = {}
+  for (const p of data || []) map[p.id] = p
+  return map
+}
 
 export function useOrgMembers(orgId) {
   const { user } = useAuth()
@@ -11,102 +24,88 @@ export function useOrgMembers(orgId) {
   const [error,    setError]    = useState(null)
 
   useEffect(() => {
-    if (!orgId || !user) {
-      setLoading(false)
-      return
-    }
+    if (!orgId || !user) { setLoading(false); return }
     load()
   }, [orgId, user?.id])
 
   const load = useCallback(async () => {
     if (!orgId || !user) return
-    setLoading(true)
-    setError(null)
-
+    setLoading(true); setError(null)
     try {
       const [memsResult, invsResult] = await Promise.all([
-        supabase
-          .from('org_members')
-          // profiles não tem coluna "settings" — removida para evitar erro de join
-          .select('*, profiles(name, avatar)')
-          .eq('org_id', orgId),
-        supabase
-          .from('org_invites')
-          .select('*')
-          .eq('org_id', orgId)
-          .eq('status', 'pending'),
+        supabase.from('org_members').select('*').eq('org_id', orgId),
+        supabase.from('org_invites').select('*').eq('org_id', orgId).eq('status', 'pending'),
       ])
-
       if (memsResult.error) throw memsResult.error
       if (invsResult.error) throw invsResult.error
 
       const mems = memsResult.data || []
-      const invs = invsResult.data || []
 
-      setMembers(mems)
-      setInvites(invs)
+      // busca perfis separadamente para evitar dependência de FK no schema cache
+      const profileMap = await fetchProfilesFor(mems.map(m => m.user_id))
+      const memsWithProfiles = mems.map(m => ({ ...m, profiles: profileMap[m.user_id] || null }))
 
-      const me = mems.find(m => m.user_id === user.id)
+      setMembers(memsWithProfiles)
+      setInvites(invsResult.data || [])
+
+      const me = memsWithProfiles.find(m => m.user_id === user.id)
       setMyRole(me?.role ?? null)
     } catch (err) {
-      console.error('[useOrgMembers] load error:', err)
+      console.error('[useOrgMembers]', err)
       setError(err.message || 'Erro ao carregar membros')
     } finally {
-      // garante que o loading sempre termina, mesmo em caso de erro
       setLoading(false)
     }
   }, [orgId, user?.id])
 
-  // Convidar por e-mail
   const invite = useCallback(async (email, role = 'viewer') => {
     if (!email?.trim()) return { data: null, error: { message: 'E-mail obrigatório' } }
-
     const { data, error } = await supabase
       .from('org_invites')
       .insert({ org_id: orgId, email: email.trim().toLowerCase(), role, invited_by: user.id })
-      .select()
-      .single()
-
-    if (!error && data) setInvites(prev => [...prev, data])
+      .select().single()
+    if (!error && data) {
+      setInvites(prev => [...prev, data])
+      await logActivity(orgId, user.id, 'invited', 'invite', data.id, email, { role })
+    }
     return { data, error }
   }, [orgId, user?.id])
 
-  // Revogar convite
   const revokeInvite = useCallback(async (inviteId) => {
-    const { error } = await supabase
-      .from('org_invites')
-      .update({ status: 'expired' })
-      .eq('id', inviteId)
-
-    if (!error) setInvites(prev => prev.filter(i => i.id !== inviteId))
+    const target = invites.find(i => i.id === inviteId)
+    const { error } = await supabase.from('org_invites').update({ status: 'expired' }).eq('id', inviteId)
+    if (!error) {
+      setInvites(prev => prev.filter(i => i.id !== inviteId))
+      await logActivity(orgId, user.id, 'deleted', 'invite', inviteId, target?.email)
+    }
     return { error }
-  }, [])
+  }, [orgId, user?.id, invites])
 
-  // Alterar role — recarrega profiles junto para manter dados completos
   const updateRole = useCallback(async (memberId, role) => {
+    const current = members.find(m => m.id === memberId)
     const { data, error } = await supabase
-      .from('org_members')
-      .update({ role })
-      .eq('id', memberId)
-      .select('*, profiles(name, avatar)')
-      .single()
-
-    if (!error && data) setMembers(prev => prev.map(m => m.id === memberId ? data : m))
+      .from('org_members').update({ role }).eq('id', memberId)
+      .select().single()
+    if (!error && data) {
+      // reanexa o perfil que já temos em memória
+      const withProfile = { ...data, profiles: current?.profiles || null }
+      setMembers(prev => prev.map(m => m.id === memberId ? withProfile : m))
+      await logActivity(orgId, user.id, 'role_changed', 'member', memberId,
+        current?.profiles?.name || memberId, { from: current?.role, to: role, user_id: data.user_id })
+    }
     return { data, error }
-  }, [])
+  }, [orgId, user?.id, members])
 
-  // Remover membro
   const removeMember = useCallback(async (memberId) => {
-    const { error } = await supabase
-      .from('org_members')
-      .delete()
-      .eq('id', memberId)
-
-    if (!error) setMembers(prev => prev.filter(m => m.id !== memberId))
+    const target = members.find(m => m.id === memberId)
+    const { error } = await supabase.from('org_members').delete().eq('id', memberId)
+    if (!error) {
+      setMembers(prev => prev.filter(m => m.id !== memberId))
+      await logActivity(orgId, user.id, 'deleted', 'member', memberId, target?.profiles?.name || memberId)
+    }
     return { error }
-  }, [])
+  }, [orgId, user?.id, members])
 
-  // Aceitar convite (via token na URL)
   const acceptInvite = useCallback(async (token) => {
     const { data, error } = await supabase.rpc('accept_invite', { invite_token: token })
     return { data, error }

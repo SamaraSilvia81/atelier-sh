@@ -8,7 +8,8 @@ import { pushFileToRepo } from '../../lib/github'
 import { createTrelloCard, fetchBoardLists } from '../../lib/trello'
 import {
   X, Plus, Pin, PinOff, Trash2, Bold, Italic, List, ListOrdered,
-  Heading2, Code, Download, Send, LayoutList, ImageIcon, CheckCircle2, AlertCircle
+  Heading2, Code, Download, Send, LayoutList, ImageIcon, CheckCircle2, AlertCircle,
+  Globe, Lock, User
 } from 'lucide-react'
 import { useSounds } from '../../hooks/useSounds'
 
@@ -389,6 +390,14 @@ export default function NotesPanel({ group, orgId, onClose }) {
                     <button onClick={() => togglePin(activeNote.id, activeNote.pinned)} title={activeNote.pinned ? 'desafixar' : 'fixar'} style={{ padding: '4px 6px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: activeNote.pinned ? 'var(--red-dim)' : 'var(--surface)', color: activeNote.pinned ? '#F0EDE8' : 'var(--text-muted)', cursor: 'pointer' }}>
                       {activeNote.pinned ? <PinOff size={11} /> : <Pin size={11} />}
                     </button>
+                    {/* visibility toggle */}
+                    <button
+                      onClick={() => updateNote(activeNote.id, { visibility: activeNote.visibility === 'private' ? 'org' : 'private' })}
+                      title={activeNote.visibility === 'private' ? 'privado — só você vê' : 'visível para a organização'}
+                      style={{ padding: '4px 6px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: activeNote.visibility === 'private' ? 'var(--red-dim)' : 'var(--surface)', color: activeNote.visibility === 'private' ? 'var(--red)' : 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}
+                    >
+                      {activeNote.visibility === 'private' ? <Lock size={11} /> : <Globe size={11} />}
+                    </button>
                     {toolBtn('.md', <Download size={11} />, exportMd, { label: '.md' })}
                     {toolBtn('github', <Send size={11} />, () => setShowPush(true), { label: 'github' })}
                     {toolBtn('trello', <LayoutList size={11} />, () => setShowTrello(true), { label: 'trello' })}
@@ -402,9 +411,29 @@ export default function NotesPanel({ group, orgId, onClose }) {
                 </div>
 
                 {/* Footer */}
-                <div style={{ padding: '5px 16px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text-dim)', fontFamily: 'var(--ff-mono)', display: 'flex', justifyContent: 'space-between', flexShrink: 0 }}>
-                  <span>›_ salvo automaticamente</span>
-                  <span>{new Date(activeNote.updated_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                <div style={{ padding: '5px 16px', borderTop: '1px solid var(--border)', fontSize: 10, color: 'var(--text-dim)', fontFamily: 'var(--ff-mono)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                    <span>›_ salvo automaticamente</span>
+                    {/* quem editou por último */}
+                    {activeNote.editor?.name && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: 'var(--text-dim)', fontSize: 9 }}>
+                        <User size={9} />
+                        editado por <span style={{ color: 'var(--text-muted)' }}>{activeNote.editor.name}</span>
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    {/* badge visibilidade */}
+                    <span style={{
+                      display: 'flex', alignItems: 'center', gap: 3,
+                      fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase',
+                      color: activeNote.visibility === 'private' ? 'var(--red)' : 'var(--text-dim)',
+                    }}>
+                      {activeNote.visibility === 'private' ? <Lock size={8} /> : <Globe size={8} />}
+                      {activeNote.visibility === 'private' ? 'privado' : 'organização'}
+                    </span>
+                    <span>{new Date(activeNote.updated_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
                 </div>
               </>
             ) : (

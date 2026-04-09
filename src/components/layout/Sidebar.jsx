@@ -9,7 +9,7 @@ import { useRole } from '../../hooks/useRole'
 import {
   LayoutDashboard, FileText, Settings, LogOut, Plus, ChevronLeft, ChevronRight,
   Sun, Moon, Menu, X, Check, CircleUser, Pencil, FolderKanban, ExternalLink,
-  Users, ChevronDown, ChevronUp
+  Users, ChevronDown, ChevronUp, Activity
 } from 'lucide-react'
 import OrgModal from './OrgModal'
 import OrgMembersModal from './OrgMembersModal'
@@ -23,7 +23,7 @@ export default function Sidebar({ currentOrgId, setCurrentOrgId, currentProjectI
   const { theme, toggleTheme }                    = useTheme()
   const currentOrg = orgs.find(o => o.id === currentOrgId) || orgs[0]
   const { role, isAdmin }                         = useRole(currentOrgId)
-  const { projects, createProject, updateProject } = useProjects(currentOrgId)
+  const { projects, createProject, updateProject, deleteProject } = useProjects(currentOrgId)
   const { groups }                                = useGroups(currentOrgId, currentProjectId)
   const navigate  = useNavigate()
   const location  = useLocation()
@@ -63,6 +63,12 @@ export default function Sidebar({ currentOrgId, setCurrentOrgId, currentProjectI
     let result
     if (editingProject) result = await updateProject(editingProject.id, payload)
     else result = await createProject(payload)
+    return result
+  }
+
+  async function handleDeleteProject(id) {
+    const result = await deleteProject(id)
+    if (!result?.error) { setShowProjectModal(false); setEditingProject(null) }
     return result
   }
 
@@ -142,11 +148,6 @@ export default function Sidebar({ currentOrgId, setCurrentOrgId, currentProjectI
               ))}
               <div style={{ borderTop: '1px solid var(--border)', margin: '6px 0' }} />
               {isAdmin && (
-                <button onClick={() => { setShowMembers(true); setShowOrgMenu(false) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-                  <Users size={12} /> membros
-                </button>
-              )}
-              {isAdmin && (
                 <button onClick={() => { setEditingOrg(null); setShowOrgModal(true); setShowOrgMenu(false) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--red)' }}>
                   <Plus size={12} /> nova organização
                 </button>
@@ -178,10 +179,27 @@ export default function Sidebar({ currentOrgId, setCurrentOrgId, currentProjectI
                     <span style={{ width: 8, height: 8, borderRadius: p.type === 'individual' ? '50%' : 2, background: currentProjectId === p.id ? 'var(--red)' : 'var(--text-dim)', flexShrink: 0, display: 'block' }} />
                   </button>
                 ) : (
-                  <button key={p.id} onClick={() => selectProject(p.id)} style={{ ...navBtn(currentProjectId === p.id), fontSize: 10, padding: '6px 10px' }}>
-                    <span style={{ width: 6, height: 6, borderRadius: p.type === 'individual' ? '50%' : 2, background: currentProjectId === p.id ? 'var(--red)' : 'var(--text-dim)', flexShrink: 0 }} />
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'left' }}>{p.name}</span>
-                  </button>
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', borderRadius: 'var(--radius)', background: currentProjectId === p.id ? 'var(--red-dim)' : 'transparent', transition: 'background var(--fast)' }}
+                    onMouseEnter={e => { if (currentProjectId !== p.id) e.currentTarget.style.background = 'var(--surface)'; e.currentTarget.querySelector('.proj-edit-btn').style.opacity = '1' }}
+                    onMouseLeave={e => { if (currentProjectId !== p.id) e.currentTarget.style.background = 'transparent'; e.currentTarget.querySelector('.proj-edit-btn').style.opacity = '0' }}
+                  >
+                    <button onClick={() => selectProject(p.id)} style={{ ...navBtn(currentProjectId === p.id), fontSize: 10, padding: '6px 10px', flex: 1, background: 'transparent', border: 'none' }}>
+                      <span style={{ width: 6, height: 6, borderRadius: p.type === 'individual' ? '50%' : 2, background: currentProjectId === p.id ? 'var(--red)' : 'var(--text-dim)', flexShrink: 0 }} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'left' }}>{p.name}</span>
+                    </button>
+                    {isAdmin && (
+                      <button
+                        className="proj-edit-btn"
+                        onClick={e => { e.stopPropagation(); setEditingProject(p); setShowProjectModal(true) }}
+                        title="editar projeto"
+                        style={{ opacity: 0, padding: '4px 6px', marginRight: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', transition: 'opacity var(--fast), color var(--fast)', borderRadius: 'var(--radius)', flexShrink: 0 }}
+                        onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
+                        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}
+                      >
+                        <Pencil size={10} />
+                      </button>
+                    )}
+                  </div>
                 )
               ))}
 
@@ -241,12 +259,25 @@ export default function Sidebar({ currentOrgId, setCurrentOrgId, currentProjectI
           {[
             { icon: LayoutDashboard, label: 'projetos',  path: '/' },
             { icon: FileText,        label: 'anotações', path: '/notes' },
+            { icon: Activity,        label: 'atividade', path: '/activity' },
           ].map(({ icon: Icon, label, path }) => (
             <button key={path} onClick={() => navTo(path)} title={c ? label : ''} style={navBtn(isActive(path))}>
               <Icon size={14} style={{ flexShrink: 0 }} />
               {!c && label}
             </button>
           ))}
+
+          {/* botão membros — visível, fora do menu oculto */}
+          {isAdmin && (
+            <button
+              onClick={() => setShowMembers(true)}
+              title={c ? 'membros' : ''}
+              style={{ ...navBtn(false), marginTop: 4, border: '1px dashed var(--border)', color: 'var(--text-muted)' }}
+            >
+              <Users size={14} style={{ flexShrink: 0 }} />
+              {!c && 'membros'}
+            </button>
+          )}
 
           <a href={EXTENSION_URL} target="_blank" rel="noreferrer" title={c ? 'extensão chrome' : ''} style={{ ...navBtn(false), textDecoration: 'none', marginTop: 8, borderStyle: 'dashed', color: 'var(--red)', borderColor: 'var(--border-red)', opacity: 0.7 }}>
             <ExternalLink size={13} style={{ flexShrink: 0 }} />
@@ -314,9 +345,9 @@ export default function Sidebar({ currentOrgId, setCurrentOrgId, currentProjectI
         }
       `}</style>
 
-      {showMembers    && currentOrg    && <OrgMembersModal org={currentOrg} onClose={() => setShowMembers(false)} />}
+      {showMembers    && currentOrg    && <OrgMembersModal org={currentOrg} forceAdmin={isAdmin} onClose={() => setShowMembers(false)} />}
       {showOrgModal   && <OrgModal onClose={(newId) => { setShowOrgModal(false); setEditingOrg(null); if (newId) setCurrentOrgId(newId) }} onCreate={createOrg} onEdit={updateOrg} onDelete={async (id) => { const r = await deleteOrg(id); if (!r.error && id === currentOrgId) { const rem = orgs.filter(o => o.id !== id); if (rem.length) setCurrentOrgId(rem[0].id) } return r }} editOrg={editingOrg} />}
-      {showProjectModal && <ProjectModal project={editingProject} onClose={() => { setShowProjectModal(false); setEditingProject(null) }} onSave={handleSaveProject} />}
+      {showProjectModal && <ProjectModal project={editingProject} onClose={() => { setShowProjectModal(false); setEditingProject(null) }} onSave={handleSaveProject} onDelete={editingProject ? handleDeleteProject : undefined} />}
     </>
   )
 }

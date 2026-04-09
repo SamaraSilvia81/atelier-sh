@@ -13,6 +13,7 @@ export default function Settings({ currentOrgId }) {
   const org = orgs.find(o => o.id === currentOrgId)
   const { isAdmin } = useRole(currentOrgId)
   const [showMembers, setShowMembers] = useState(false)
+  const [inviteTab,   setInviteTab]   = useState('members')
   const { theme, setTheme } = useTheme()
   const sounds = useSounds()
   const { settings, loading: loadingSettings, saving: savingSettings, save: saveSettings } = useSettings()
@@ -224,27 +225,21 @@ export default function Settings({ currentOrgId }) {
           </button>
         </div>
 
-        {org && isAdmin && (
-          <div style={S}>
-            <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 18, letterSpacing: '0.05em', marginBottom: 4 }}>MEMBROS</div>
-            <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.28em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 18 }}>// convidar e gerenciar colaboradores</div>
-            <p style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 14 }}>
-              Convide pessoas para sua organização por e-mail. Membros com role <span style={{ color: 'var(--text-sub)' }}>admin</span> podem criar e editar grupos e projetos. <span style={{ color: 'var(--text-sub)' }}>Viewers</span> têm acesso somente leitura.
-            </p>
-            <button onClick={() => setShowMembers(true)} className="btn btn-primary" style={{ fontSize: 11 }}>
-              gerenciar membros
-            </button>
-          </div>
-        )}
-
-        {/* Membros — só admin */}
         {isAdmin && org && (
           <div style={S}>
             <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 18, letterSpacing: '0.05em', marginBottom: 4 }}>MEMBROS</div>
-            <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.28em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 18 }}>// convide colaboradores para esta organização</div>
-            <button onClick={() => setShowMembers(true)} className="btn btn-primary" style={{ gap: 8 }}>
-              gerenciar membros e convites
-            </button>
+            <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.28em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 14 }}>// convidar e gerenciar colaboradores</div>
+            <p style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 16 }}>
+              Convide pessoas por e-mail. Membros com role <span style={{ color: 'var(--text-sub)' }}>admin</span> criam e editam grupos e projetos. <span style={{ color: 'var(--text-sub)' }}>Viewers</span> têm acesso somente leitura.
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => { setInviteTab('members'); setShowMembers(true) }} className="btn btn-ghost" style={{ fontSize: 11 }}>
+                ver membros
+              </button>
+              <button onClick={() => { setInviteTab('invite'); setShowMembers(true) }} className="btn btn-primary" style={{ fontSize: 11 }}>
+                + convidar pessoa
+              </button>
+            </div>
           </div>
         )}
 
@@ -256,7 +251,7 @@ export default function Settings({ currentOrgId }) {
       </div>
     </div>
 
-      {showMembers && org && <OrgMembersModal org={org} onClose={() => setShowMembers(false)} />}
+      {showMembers && org && <OrgMembersModal key={inviteTab} org={org} initialTab={inviteTab} forceAdmin={isAdmin} onClose={() => { setShowMembers(false); setInviteTab('members') }} />}
     </>
   )
 }

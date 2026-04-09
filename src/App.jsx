@@ -14,6 +14,7 @@ import Notes           from './pages/Notes'
 import Settings        from './pages/Settings'
 import Profile         from './pages/Profile'
 import AcceptInvite    from './pages/AcceptInvite'
+import ActivityLog     from './pages/ActivityLog'
 import SplashScreen    from './components/SplashScreen'
 import { useTheme, ThemeProvider } from './hooks/useTheme.jsx'
 import { useSounds }   from './hooks/useSounds'
@@ -161,6 +162,7 @@ function AppShell() {
           } />
 
           <Route path="/notes"    element={<Notes    org={currentOrg} projectId={currentProjectId} role={role} isAdmin={isAdmin} />} />
+          <Route path="/activity" element={<ActivityLog org={currentOrg} />} />
           <Route path="/settings" element={<Settings currentOrgId={currentOrgId} />} />
           <Route path="/profile"  element={<Profile />} />
           <Route path="/invite"   element={<AcceptInvite />} />
