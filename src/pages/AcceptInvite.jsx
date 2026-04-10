@@ -4,7 +4,6 @@ import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
 
 export default function AcceptInvite() {
-  
   const [params]   = useSearchParams()
   const { user }   = useAuth()
   const navigate   = useNavigate()
@@ -27,6 +26,13 @@ export default function AcceptInvite() {
     } else {
       setStatus('success')
       setMsg(`Você entrou como ${data.role}!`)
+
+      // Salva a org no localStorage para o App abrir ela automaticamente
+      if (data.org_id) {
+        localStorage.setItem('atelier_org_id', data.org_id)
+        localStorage.removeItem('atelier_project_id')
+      }
+
       setTimeout(() => navigate('/'), 2500)
     }
   }
@@ -43,7 +49,6 @@ export default function AcceptInvite() {
       <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.8 }}>
         Faça login ou crie uma conta para aceitar o convite.
       </div>
-      {/* encodeURIComponent garante que o token não quebra a URL do redirect */}
       <button onClick={() => navigate(`/login?redirect=${encodeURIComponent(`/invite?token=${token}`)}`)} className="btn btn-primary">
         entrar / cadastrar
       </button>
@@ -58,7 +63,7 @@ export default function AcceptInvite() {
         {status === 'error'   && 'ERRO'}
       </div>
       {msg && <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 12, color: status === 'error' ? 'var(--red)' : '#5aab6e', textAlign: 'center' }}>{msg}</div>}
-      {status === 'success' && <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-dim)' }}>redirecionando...</div>}
+      {status === 'success' && <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-dim)' }}>redirecionando para a organização...</div>}
       {status === 'error'   && <button onClick={() => navigate('/')} className="btn btn-ghost">voltar ao início</button>}
     </div>
   )

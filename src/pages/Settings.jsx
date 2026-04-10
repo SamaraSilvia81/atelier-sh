@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react'
 import { useOrgs } from '../hooks/useOrgs'
 import { useSettings } from '../hooks/useSettings'
 import { useRole } from '../hooks/useRole'
+import { useAuth } from '../hooks/useAuth'
 import { fetchWorkspaces, getTrelloAuthUrl } from '../lib/trello'
 import { useTheme, THEMES } from '../hooks/useTheme.jsx'
 import OrgMembersModal from '../components/layout/OrgMembersModal'
 import { useSounds } from '../hooks/useSounds'
-import { Save, ExternalLink, RefreshCw, Eye, EyeOff, Volume2, VolumeX, Cloud, Check } from 'lucide-react'
+import { supabase } from '../lib/supabase'
+import { Save, ExternalLink, RefreshCw, Eye, EyeOff, Volume2, VolumeX, Cloud, Check, Trash2, LogOut, AlertTriangle } from 'lucide-react'
 
 // ── TokenRow declarado FORA do Settings para não recriar a cada render ────────
 const TOKEN_ROW_LBL = { fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--text-dim)', display: 'block', marginBottom: 5 }
@@ -38,6 +40,7 @@ export default function Settings({ currentOrgId }) {
   const { orgs, updateOrg } = useOrgs()
   const org = orgs.find(o => o.id === currentOrgId)
   const { isAdmin } = useRole(currentOrgId)
+  const { user, signOut } = useAuth()
   const [showMembers, setShowMembers] = useState(false)
   const [inviteTab,   setInviteTab]   = useState('members')
   const { theme, setTheme } = useTheme()
@@ -55,6 +58,12 @@ export default function Settings({ currentOrgId }) {
   const [wsStatus,     setWsStatus]     = useState(null)
   const [saved,        setSaved]        = useState('')
   const [orgForm,      setOrgForm]      = useState({ name: '', description: '', github_org: '', trello_workspace_id: '', trello_workspace_name: '' })
+
+  // delete account state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteInput,       setDeleteInput]       = useState('')
+  const [deleting,          setDeleting]          = useState(false)
+  const [deleteError,       setDeleteError]       = useState('')
 
   useEffect(() => {
     if (!loadingSettings) {
@@ -92,6 +101,24 @@ export default function Settings({ currentOrgId }) {
   async function saveOrg() {
     if (!org) return
     await updateOrg(org.id, orgForm); flash('org')
+  }
+
+  async function handleDeleteAccount() {
+    if (deleteInput !== 'DELETAR') return
+    setDeleting(true); setDeleteError('')
+    try {
+      // Chama a Edge Function que deleta a conta usando service role
+      const { error } = await supabase.functions.invoke('delete-account', {
+        body: { userId: user.id },
+      })
+      if (error) throw error
+      // Faz logout e limpa localStorage
+      localStorage.clear()
+      await signOut()
+    } catch (err) {
+      setDeleteError(err.message || 'Erro ao deletar conta. Tente novamente.')
+      setDeleting(false)
+    }
   }
 
   const S   = { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 24, marginBottom: 20 }
@@ -254,6 +281,106 @@ export default function Settings({ currentOrgId }) {
           <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.28em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 18 }}>// importar do dashboard mod1</div>
           <MigrateFromLocalStorage orgId={currentOrgId} />
         </div>
+
+        {/* ── ZONA DE PERIGO ── */}
+        <div style={{ ...S, border: '1px solid var(--border-red)' }}>
+          <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 18, letterSpacing: '0.05em', marginBottom: 4, color: 'var(--red)' }}>ZONA DE PERIGO</div>
+          <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.28em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 18 }}>// ações irreversíveis</div>
+
+          {/* Sair da conta */}
+          <div style={{ marginBottom: 20, paddingBottom: 20, borderBottom: '1px solid var(--border)' }}>
+            <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-sub)', marginBottom: 10 }}>
+              Encerra a sessão atual em todos os dispositivos.
+            </div>
+            <button
+              onClick={signOut}
+              className="btn btn-ghost"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}
+            >
+              <LogOut size={13} /> sair da conta
+            </button>
+          </div>
+
+          {/* Deletar conta */}
+          <div>
+            <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-sub)', marginBottom: 10 }}>
+              Deleta permanentemente sua conta e todos os seus dados. Esta ação não pode ser desfeita.
+            </div>
+
+            {!showDeleteConfirm ? (
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '8px 16px', borderRadius: 'var(--radius)',
+                  border: '1px solid var(--border-red)',
+                  background: 'transparent', color: 'var(--red)',
+                  fontFamily: 'var(--ff-mono)', fontSize: 11, letterSpacing: '0.1em',
+                  cursor: 'pointer', transition: 'all var(--fast)',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--red-dim)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+              >
+                <Trash2 size={13} /> deletar minha conta
+              </button>
+            ) : (
+              <div style={{
+                padding: 16, borderRadius: 'var(--radius-md)',
+                background: 'var(--red-dim)', border: '1px solid var(--border-red)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                  <AlertTriangle size={14} color="var(--red)" />
+                  <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--red)', letterSpacing: '0.12em' }}>
+                    CONFIRMAR EXCLUSÃO
+                  </span>
+                </div>
+                <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-muted)', marginBottom: 12, lineHeight: 1.7 }}>
+                  Digite <strong style={{ color: 'var(--text)' }}>DELETAR</strong> para confirmar. Todos os seus dados, organizações e configurações serão removidos permanentemente.
+                </div>
+                <input
+                  value={deleteInput}
+                  onChange={e => setDeleteInput(e.target.value)}
+                  placeholder="DELETAR"
+                  style={{
+                    width: '100%', padding: '9px 12px', marginBottom: 10,
+                    background: 'var(--surface)', border: '1px solid var(--border-red)',
+                    color: 'var(--text)', fontFamily: 'var(--ff-mono)', fontSize: 12,
+                    borderRadius: 'var(--radius)', outline: 'none', boxSizing: 'border-box',
+                  }}
+                />
+                {deleteError && (
+                  <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--red)', marginBottom: 10 }}>
+                    {deleteError}
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => { setShowDeleteConfirm(false); setDeleteInput(''); setDeleteError('') }}
+                    className="btn btn-ghost"
+                    style={{ fontSize: 11 }}
+                  >
+                    cancelar
+                  </button>
+                  <button
+                    onClick={handleDeleteAccount}
+                    disabled={deleteInput !== 'DELETAR' || deleting}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      padding: '8px 16px', borderRadius: 'var(--radius)',
+                      border: 'none', background: deleteInput === 'DELETAR' ? 'var(--red)' : 'var(--border)',
+                      color: '#fff', fontFamily: 'var(--ff-mono)', fontSize: 11,
+                      cursor: deleteInput === 'DELETAR' ? 'pointer' : 'not-allowed',
+                      opacity: deleting ? 0.7 : 1, transition: 'all var(--fast)',
+                    }}
+                  >
+                    <Trash2 size={13} /> {deleting ? 'deletando...' : 'deletar conta'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
       </div>
     </div>
 

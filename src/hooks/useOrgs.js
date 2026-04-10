@@ -15,11 +15,40 @@ export function useOrgs() {
 
   async function fetchOrgs() {
     setLoading(true)
-    const { data } = await supabase
-      .from('organizations')
-      .select('*')
-      .order('created_at', { ascending: true })
-    setOrgs(data || [])
+
+    const [ownerRes, memberRes] = await Promise.all([
+      // orgs onde é dono
+      supabase
+        .from('organizations')
+        .select('*')
+        .eq('owner_id', user.id)
+        .order('created_at', { ascending: true }),
+
+      // orgs onde é membro convidado
+      supabase
+        .from('org_members')
+        .select('org_id, role, organizations(*)')
+        .eq('user_id', user.id),
+    ])
+
+    const ownerOrgs  = ownerRes.data || []
+    const memberOrgs = (memberRes.data || [])
+      .map(m => m.organizations)
+      .filter(Boolean)
+
+    // Mescla sem duplicatas
+    const allIds = new Set(ownerOrgs.map(o => o.id))
+    const merged = [...ownerOrgs]
+    for (const o of memberOrgs) {
+      if (!allIds.has(o.id)) {
+        allIds.add(o.id)
+        merged.push(o)
+      }
+    }
+
+    merged.sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+
+    setOrgs(merged)
     setLoading(false)
   }
 
