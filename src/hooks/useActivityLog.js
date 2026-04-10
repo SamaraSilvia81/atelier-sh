@@ -89,3 +89,31 @@ export function entityLabel(entityType) {
   }
   return map[entityType] || entityType
 }
+// ─── labels legíveis por humanos ─────────────────────────────────────────────
+export function actionLabel(action) {
+  const map = {
+    created:            'criou',
+    updated:            'atualizou',
+    deleted:            'deletou',
+    invited:            'convidou',
+    role_changed:       'alterou a role de',
+    note_edited:        'editou a nota',
+    permission_changed: 'alterou permissões de',
+    status_changed:     'mudou o status de',
+    visibility_changed: 'alterou visibilidade de',
+  }
+  return map[action] || action
+}
+
+export function entityLabel(entityType) {
+  const map = {
+    organization: 'organização',
+    project:      'projeto',
+    group:        'grupo',
+    note:         'nota',
+    member:       'membro',
+    invite:       'convite',
+    permission:   'permissão',
+  }
+  return map[entityType] || entityType
+}

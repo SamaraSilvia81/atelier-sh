@@ -161,7 +161,7 @@ function LogRow({ log }) {
 export default function ActivityLog({ org }) {
   const [entityFilter, setEntityFilter] = useState(null)
 
-  const { logs, loading, hasMore, loadMore, refresh } = useActivityLog(org?.id, {
+  const { logs, loading, hasMore, loadMore, unavailable, refresh } = useActivityLog(org?.id, {
     limit: 40,
     entityType: entityFilter,
   })
@@ -245,6 +245,16 @@ export default function ActivityLog({ org }) {
       <section style={{ padding: '24px var(--content-pad, 32px) 48px', flex: 1 }}>
         {loading && logs.length === 0 ? (
           <div style={{ ...mono, fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.2em' }}>carregando_</div>
+        ) : unavailable ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: '60px 0', textAlign: 'center' }}>
+            <Activity size={32} style={{ color: 'var(--border-acc)' }} />
+            <div style={{ ...mono, fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-dim)', textTransform: 'uppercase' }}>
+              log não disponível
+            </div>
+            <div style={{ ...mono, fontSize: 10, color: 'var(--text-dim)', maxWidth: 340, lineHeight: 1.7 }}>
+              Execute a migration <span style={{ color: 'var(--red)' }}>supabase_migration_v10_fix.sql</span> no SQL Editor do Supabase para ativar o histórico de atividades.
+            </div>
+          </div>
         ) : logs.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: '60px 0', textAlign: 'center' }}>
             <Activity size={32} style={{ color: 'var(--border-acc)' }} />
