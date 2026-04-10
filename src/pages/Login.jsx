@@ -1,10 +1,14 @@
 import { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 
 export default function Login() {
+  
   const { signIn, signUp, signInWithGoogle } = useAuth()
   const navigate  = useNavigate()
+  const [searchParams] = useSearchParams()
+  const redirectTo = searchParams.get('redirect') || '/'
+
   const [mode,     setMode]     = useState('in')
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
@@ -18,7 +22,7 @@ export default function Login() {
     if (mode === 'in') {
       const { error } = await signIn(email, password)
       if (error) setError(error.message)
-      else navigate('/')
+      else navigate(redirectTo)
     } else {
       const { error } = await signUp(email, password)
       if (error) setError(error.message)

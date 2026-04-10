@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
 
 export default function AcceptInvite() {
+  
   const [params]   = useSearchParams()
   const { user }   = useAuth()
   const navigate   = useNavigate()
@@ -42,7 +43,8 @@ export default function AcceptInvite() {
       <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.8 }}>
         Faça login ou crie uma conta para aceitar o convite.
       </div>
-      <button onClick={() => navigate(`/login?redirect=/invite?token=${token}`)} className="btn btn-primary">
+      {/* encodeURIComponent garante que o token não quebra a URL do redirect */}
+      <button onClick={() => navigate(`/login?redirect=${encodeURIComponent(`/invite?token=${token}`)}`)} className="btn btn-primary">
         entrar / cadastrar
       </button>
     </div>

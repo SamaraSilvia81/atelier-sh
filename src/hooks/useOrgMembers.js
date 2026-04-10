@@ -60,14 +60,34 @@ export function useOrgMembers(orgId) {
 
   const invite = useCallback(async (email, role = 'viewer') => {
     if (!email?.trim()) return { data: null, error: { message: 'E-mail obrigatório' } }
+
+    // 1. Insere o convite no banco
     const { data, error } = await supabase
       .from('org_invites')
       .insert({ org_id: orgId, email: email.trim().toLowerCase(), role, invited_by: user.id })
       .select().single()
+
     if (!error && data) {
       setInvites(prev => [...prev, data])
       await logActivity(orgId, user.id, 'invited', 'invite', data.id, email, { role })
+
+      // 2. Dispara a Edge Function para enviar o e-mail
+      try {
+        await supabase.functions.invoke('send-invite-email', {
+          body: {
+            inviteId: data.id,
+            token: data.token,
+            email: email.trim().toLowerCase(),
+            role,
+            orgId,
+          },
+        })
+      } catch (emailErr) {
+        // Não cancela o fluxo se o email falhar — convite já está criado
+        console.warn('[invite] falha ao enviar e-mail:', emailErr)
+      }
     }
+
     return { data, error }
   }, [orgId, user?.id])
 
