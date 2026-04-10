@@ -57,14 +57,15 @@ function AppShell() {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('atelier_sidebar') === 'collapsed')
   const [splashDone, setSplashDone] = useState(() => sessionStorage.getItem('atelier_splash_done') === '1')
 
+  const { role, isAdmin } = useRole(currentOrgId)
+  const { projects }      = useProjects(currentOrgId)
+
   // activeProject derivado — sem useEffect, sem setState cascata
+  // ATENÇÃO: useProjects deve ficar ACIMA deste useMemo (evitar TDZ)
   const activeProject = useMemo(() => {
     if (!currentProjectId || !projects.length) return null
     return projects.find(p => p.id === currentProjectId) || null
   }, [currentProjectId, projects])
-
-  const { role, isAdmin } = useRole(currentOrgId)
-  const { projects }      = useProjects(currentOrgId)
 
   useEffect(() => {
     if (orgs.length === 0) return
