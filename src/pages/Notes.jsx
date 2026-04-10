@@ -1,6 +1,7 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useGroups } from '../hooks/useGroups'
 import { useOrgNotes } from '../hooks/useNotes'
+import { useFolders } from '../hooks/useFolders'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -10,7 +11,9 @@ import { createTrelloCard, fetchBoardLists } from '../lib/trello'
 import {
   Pin, PinOff, Plus, Trash2, Search, Bold, Italic,
   List, ListOrdered, Heading2, Code, FileText,
-  Download, Send, LayoutList, X, ImageIcon, AlertCircle, CheckCircle2
+  Download, Send, LayoutList, X, ImageIcon, AlertCircle, CheckCircle2,
+  FolderPlus, Folder, FolderOpen, ChevronRight, ChevronDown,
+  Pencil, FolderInput,
 } from 'lucide-react'
 
 function debounce(fn, ms) { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms) } }
@@ -35,13 +38,11 @@ function toMarkdown(html) {
     .replace(/\n{3,}/g, '\n\n').trim()
 }
 
-// ── Card modal genérico para confirmações e feedback ──────────────────
 function CardModal({ type = 'confirm', title, message, onConfirm, onClose, confirmLabel = 'confirmar' }) {
   const isConfirm = type === 'confirm'
   const accentColor = type === 'error' ? 'var(--red)' : type === 'success' ? '#5aab6e' : '#c8922a'
   const borderColor = type === 'error' ? 'var(--border-red)' : type === 'success' ? '#2a6e3a' : '#7a5a1a'
   const Icon = type === 'success' ? CheckCircle2 : AlertCircle
-
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'var(--overlay)', zIndex: 700,
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
@@ -51,20 +52,13 @@ function CardModal({ type = 'confirm', title, message, onConfirm, onClose, confi
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 22 }}>
           <Icon size={20} style={{ color: accentColor, flexShrink: 0, marginTop: 3 }} />
           <div>
-            <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 18, letterSpacing: '0.05em', color: 'var(--text)', marginBottom: 7 }}>
-              {title}
-            </div>
-            <div style={{ fontFamily: 'var(--ff-body)', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.65 }}>
-              {message}
-            </div>
+            <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 18, letterSpacing: '0.05em', color: 'var(--text)', marginBottom: 7 }}>{title}</div>
+            <div style={{ fontFamily: 'var(--ff-body)', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.65 }}>{message}</div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-          {isConfirm && (
-            <button onClick={onClose} className="btn btn-ghost">cancelar</button>
-          )}
-          <button onClick={isConfirm ? onConfirm : onClose} className="btn btn-primary"
-            style={{ background: accentColor }}>
+          {isConfirm && <button onClick={onClose} className="btn btn-ghost">cancelar</button>}
+          <button onClick={isConfirm ? onConfirm : onClose} className="btn btn-primary" style={{ background: accentColor }}>
             {isConfirm ? confirmLabel : 'ok'}
           </button>
         </div>
@@ -73,13 +67,11 @@ function CardModal({ type = 'confirm', title, message, onConfirm, onClose, confi
   )
 }
 
-// ── Modal inserir imagem ──────────────────────────────────────────────
 function ImageUrlModal({ onInsert, onClose }) {
   const [url, setUrl] = useState('')
   const [alt, setAlt] = useState('')
   const inp = { width: '100%', padding: '8px 10px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontFamily: 'var(--ff-mono)', fontSize: 11, borderRadius: 'var(--radius)', outline: 'none' }
   const lbl = { fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--text-dim)', display: 'block', marginBottom: 5 }
-
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'var(--overlay)', zIndex: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
       onClick={e => e.target === e.currentTarget && onClose()}>
@@ -111,7 +103,6 @@ function ImageUrlModal({ onInsert, onClose }) {
   )
 }
 
-// ── Toolbar button — fora do NoteEditor para não recriar a cada render ───────
 function ToolbarBtn({ action, active, title, icon }) {
   return (
     <button onClick={action} title={title} style={{
@@ -124,10 +115,8 @@ function ToolbarBtn({ action, active, title, icon }) {
   )
 }
 
-// ── Editor de notas ───────────────────────────────────────────────────
 function NoteEditor({ note, onUpdate }) {
   const [showImgModal, setShowImgModal] = useState(false)
-
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -172,9 +161,7 @@ function NoteEditor({ note, onUpdate }) {
         <ToolbarBtn action={() => editor.chain().focus().toggleCode().run()}             active={editor.isActive('code')}               title="código"    icon={<Code size={12} />} />
         <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 4px' }} />
         <ToolbarBtn action={() => setShowImgModal(true)} active={false} title="inserir imagem (ou ctrl+v para colar)" icon={<ImageIcon size={12} />} />
-        <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', opacity: 0.7 }}>
-          ctrl+v para colar imagem
-        </span>
+        <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', opacity: 0.7 }}>ctrl+v para colar imagem</span>
       </div>
       <EditorContent editor={editor} style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }} />
       {showImgModal && (
@@ -187,11 +174,10 @@ function NoteEditor({ note, onUpdate }) {
   )
 }
 
-// ── Modal: enviar ao GitHub ───────────────────────────────────────────
 function PushModal({ note, group, onClose }) {
-  const [repo, setRepo] = useState('sua-org/repositorio')
-  const [path, setPath] = useState(`devolutivas/${group?.name?.toLowerCase().replace(/\s+/g,'-') || 'grupo'}/${note?.title?.toLowerCase().replace(/\s+/g,'-') || 'nota'}.md`)
-  const [msg,  setMsg]  = useState(`docs: devolutiva ${group?.name || ''} — ${note?.title || ''}`)
+  const [repo, setRepo]     = useState('sua-org/repositorio')
+  const [path, setPath]     = useState(`devolutivas/${group?.name?.toLowerCase().replace(/\s+/g,'-') || 'grupo'}/${note?.title?.toLowerCase().replace(/\s+/g,'-') || 'nota'}.md`)
+  const [msg, setMsg]       = useState(`docs: devolutiva ${group?.name || ''} — ${note?.title || ''}`)
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(false)
 
@@ -241,14 +227,13 @@ function PushModal({ note, group, onClose }) {
   )
 }
 
-// ── Modal: criar card no Trello ───────────────────────────────────────
 function TrelloCardModal({ note, group, trelloToken, onClose }) {
-  const [lists, setLists] = useState([])
-  const [listId, setListId] = useState('')
+  const [lists, setLists]       = useState([])
+  const [listId, setListId]     = useState('')
   const [cardName, setCardName] = useState(note?.title || '')
   const [cardDesc, setCardDesc] = useState(toMarkdown(note?.content || '').substring(0, 300))
-  const [status, setStatus] = useState(null)
-  const [loading, setLoading] = useState(false)
+  const [status, setStatus]     = useState(null)
+  const [loading, setLoading]   = useState(false)
 
   useState(() => {
     if (trelloToken && group?.trello_board_id) {
@@ -307,7 +292,8 @@ function TrelloCardModal({ note, group, trelloToken, onClose }) {
         )}
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={onClose} className="btn btn-ghost" style={{ flex: 1 }}>fechar</button>
-          <button onClick={handleCreate} disabled={loading || !listId || !cardName} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', opacity: (!listId || !cardName) ? 0.4 : 1 }}>
+          <button onClick={handleCreate} disabled={loading || !listId || !cardName} className="btn btn-primary"
+            style={{ flex: 1, justifyContent: 'center', opacity: (!listId || !cardName) ? 0.4 : 1 }}>
             {loading ? 'criando...' : '+ criar card'}
           </button>
         </div>
@@ -316,39 +302,164 @@ function TrelloCardModal({ note, group, trelloToken, onClose }) {
   )
 }
 
-// ── Página principal ──────────────────────────────────────────────────
+function NoteItem({ note, active, indent = false, onClick }) {
+  function stripHtml(html) { return (html || '').replace(/<[^>]*>/g, '').trim() }
+  return (
+    <button onClick={onClick} style={{
+      width: '100%', textAlign: 'left',
+      padding: indent ? '7px 9px 7px 28px' : '8px 9px',
+      borderRadius: 'var(--radius-md)', marginBottom: 2,
+      background: active ? 'var(--red-dim)' : 'transparent',
+      border: active ? '1px solid var(--border-red)' : '1px solid transparent',
+      transition: 'all var(--fast)', cursor: 'pointer',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+        {note.pinned && <Pin size={9} style={{ color: active ? '#F0EDE8' : 'var(--red)', flexShrink: 0 }} />}
+        <span style={{ fontSize: 12, fontWeight: 500, color: active ? '#F0EDE8' : 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {note.title || 'sem título'}
+        </span>
+      </div>
+      {note.content && (
+        <div style={{ fontFamily: 'var(--ff-body)', fontSize: 11, color: active ? 'rgba(240,237,232,0.45)' : 'var(--text-dim)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {stripHtml(note.content).substring(0, 55)}
+        </div>
+      )}
+    </button>
+  )
+}
+
+function FolderRow({ folder, open, onToggle, onRename, onDelete, onAddNote, noteCount }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft]     = useState(folder.name)
+  const [hover, setHover]     = useState(false)
+
+  function commitRename() {
+    if (draft.trim() && draft.trim() !== folder.name) onRename(folder.id, draft.trim())
+    setEditing(false)
+  }
+
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '5px 6px 5px 4px', borderRadius: 'var(--radius)', marginBottom: 1, userSelect: 'none' }}
+    >
+      <button onClick={onToggle} style={{ color: 'var(--text-dim)', cursor: 'pointer', padding: 2, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+        {open ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+      </button>
+      <button onClick={onToggle} style={{ color: open ? 'var(--red)' : 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+        {open ? <FolderOpen size={13} /> : <Folder size={13} />}
+      </button>
+      {editing
+        ? <input
+            autoFocus
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={e => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setEditing(false) }}
+            style={{ flex: 1, minWidth: 0, background: 'var(--surface)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius)', padding: '2px 6px', color: 'var(--text)', fontFamily: 'var(--ff-mono)', fontSize: 11, outline: 'none' }}
+          />
+        : <button onClick={onToggle} style={{ flex: 1, minWidth: 0, textAlign: 'left', fontFamily: 'var(--ff-mono)', fontSize: 11, letterSpacing: '0.05em', color: 'var(--text)', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {folder.name}
+          </button>
+      }
+      {!editing && (
+        <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', flexShrink: 0, opacity: hover ? 0 : 0.7 }}>
+          {noteCount}
+        </span>
+      )}
+      {hover && !editing && (
+        <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+          <button onClick={onAddNote} title="nova nota nesta pasta" style={{ color: 'var(--text-dim)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
+            <Plus size={11} />
+          </button>
+          <button onClick={() => { setDraft(folder.name); setEditing(true) }} title="renomear" style={{ color: 'var(--text-dim)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
+            <Pencil size={10} />
+          </button>
+          <button onClick={() => onDelete(folder.id)} title="excluir pasta" style={{ color: 'var(--text-dim)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
+            <Trash2 size={10} />
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function NewFolderInput({ onConfirm, onCancel }) {
+  const [name, setName] = useState('')
+  return (
+    <div style={{ display: 'flex', gap: 4, alignItems: 'center', padding: '4px 6px', marginBottom: 2 }}>
+      <Folder size={12} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
+      <input
+        autoFocus
+        value={name}
+        onChange={e => setName(e.target.value)}
+        placeholder="nome da pasta..."
+        onKeyDown={e => {
+          if (e.key === 'Enter' && name.trim()) onConfirm(name.trim())
+          if (e.key === 'Escape') onCancel()
+        }}
+        onBlur={() => { if (name.trim()) onConfirm(name.trim()); else onCancel() }}
+        style={{ flex: 1, minWidth: 0, background: 'var(--surface)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius)', padding: '3px 7px', color: 'var(--text)', fontFamily: 'var(--ff-mono)', fontSize: 11, outline: 'none' }}
+      />
+    </div>
+  )
+}
+
 export default function Notes({ org }) {
   const { groups } = useGroups(org?.id)
   const { notes, loading, createNote, updateNote, deleteNote, togglePin } = useOrgNotes(org?.id)
   const trelloToken = localStorage.getItem('atelier_trello_token') || ''
 
-  const [activeNoteId, setActiveNoteId] = useState(null)
-  const [search, setSearch] = useState('')
-  const [groupFilter, setGroupFilter] = useState('all')
-  const [editingTitle, setEditingTitle] = useState(null)
-  const [creating, setCreating] = useState(false)
-  const [showPush, setShowPush] = useState(false)
-  const [showTrello, setShowTrello] = useState(false)
-  const [modal, setModal] = useState(null)
+  const [activeNoteId, setActiveNoteId]     = useState(null)
+  const [search, setSearch]                 = useState('')
+  const [groupFilter, setGroupFilter]       = useState('all')
+  const [editingTitle, setEditingTitle]     = useState(null)
+  const [creating, setCreating]             = useState(false)
+  const [showPush, setShowPush]             = useState(false)
+  const [showTrello, setShowTrello]         = useState(false)
+  const [modal, setModal]                   = useState(null)
+  const [collapsedFolders, setCollapsedFolders] = useState({})
+  const [addingFolder, setAddingFolder]         = useState(false)
+  const [showFolderPicker, setShowFolderPicker] = useState(false)
+
+  const groupForFolders = groupFilter !== 'all' ? groupFilter : null
+  const { folders, createFolder, renameFolder, deleteFolder } = useFolders(groupForFolders, org?.id)
 
   const activeNote  = notes.find(n => n.id === activeNoteId)
   const activeGroup = groups.find(g => g.id === activeNote?.group_id)
 
   const filtered = notes.filter(n => {
     const matchSearch = !search || n.title?.toLowerCase().includes(search.toLowerCase()) || n.content?.replace(/<[^>]*>/g,'').toLowerCase().includes(search.toLowerCase())
-    const matchGroup = groupFilter === 'all' || n.group_id === groupFilter
+    const matchGroup  = groupFilter === 'all' || n.group_id === groupFilter
     return matchSearch && matchGroup
   })
 
   const handleUpdate = useCallback(debounce((id, payload) => updateNote(id, payload), 700), [updateNote])
 
-  async function handleCreate() {
+  async function handleCreate(folderId = null) {
     const gId = groupFilter !== 'all' ? groupFilter : groups[0]?.id
     if (!gId) return
     setCreating(true)
-    const { data } = await createNote(gId)
+    const { data } = await createNote(gId, 'Nova anotação', { folder_id: folderId || null })
     if (data) setActiveNoteId(data.id)
     setCreating(false)
+  }
+
+  async function handleCreateFolder(name) {
+    setAddingFolder(false)
+    await createFolder(name)
+  }
+
+  async function moveNoteToFolder(noteId, folderId) {
+    await updateNote(noteId, { folder_id: folderId || null })
+    setShowFolderPicker(false)
   }
 
   function askDelete(id) {
@@ -364,6 +475,24 @@ export default function Notes({ org }) {
     })
   }
 
+  function askDeleteFolder(folderId) {
+    const f = folders.find(x => x.id === folderId)
+    const count = filtered.filter(n => n.folder_id === folderId).length
+    setModal({
+      type: 'confirm',
+      title: 'EXCLUIR PASTA',
+      message: `Excluir a pasta "${f?.name}"? ${count > 0 ? `As ${count} anotação(ões) dentro dela ficam sem pasta — não serão apagadas.` : 'Ela está vazia.'}`,
+      onConfirm: async () => {
+        setModal(null)
+        await deleteFolder(folderId)
+      }
+    })
+  }
+
+  function toggleFolderCollapse(folderId) {
+    setCollapsedFolders(prev => ({ ...prev, [folderId]: !prev[folderId] }))
+  }
+
   function exportMd() {
     if (!activeNote) return
     const md = `# ${activeNote.title || 'Anotação'}\n\n> Grupo: ${activeGroup?.name || '—'} · ${new Date(activeNote.updated_at).toLocaleDateString('pt-BR')}\n\n---\n\n` + toMarkdown(activeNote.content || '')
@@ -371,8 +500,6 @@ export default function Notes({ org }) {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
     a.download = `${(activeNote.title || 'nota').toLowerCase().replace(/\s+/g,'-')}.md`; a.click()
   }
-
-  function stripHtml(html) { return (html || '').replace(/<[^>]*>/g, '').trim() }
 
   const toolBtn = (title, icon, onClick, opts = {}) => (
     <button key={title} onClick={onClick} title={title} style={{
@@ -389,6 +516,11 @@ export default function Notes({ org }) {
     </button>
   )
 
+  const activeNoteFolder = activeNote?.folder_id ? folders.find(f => f.id === activeNote.folder_id) : null
+  const showFolderTree   = groupFilter !== 'all'
+  const folderNotes      = (folderId) => filtered.filter(n => n.folder_id === folderId)
+  const unfolderedNotes  = filtered.filter(n => !n.folder_id)
+
   return (
     <div className="page-wrap" style={{ height: '100vh', overflow: 'hidden' }}>
       <header style={{ borderBottom: '1px solid var(--border)', padding: '14px 32px', background: 'var(--header-bg)', backdropFilter: 'blur(12px)', flexShrink: 0 }}>
@@ -403,7 +535,7 @@ export default function Notes({ org }) {
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
 
-        {/* ── LISTA ── */}
+        {/* ── SIDEBAR ── */}
         <div style={{ width: 270, flexShrink: 0, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', background: 'var(--bg-alt)' }}>
           <div style={{ padding: 10, borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 7 }}>
             <div style={{ position: 'relative' }}>
@@ -411,46 +543,101 @@ export default function Notes({ org }) {
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="buscar..."
                 style={{ width: '100%', padding: '7px 9px 7px 26px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text)', fontFamily: 'var(--ff-mono)', fontSize: 11, outline: 'none' }} />
             </div>
-            <select value={groupFilter} onChange={e => setGroupFilter(e.target.value)} style={{ width: '100%', padding: '7px 9px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text)', fontFamily: 'var(--ff-mono)', fontSize: 11, outline: 'none' }}>
+            <select value={groupFilter} onChange={e => { setGroupFilter(e.target.value); setAddingFolder(false) }}
+              style={{ width: '100%', padding: '7px 9px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text)', fontFamily: 'var(--ff-mono)', fontSize: 11, outline: 'none' }}>
               <option value="all">// todos os grupos</option>
               {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
             </select>
-            <button onClick={handleCreate} disabled={creating || groups.length === 0} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', opacity: groups.length === 0 ? 0.4 : 1 }}>
-              <Plus size={12} /> {creating ? 'criando...' : 'nova anotação'}
-            </button>
+            {showFolderTree
+              ? (
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => setAddingFolder(true)} disabled={addingFolder} className="btn btn-ghost"
+                    style={{ flex: 1, justifyContent: 'center', fontSize: 10, gap: 4 }}>
+                    <FolderPlus size={11} /> nova pasta
+                  </button>
+                  <button onClick={() => handleCreate(null)} disabled={creating || groups.length === 0} className="btn btn-primary"
+                    style={{ flex: 1, justifyContent: 'center', fontSize: 10, gap: 4 }}>
+                    <Plus size={11} /> {creating ? '...' : 'nota'}
+                  </button>
+                </div>
+              )
+              : (
+                <button onClick={() => handleCreate(null)} disabled={creating || groups.length === 0} className="btn btn-primary"
+                  style={{ width: '100%', justifyContent: 'center', opacity: groups.length === 0 ? 0.4 : 1 }}>
+                  <Plus size={12} /> {creating ? 'criando...' : 'nova anotação'}
+                </button>
+              )
+            }
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: 6 }}>
             {loading && <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-dim)', padding: 8 }}>carregando_</div>}
-            {!loading && filtered.length === 0 && (
-              <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-dim)', padding: '12px 8px', textAlign: 'center', lineHeight: 1.7 }}>
-                {notes.length === 0 ? 'nenhuma anotação ainda' : 'sem resultados'}
-              </div>
-            )}
-            {filtered.map(note => (
-              <button key={note.id} onClick={() => setActiveNoteId(note.id)} style={{
-                width: '100%', textAlign: 'left', padding: '8px 9px', borderRadius: 'var(--radius-md)', marginBottom: 2,
-                background: activeNoteId === note.id ? 'var(--red-dim)' : 'transparent',
-                border: activeNoteId === note.id ? '1px solid var(--border-red)' : '1px solid transparent',
-                transition: 'all var(--fast)', cursor: 'pointer',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
-                  {note.pinned && <Pin size={9} style={{ color: activeNoteId === note.id ? '#F0EDE8' : 'var(--red)', flexShrink: 0 }} />}
-                  <span style={{ fontSize: 12, fontWeight: 500, color: activeNoteId === note.id ? '#F0EDE8' : 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {note.title || 'sem título'}
-                  </span>
-                </div>
-                {note.content && (
-                  <div style={{ fontFamily: 'var(--ff-body)', fontSize: 11, color: activeNoteId === note.id ? 'rgba(240,237,232,0.45)' : 'var(--text-dim)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {stripHtml(note.content).substring(0, 55)}
+
+            {!loading && showFolderTree && (
+              <>
+                {addingFolder && (
+                  <NewFolderInput onConfirm={handleCreateFolder} onCancel={() => setAddingFolder(false)} />
+                )}
+                {folders.map(folder => {
+                  const fNotes = folderNotes(folder.id)
+                  const isOpen = !collapsedFolders[folder.id]
+                  return (
+                    <div key={folder.id}>
+                      <FolderRow
+                        folder={folder}
+                        open={isOpen}
+                        noteCount={fNotes.length}
+                        onToggle={() => toggleFolderCollapse(folder.id)}
+                        onRename={renameFolder}
+                        onDelete={askDeleteFolder}
+                        onAddNote={() => handleCreate(folder.id)}
+                      />
+                      {isOpen && fNotes.map(note => (
+                        <NoteItem key={note.id} note={note} active={activeNoteId === note.id} indent onClick={() => setActiveNoteId(note.id)} />
+                      ))}
+                    </div>
+                  )
+                })}
+                {(unfolderedNotes.length > 0 || folders.length > 0) && (
+                  <div style={{ marginTop: folders.length > 0 ? 6 : 0 }}>
+                    {folders.length > 0 && (
+                      <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--text-dim)', padding: '4px 6px 3px', opacity: 0.6 }}>
+                        sem pasta
+                      </div>
+                    )}
+                    {unfolderedNotes.map(note => (
+                      <NoteItem key={note.id} note={note} active={activeNoteId === note.id} onClick={() => setActiveNoteId(note.id)} />
+                    ))}
+                    {unfolderedNotes.length === 0 && folders.length > 0 && (
+                      <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, color: 'var(--text-dim)', padding: '4px 8px', opacity: 0.5 }}>—</div>
+                    )}
                   </div>
                 )}
-              </button>
-            ))}
+                {!loading && filtered.length === 0 && folders.length === 0 && !addingFolder && (
+                  <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-dim)', padding: '12px 8px', textAlign: 'center', lineHeight: 1.7 }}>
+                    nenhuma anotação ainda
+                  </div>
+                )}
+              </>
+            )}
+
+            {!loading && !showFolderTree && (
+              <>
+                {filtered.length === 0 && (
+                  <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-dim)', padding: '12px 8px', textAlign: 'center', lineHeight: 1.7 }}>
+                    {notes.length === 0 ? 'nenhuma anotação ainda' : 'sem resultados'}
+                  </div>
+                )}
+                {filtered.map(note => (
+                  <NoteItem key={note.id} note={note} active={activeNoteId === note.id} onClick={() => setActiveNoteId(note.id)} />
+                ))}
+              </>
+            )}
           </div>
 
           <div style={{ padding: '7px 10px', borderTop: '1px solid var(--border)', fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.12em' }}>
             {filtered.length} anotaç{filtered.length !== 1 ? 'ões' : 'ão'} · {notes.filter(n => n.pinned).length} fixada{notes.filter(n=>n.pinned).length!==1?'s':''}
+            {showFolderTree && folders.length > 0 && ` · ${folders.length} pasta${folders.length !== 1 ? 's' : ''}`}
           </div>
         </div>
 
@@ -467,8 +654,38 @@ export default function Notes({ org }) {
                     {activeNote.title || 'sem título'}
                   </div>
               }
-              <div style={{ display: 'flex', gap: 4, flexShrink: 0, flexWrap: 'wrap' }}>
-                <button onClick={() => togglePin(activeNote.id, activeNote.pinned)} title={activeNote.pinned ? 'desafixar' : 'fixar'} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: activeNote.pinned ? 'var(--red-dim)' : 'var(--surface)', color: activeNote.pinned ? '#F0EDE8' : 'var(--text-muted)', fontFamily: 'var(--ff-mono)', fontSize: 10, cursor: 'pointer', transition: 'all var(--fast)' }}>
+              <div style={{ display: 'flex', gap: 4, flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
+                {showFolderTree && folders.length > 0 && (
+                  <div style={{ position: 'relative' }}>
+                    <button onClick={() => setShowFolderPicker(v => !v)} title="mover para pasta"
+                      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--surface)', color: activeNoteFolder ? 'var(--text)' : 'var(--text-muted)', fontFamily: 'var(--ff-mono)', fontSize: 10, cursor: 'pointer', transition: 'all var(--fast)' }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-red)' }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)' }}>
+                      <FolderInput size={11} />
+                      <span style={{ maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {activeNoteFolder ? activeNoteFolder.name : 'sem pasta'}
+                      </span>
+                    </button>
+                    {showFolderPicker && (
+                      <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: 'var(--bg-card)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius-md)', padding: 4, zIndex: 200, minWidth: 150, boxShadow: '0 8px 24px rgba(0,0,0,0.35)' }}>
+                        <button onClick={() => moveNoteToFolder(activeNote.id, null)}
+                          style={{ width: '100%', textAlign: 'left', padding: '5px 9px', borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 11, color: !activeNote.folder_id ? 'var(--red)' : 'var(--text-muted)', cursor: 'pointer', background: 'transparent' }}>
+                          sem pasta
+                        </button>
+                        {folders.map(f => (
+                          <button key={f.id} onClick={() => moveNoteToFolder(activeNote.id, f.id)}
+                            style={{ width: '100%', textAlign: 'left', padding: '5px 9px', borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 11, color: activeNote.folder_id === f.id ? 'var(--red)' : 'var(--text-muted)', cursor: 'pointer', background: 'transparent', display: 'flex', alignItems: 'center', gap: 6 }}
+                            onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
+                            onMouseLeave={e => e.currentTarget.style.color = activeNote.folder_id === f.id ? 'var(--red)' : 'var(--text-muted)'}>
+                            <Folder size={10} /> {f.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                <button onClick={() => togglePin(activeNote.id, activeNote.pinned)} title={activeNote.pinned ? 'desafixar' : 'fixar'}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: activeNote.pinned ? 'var(--red-dim)' : 'var(--surface)', color: activeNote.pinned ? '#F0EDE8' : 'var(--text-muted)', fontFamily: 'var(--ff-mono)', fontSize: 10, cursor: 'pointer', transition: 'all var(--fast)' }}>
                   {activeNote.pinned ? <PinOff size={11} /> : <Pin size={11} />}
                 </button>
                 {toolBtn('.md', <Download size={11} />, exportMd, { label: '.md' })}
@@ -477,13 +694,19 @@ export default function Notes({ org }) {
                 {toolBtn('excluir', <Trash2 size={11} />, () => askDelete(activeNote.id), { danger: true })}
               </div>
             </div>
-
             <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
               <NoteEditor note={activeNote} onUpdate={handleUpdate} />
             </div>
-
             <div style={{ padding: '6px 16px', borderTop: '1px solid var(--border)', fontFamily: 'var(--ff-mono)', fontSize: 10, color: 'var(--text-dim)', display: 'flex', justifyContent: 'space-between', flexShrink: 0 }}>
-              <span>›_ salvo automaticamente</span>
+              <span>
+                ›_ salvo automaticamente
+                {activeNoteFolder && (
+                  <span style={{ marginLeft: 10, opacity: 0.6 }}>
+                    <Folder size={9} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} />
+                    {activeNoteFolder.name}
+                  </span>
+                )}
+              </span>
               <span>{new Date(activeNote.updated_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
             </div>
           </>) : (
@@ -491,11 +714,15 @@ export default function Notes({ org }) {
               <FileText size={36} style={{ color: 'var(--text-dim)', opacity: 0.25 }} />
               <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 22, letterSpacing: '0.08em', color: 'var(--text-dim)' }}>SELECIONE UMA NOTA</div>
               <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.15em' }}>ou crie uma nova ao lado</div>
-              {groups.length > 0 && <button onClick={handleCreate} className="btn btn-primary" style={{ marginTop: 8 }}><Plus size={12} /> nova anotação</button>}
+              {groups.length > 0 && <button onClick={() => handleCreate(null)} className="btn btn-primary" style={{ marginTop: 8 }}><Plus size={12} /> nova anotação</button>}
             </div>
           )}
         </div>
       </div>
+
+      {showFolderPicker && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 199 }} onClick={() => setShowFolderPicker(false)} />
+      )}
 
       {showPush   && <PushModal note={activeNote} group={activeGroup} onClose={() => setShowPush(false)} />}
       {showTrello && <TrelloCardModal note={activeNote} group={activeGroup} trelloToken={trelloToken} onClose={() => setShowTrello(false)} />}
