@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import { useOrgs }    from './hooks/useOrgs'
@@ -53,10 +53,15 @@ function AppShell() {
 
   const [currentOrgId,     setCurrentOrgId]     = useState(() => localStorage.getItem('atelier_org_id') || null)
   const [currentProjectId, setCurrentProjectId] = useState(() => localStorage.getItem('atelier_project_id') || null)
-  const [activeProject,    setActiveProject]    = useState(null)  // objeto completo do projeto selecionado
   const [trelloToken]      = useState(() => localStorage.getItem('atelier_trello_token') || '')
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('atelier_sidebar') === 'collapsed')
   const [splashDone, setSplashDone] = useState(() => sessionStorage.getItem('atelier_splash_done') === '1')
+
+  // activeProject derivado — sem useEffect, sem setState cascata
+  const activeProject = useMemo(() => {
+    if (!currentProjectId || !projects.length) return null
+    return projects.find(p => p.id === currentProjectId) || null
+  }, [currentProjectId, projects])
 
   const { role, isAdmin } = useRole(currentOrgId)
   const { projects }      = useProjects(currentOrgId)
@@ -80,16 +85,6 @@ function AppShell() {
     localStorage.setItem('atelier_sidebar', collapsed ? 'collapsed' : 'open')
   }, [collapsed])
 
-  // sincroniza activeProject com currentProjectId
-  useEffect(() => {
-    if (currentProjectId && projects.length > 0) {
-      const p = projects.find(p => p.id === currentProjectId)
-      setActiveProject(p || null)
-    } else {
-      setActiveProject(null)
-    }
-  }, [currentProjectId, projects])
-
   function handleSplashDone() {
     sessionStorage.setItem('atelier_splash_done', '1')
     setSplashDone(true)
@@ -97,12 +92,10 @@ function AppShell() {
 
   function handleSelectProject(project) {
     setCurrentProjectId(project.id)
-    setActiveProject(project)
   }
 
   function handleBackToProjects() {
     setCurrentProjectId(null)
-    setActiveProject(null)
   }
 
   if (loading) return (

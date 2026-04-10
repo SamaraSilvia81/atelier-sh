@@ -20,10 +20,13 @@ export default function GroupCard({ group, trelloToken, onEdit, onDelete, onOpen
 
   useEffect(() => {
     if (!group.github_repo) return
-    setLoading(l => ({ ...l, gh: true }))
+    let cancelled = false
     Promise.all([fetchRepoInfo(group.github_repo, group.github_token), fetchAtas(group.github_repo, group.github_token)])
-      .then(([info, a]) => { setGithub(info); setAtas(a) })
-      .finally(() => setLoading(l => ({ ...l, gh: false })))
+      .then(([info, a]) => { if (!cancelled) { setGithub(info); setAtas(a) } })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(l => ({ ...l, gh: false })) })
+    setLoading(l => ({ ...l, gh: true }))
+    return () => { cancelled = true }
   }, [group.github_repo])
 
   const statusColor = group.status === 'active' ? '#5aab6e' : group.status === 'attention' ? '#c8922a' : 'var(--text-dim)'

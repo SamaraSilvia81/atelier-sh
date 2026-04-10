@@ -111,6 +111,19 @@ function ImageUrlModal({ onInsert, onClose }) {
   )
 }
 
+// ── Toolbar button — fora do NoteEditor para não recriar a cada render ───────
+function ToolbarBtn({ action, active, title, icon }) {
+  return (
+    <button onClick={action} title={title} style={{
+      padding: '4px 8px', borderRadius: 'var(--radius)',
+      background: active ? 'var(--red-dim)' : 'transparent',
+      color: active ? '#F0EDE8' : 'var(--text-muted)',
+      border: active ? '1px solid var(--border-red)' : '1px solid transparent',
+      transition: 'all var(--fast)', cursor: 'pointer',
+    }}>{icon}</button>
+  )
+}
+
 // ── Editor de notas ───────────────────────────────────────────────────
 function NoteEditor({ note, onUpdate }) {
   const [showImgModal, setShowImgModal] = useState(false)
@@ -148,27 +161,17 @@ function NoteEditor({ note, onUpdate }) {
 
   if (!editor) return null
 
-  const T = ({ action, active, title, icon }) => (
-    <button onClick={action} title={title} style={{
-      padding: '4px 8px', borderRadius: 'var(--radius)',
-      background: active ? 'var(--red-dim)' : 'transparent',
-      color: active ? '#F0EDE8' : 'var(--text-muted)',
-      border: active ? '1px solid var(--border-red)' : '1px solid transparent',
-      transition: 'all var(--fast)', cursor: 'pointer',
-    }}>{icon}</button>
-  )
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       <div style={{ display: 'flex', gap: 2, padding: '8px 14px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', flexShrink: 0, background: 'var(--bg-alt)', alignItems: 'center' }}>
-        <T action={() => editor.chain().focus().toggleBold().run()}             active={editor.isActive('bold')}              title="negrito"   icon={<Bold size={12} />} />
-        <T action={() => editor.chain().focus().toggleItalic().run()}           active={editor.isActive('italic')}             title="itálico"   icon={<Italic size={12} />} />
-        <T action={() => editor.chain().focus().toggleHeading({level:2}).run()} active={editor.isActive('heading',{level:2})} title="título"    icon={<Heading2 size={12} />} />
-        <T action={() => editor.chain().focus().toggleBulletList().run()}       active={editor.isActive('bulletList')}         title="lista"     icon={<List size={12} />} />
-        <T action={() => editor.chain().focus().toggleOrderedList().run()}      active={editor.isActive('orderedList')}        title="numerada"  icon={<ListOrdered size={12} />} />
-        <T action={() => editor.chain().focus().toggleCode().run()}             active={editor.isActive('code')}               title="código"    icon={<Code size={12} />} />
+        <ToolbarBtn action={() => editor.chain().focus().toggleBold().run()}             active={editor.isActive('bold')}              title="negrito"   icon={<Bold size={12} />} />
+        <ToolbarBtn action={() => editor.chain().focus().toggleItalic().run()}           active={editor.isActive('italic')}             title="itálico"   icon={<Italic size={12} />} />
+        <ToolbarBtn action={() => editor.chain().focus().toggleHeading({level:2}).run()} active={editor.isActive('heading',{level:2})} title="título"    icon={<Heading2 size={12} />} />
+        <ToolbarBtn action={() => editor.chain().focus().toggleBulletList().run()}       active={editor.isActive('bulletList')}         title="lista"     icon={<List size={12} />} />
+        <ToolbarBtn action={() => editor.chain().focus().toggleOrderedList().run()}      active={editor.isActive('orderedList')}        title="numerada"  icon={<ListOrdered size={12} />} />
+        <ToolbarBtn action={() => editor.chain().focus().toggleCode().run()}             active={editor.isActive('code')}               title="código"    icon={<Code size={12} />} />
         <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 4px' }} />
-        <T action={() => setShowImgModal(true)} active={false} title="inserir imagem (ou ctrl+v para colar)" icon={<ImageIcon size={12} />} />
+        <ToolbarBtn action={() => setShowImgModal(true)} active={false} title="inserir imagem (ou ctrl+v para colar)" icon={<ImageIcon size={12} />} />
         <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', opacity: 0.7 }}>
           ctrl+v para colar imagem
         </span>

@@ -32,26 +32,37 @@ export default function GroupDetailModal({ group, trelloToken, onClose, onEdit, 
   // Load github base info
   useEffect(() => {
     if (!group.github_repo) return
-    setLoading(l => ({ ...l, gh: true }))
+    let cancelled = false
     Promise.all([fetchRepoInfo(group.github_repo, group.github_token), fetchAtas(group.github_repo, group.github_token)])
-      .then(([info, a]) => { setGithub(info); setAtas(a) })
-      .finally(() => setLoading(l => ({ ...l, gh: false })))
+      .then(([info, a]) => { if (!cancelled) { setGithub(info); setAtas(a) } })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(l => ({ ...l, gh: false })) })
+    setLoading(l => ({ ...l, gh: true }))
+    return () => { cancelled = true }
   }, [group.github_repo])
 
   // Load commits/issues when github tab active
   useEffect(() => {
     if (tab !== 'github' || !group.github_repo || commits.length > 0) return
-    setLoading(l => ({ ...l, commits: true }))
+    let cancelled = false
     Promise.all([fetchAllCommits(group.github_repo, 5, group.github_token), fetchIssues(group.github_repo, group.github_token)])
-      .then(([c, i]) => { setCommits(c); setIssues(i) })
-      .finally(() => setLoading(l => ({ ...l, commits: false })))
+      .then(([c, i]) => { if (!cancelled) { setCommits(c); setIssues(i) } })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(l => ({ ...l, commits: false })) })
+    setLoading(l => ({ ...l, commits: true }))
+    return () => { cancelled = true }
   }, [tab, group.github_repo])
 
   // Load trello
   useEffect(() => {
     if (tab !== 'trello' || !group.trello_board_id || !trelloToken || trelloLists.length > 0) return
+    let cancelled = false
+    fetchBoardLists(trelloToken, group.trello_board_id)
+      .then(data => { if (!cancelled) setTrelloLists(data) })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(l => ({ ...l, tr: false })) })
     setLoading(l => ({ ...l, tr: true }))
-    fetchBoardLists(trelloToken, group.trello_board_id).then(setTrelloLists).finally(() => setLoading(l => ({ ...l, tr: false })))
+    return () => { cancelled = true }
   }, [tab, group.trello_board_id, trelloToken])
 
   // Load figma
@@ -59,8 +70,13 @@ export default function GroupDetailModal({ group, trelloToken, onClose, onEdit, 
     if (tab !== 'figma' || !group.figma_url) return
     const figmaToken = localStorage.getItem('atelier_figma_token')
     if (!figmaToken || figma) return
+    let cancelled = false
+    fetchFigmaFile(group.figma_url, figmaToken)
+      .then(data => { if (!cancelled) setFigma(data) })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(l => ({ ...l, fig: false })) })
     setLoading(l => ({ ...l, fig: true }))
-    fetchFigmaFile(group.figma_url, figmaToken).then(setFigma).finally(() => setLoading(l => ({ ...l, fig: false })))
+    return () => { cancelled = true }
   }, [tab, group.figma_url])
 
   const statusColor = group.status === 'active' ? '#5aab6e' : group.status === 'attention' ? '#c8922a' : 'var(--text-dim)'

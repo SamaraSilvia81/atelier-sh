@@ -8,6 +8,32 @@ import OrgMembersModal from '../components/layout/OrgMembersModal'
 import { useSounds } from '../hooks/useSounds'
 import { Save, ExternalLink, RefreshCw, Eye, EyeOff, Volume2, VolumeX, Cloud, Check } from 'lucide-react'
 
+// ── TokenRow declarado FORA do Settings para não recriar a cada render ────────
+const TOKEN_ROW_LBL = { fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--text-dim)', display: 'block', marginBottom: 5 }
+const TOKEN_ROW_INP = { flex: 1, padding: '9px 11px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontFamily: 'var(--ff-mono)', fontSize: 12, borderRadius: 'var(--radius)', outline: 'none' }
+
+function TokenRow({ label, settingsKey, value, onChange, show, setShow, hint, saved, savingSettings, onSave }) {
+  return (
+    <div className="field">
+      <label style={TOKEN_ROW_LBL}>{label}</label>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <input type={show ? 'text' : 'password'} value={value} onChange={e => onChange(e.target.value)} placeholder={hint} style={TOKEN_ROW_INP} />
+        {setShow && (
+          <button onClick={() => setShow(s => !s)} style={{ padding: '0 10px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-muted)', cursor: 'pointer' }}>
+            {show ? <EyeOff size={13} /> : <Eye size={13} />}
+          </button>
+        )}
+        <button onClick={() => onSave(settingsKey, value)} className="btn btn-primary" style={{ flexShrink: 0, padding: '8px 14px', gap: 6 }}>
+          {saved === settingsKey ? <><Check size={12} /> salvo</> : savingSettings ? '...' : <><Cloud size={12} /> salvar</>}
+        </button>
+      </div>
+      <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', marginTop: 4, letterSpacing: '0.1em' }}>
+        // salvo no banco de dados · disponível em qualquer dispositivo
+      </div>
+    </div>
+  )
+}
+
 export default function Settings({ currentOrgId }) {
   const { orgs, updateOrg } = useOrgs()
   const org = orgs.find(o => o.id === currentOrgId)
@@ -72,26 +98,6 @@ export default function Settings({ currentOrgId }) {
   const lbl = { fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--text-dim)', display: 'block', marginBottom: 5 }
   const inp = { flex: 1, padding: '9px 11px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontFamily: 'var(--ff-mono)', fontSize: 12, borderRadius: 'var(--radius)', outline: 'none' }
 
-  const TokenRow = ({ label, settingsKey, value, onChange, show, setShow, hint }) => (
-    <div className="field">
-      <label style={lbl}>{label}</label>
-      <div style={{ display: 'flex', gap: 6 }}>
-        <input type={show ? 'text' : 'password'} value={value} onChange={e => onChange(e.target.value)} placeholder={hint} style={inp} />
-        {setShow && (
-          <button onClick={() => setShow(s => !s)} style={{ padding: '0 10px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-muted)', cursor: 'pointer' }}>
-            {show ? <EyeOff size={13} /> : <Eye size={13} />}
-          </button>
-        )}
-        <button onClick={() => handleSaveToken(settingsKey, value)} className="btn btn-primary" style={{ flexShrink: 0, padding: '8px 14px', gap: 6 }}>
-          {saved === settingsKey ? <><Check size={12} /> salvo</> : savingSettings ? '...' : <><Cloud size={12} /> salvar</>}
-        </button>
-      </div>
-      <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', marginTop: 4, letterSpacing: '0.1em' }}>
-        // salvo no banco de dados · disponível em qualquer dispositivo
-      </div>
-    </div>
-  )
-
   if (loadingSettings) return (
     <div className="page-wrap" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.2em' }}>carregando configurações...</div>
@@ -124,7 +130,7 @@ export default function Settings({ currentOrgId }) {
         <div style={S}>
           <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 18, letterSpacing: '0.05em', marginBottom: 4 }}>GITHUB</div>
           <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.28em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 18 }}>// repositórios privados + push de devolutivas</div>
-          <TokenRow label="personal access token" settingsKey="github_token" value={githubToken} onChange={setGithubToken} show={showGH} setShow={setShowGH} hint="ghp_..." />
+          <TokenRow label="personal access token" settingsKey="github_token" value={githubToken} onChange={setGithubToken} show={showGH} setShow={setShowGH} hint="ghp_..." saved={saved} savingSettings={savingSettings} onSave={handleSaveToken} />
           <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
             <a href="https://github.com/settings/tokens/new?scopes=repo&description=Atelier.sh" target="_blank" rel="noopener" className="btn btn-ghost" style={{ fontSize: 10 }}>
               <ExternalLink size={11} /> gerar token clássico no GitHub
@@ -142,7 +148,7 @@ export default function Settings({ currentOrgId }) {
         <div style={S}>
           <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 18, letterSpacing: '0.05em', marginBottom: 4 }}>TRELLO</div>
           <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.28em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 18 }}>// boards + criar cards a partir de anotações</div>
-          <TokenRow label="token de acesso" settingsKey="trello_token" value={trelloToken} onChange={setTrelloToken} show={true} hint="cole o token gerado no trello" />
+          <TokenRow label="token de acesso" settingsKey="trello_token" value={trelloToken} onChange={setTrelloToken} show={true} hint="cole o token gerado no trello" saved={saved} savingSettings={savingSettings} onSave={handleSaveToken} />
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
             <a href={getTrelloAuthUrl()} target="_blank" rel="noopener" className="btn btn-ghost" style={{ fontSize: 10 }}><ExternalLink size={11} /> gerar token</a>
             <button onClick={loadWorkspaces} disabled={!trelloToken} className="btn btn-ghost" style={{ fontSize: 10, opacity: !trelloToken ? 0.5 : 1 }}>
@@ -172,7 +178,7 @@ export default function Settings({ currentOrgId }) {
         <div style={S}>
           <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 18, letterSpacing: '0.05em', marginBottom: 4 }}>FIGMA <span style={{ color: '#a259ff', fontSize: 14 }}>◈</span></div>
           <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.28em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 18 }}>// visualizar arquivos dos grupos</div>
-          <TokenRow label="personal access token" settingsKey="figma_token" value={figmaToken} onChange={setFigmaToken} show={showFG} setShow={setShowFG} hint="figd_..." />
+          <TokenRow label="personal access token" settingsKey="figma_token" value={figmaToken} onChange={setFigmaToken} show={showFG} setShow={setShowFG} hint="figd_..." saved={saved} savingSettings={savingSettings} onSave={handleSaveToken} />
           <a href="https://www.figma.com/settings" target="_blank" rel="noopener" className="btn btn-ghost" style={{ fontSize: 10, marginTop: 4 }}>
             <ExternalLink size={11} /> gerar token no Figma
           </a>
