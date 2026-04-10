@@ -7,14 +7,14 @@
 
 import { TELEGRAPH_MP3 } from '../assets/telegraph.js'
 
-let _ctx = null
-let _telegraphBuffer = null   // AudioBuffer decodado do MP3
-let _telegraphLoading = false
+let audioCtx = null
+let telegraphBuffer = null   // AudioBuffer decodado do MP3
+let telegraphLoading = false
 
 function getCtx() {
-  if (!_ctx) _ctx = new (window.AudioContext || window.webkitAudioContext)()
-  if (_ctx.state === 'suspended') _ctx.resume()
-  return _ctx
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+  if (audioCtx.state === 'suspended') audioCtx.resume()
+  return audioCtx
 }
 
 function getVolume() {
@@ -24,9 +24,9 @@ function getVolume() {
 
 // Decodifica o MP3 do telégrafo uma única vez e cacheia
 async function loadTelegraphBuffer() {
-  if (_telegraphBuffer) return _telegraphBuffer
-  if (_telegraphLoading) return null
-  _telegraphLoading = true
+  if (telegraphBuffer) return telegraphBuffer
+  if (telegraphLoading) return null
+  telegraphLoading = true
   try {
     const ac = getCtx()
     // Converter base64 data URL para ArrayBuffer
@@ -34,10 +34,10 @@ async function loadTelegraphBuffer() {
     const binary  = atob(base64)
     const bytes   = new Uint8Array(binary.length)
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-    _telegraphBuffer = await ac.decodeAudioData(bytes.buffer)
-    return _telegraphBuffer
+    telegraphBuffer = await ac.decodeAudioData(bytes.buffer)
+    return telegraphBuffer
   } catch(e) {
-    _telegraphLoading = false
+    telegraphLoading = false
     return null
   }
 }
@@ -45,7 +45,7 @@ async function loadTelegraphBuffer() {
 // Toca um trecho aleatório do buffer do telégrafo (simula clique individual)
 function playTelegraphClick(volume = 1) {
   const ac  = getCtx()
-  const buf = _telegraphBuffer
+  const buf = telegraphBuffer
   if (!buf) return
   const master = getVolume()
 
@@ -99,7 +99,7 @@ const SOUNDS = {
       const v = Math.random()
 
       // Se tiver o buffer do telégrafo real, usa ele (suave e natural)
-      if (_telegraphBuffer) {
+      if (telegraphBuffer) {
         playTelegraphClick(0.65 + v * 0.2)
         return
       }
@@ -137,7 +137,7 @@ const SOUNDS = {
       osc.start(now); osc.stop(now + 0.04)
 
     } catch {}
-    if (!_telegraphBuffer && !_telegraphLoading) loadTelegraphBuffer()
+    if (!telegraphBuffer && !telegraphLoading) loadTelegraphBuffer()
   },
 
   // Som de lápis/caneta deslizando no papel — para o drawing no Review
@@ -186,7 +186,7 @@ const SOUNDS = {
 
   // Enter
   enter() {
-    if (_telegraphBuffer) {
+    if (telegraphBuffer) {
       playTelegraphClick(1.0)
       setTimeout(() => playTelegraphClick(0.7), 40)
     } else {
