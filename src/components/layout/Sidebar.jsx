@@ -6,10 +6,11 @@ import { useTheme } from '../../hooks/useTheme.jsx'
 import { useProjects } from '../../hooks/useProjects'
 import { useGroups } from '../../hooks/useGroups'
 import { useRole } from '../../hooks/useRole'
+import { supabase } from '../../lib/supabase'
 import {
   LayoutDashboard, FileText, Settings, LogOut, Plus, ChevronLeft, ChevronRight,
   Sun, Moon, Menu, X, Check, CircleUser, Pencil, FolderKanban, ExternalLink,
-  Users, ChevronDown, ChevronUp, Activity
+  Users, ChevronDown, ChevronUp, Activity, DoorOpen
 } from 'lucide-react'
 import OrgModal from './OrgModal'
 import OrgMembersModal from './OrgMembersModal'
@@ -20,7 +21,7 @@ const EXTENSION_URL = 'https://chrome.google.com/webstore/detail/atelier-sh'
 // ── SidebarContent declarado FORA do Sidebar para não recriar a cada render ──
 function SidebarContent({
   col, isMobile,
-  user, orgs, currentOrgId, currentOrg, role, isAdmin,
+  user, orgs, currentOrgId, currentOrg, role, isAdmin, canCreateOrg,
   projects, currentProjectId, groups,
   showGroupsPreview, setShowGroupsPreview,
   showOrgMenu, setShowOrgMenu,
@@ -34,6 +35,7 @@ function SidebarContent({
   setMobileOpen,
   setCollapsed, collapsed,
   signOut,
+  leaveOrg,
 }) {
   const c = col && !isMobile
   return (
@@ -94,6 +96,21 @@ function SidebarContent({
             {isAdmin && (
               <button onClick={() => { setEditingOrg(null); setShowOrgModal(true); setShowOrgMenu(false) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer' }}>
                 <Plus size={12} /> nova organização
+              </button>
+            )}
+            {/* Usuário sem nenhuma org pode criar a primeira */}
+            {canCreateOrg && !isAdmin && (
+              <button onClick={() => { setEditingOrg(null); setShowOrgModal(true); setShowOrgMenu(false) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                <Plus size={12} /> nova organização
+              </button>
+            )}
+            {/* Botão sair da org — só para membros convidados (não-owners) */}
+            {currentOrg && role && role !== 'owner' && (
+              <button
+                onClick={() => { leaveOrg(currentOrgId); setShowOrgMenu(false) }}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer' }}
+              >
+                <DoorOpen size={12} /> sair da organização
               </button>
             )}
           </div>
@@ -278,6 +295,25 @@ export default function Sidebar({ currentOrgId, setCurrentOrgId, currentProjectI
   const location  = useLocation()
   const isDark    = !theme.endsWith('-light')
 
+  // Pode criar nova org: admin da org atual OU usuário sem nenhuma org ainda
+  const canCreateOrg = orgs.length === 0
+
+  // Sair de uma org onde foi convidado (não é owner)
+  async function leaveOrg(orgId) {
+    const confirmed = window.confirm('Tem certeza que deseja sair desta organização?')
+    if (!confirmed) return
+    const { error } = await supabase
+      .from('org_members')
+      .delete()
+      .eq('org_id', orgId)
+      .eq('user_id', user.id)
+    if (!error) {
+      const remaining = orgs.filter(o => o.id !== orgId)
+      if (remaining.length) setCurrentOrgId(remaining[0].id)
+      else setCurrentOrgId(null)
+    }
+  }
+
   const [showOrgModal,      setShowOrgModal]      = useState(false)
   const [showMembers,       setShowMembers]        = useState(false)
   const [editingOrg,        setEditingOrg]         = useState(null)
@@ -328,7 +364,7 @@ export default function Sidebar({ currentOrgId, setCurrentOrgId, currentProjectI
 
   // props compartilhadas entre desktop e mobile
   const contentProps = {
-    user, orgs, currentOrgId, currentOrg, role, isAdmin,
+    user, orgs, currentOrgId, currentOrg, role, isAdmin, canCreateOrg,
     projects, currentProjectId, groups,
     showGroupsPreview, setShowGroupsPreview,
     showOrgMenu, setShowOrgMenu, orgSaved,
@@ -340,6 +376,7 @@ export default function Sidebar({ currentOrgId, setCurrentOrgId, currentProjectI
     setShowMembers, setMobileOpen,
     setCollapsed, collapsed,
     signOut,
+    leaveOrg,
   }
 
   return (
