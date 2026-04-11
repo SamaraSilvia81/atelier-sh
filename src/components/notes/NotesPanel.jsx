@@ -11,9 +11,10 @@ import {
   X, Plus, Pin, PinOff, Trash2, Bold, Italic, List, ListOrdered,
   Heading2, Code, Download, Send, LayoutList, ImageIcon, CheckCircle2, AlertCircle,
   Globe, Lock, User, FolderPlus, Folder, FolderOpen, ChevronRight, ChevronDown,
-  Pencil, Upload
+  Pencil, Upload, Copy, LayoutTemplate, FileText
 } from 'lucide-react'
 import { useSounds } from '../../hooks/useSounds'
+import { useNoteTemplates } from '../../hooks/useNoteTemplates'
 
 function debounce(fn, ms) { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms) } }
 
@@ -359,14 +360,17 @@ function NoteEditor({ note, onUpdate }) {
 
 // ── Main NotesPanel ───────────────────────────────────────────────────
 export default function NotesPanel({ group, orgId, onClose }) {
-  const { notes, loading, createNote, updateNote, deleteNote, togglePin } = useNotes(group?.id, orgId)
+  const { notes, loading, createNote, updateNote, deleteNote, togglePin, duplicateNote } = useNotes(group?.id, orgId)
   const { folders, createFolder, renameFolder, deleteFolder } = useFolders(group?.id, orgId)
+  const { templates, saveAsTemplate, deleteTemplate } = useNoteTemplates(orgId)
   const trelloToken = localStorage.getItem('atelier_trello_token') || ''
   const sounds = useSounds()
   const [activeNoteId, setActiveNoteId] = useState(null)
   const [editingTitle, setEditingTitle] = useState(null)
   const [showPush, setShowPush] = useState(false)
   const [showTrello, setShowTrello] = useState(false)
+  const [showTemplates, setShowTemplates] = useState(false)
+  const [templateFeedback, setTemplateFeedback] = useState(null)
   const [collapsedFolders, setCollapsedFolders] = useState({})
   const [addingFolder, setAddingFolder] = useState(false)
   const [folderDraft, setFolderDraft] = useState('')
@@ -387,6 +391,23 @@ export default function NotesPanel({ group, orgId, onClose }) {
   async function handleCreate(folderId = null) {
     const { data } = await createNote(folderId ? { folder_id: folderId } : {})
     if (data) { setActiveNoteId(data.id); sounds.play('open') }
+  }
+
+  async function handleDuplicate(note) {
+    const { data } = await duplicateNote(note.id)
+    if (data) { setActiveNoteId(data.id); sounds.play('open') }
+  }
+
+  async function handleSaveAsTemplate(note) {
+    setTemplateFeedback('saving')
+    const { error } = await saveAsTemplate({ title: note.title, content: note.content })
+    setTemplateFeedback(error ? 'error' : 'saved')
+    setTimeout(() => setTemplateFeedback(null), 2500)
+  }
+
+  async function handleCreateFromTemplate(template) {
+    const { data } = await createNote({ title: template.title, content: template.content })
+    if (data) { setActiveNoteId(data.id); setShowTemplates(false); sounds.play('open') }
   }
 
   async function handleCreateFolder(name) {
@@ -618,6 +639,14 @@ export default function NotesPanel({ group, orgId, onClose }) {
                     >
                       {activeNote.visibility === 'private' ? <Lock size={11} /> : <Globe size={11} />}
                     </button>
+                    {toolBtn('duplicar nota', <Copy size={11} />, () => handleDuplicate(activeNote), { label: 'duplicar' })}
+                    {toolBtn(
+                      templateFeedback === 'saved' ? 'salvo como template!' : templateFeedback === 'error' ? 'erro ao salvar' : 'salvar como template da org',
+                      <LayoutTemplate size={11} />,
+                      () => handleSaveAsTemplate(activeNote),
+                      { label: templateFeedback === 'saved' ? '✓ template' : templateFeedback === 'saving' ? '...' : 'template' }
+                    )}
+                    {toolBtn('templates da org', <FileText size={11} />, () => setShowTemplates(true), { label: 'usar template' })}
                     {toolBtn('.md', <Download size={11} />, exportMd, { label: '.md' })}
                     {toolBtn('github', <Send size={11} />, () => setShowPush(true), { label: 'github' })}
                     {toolBtn('trello', <LayoutList size={11} />, () => setShowTrello(true), { label: 'trello' })}
@@ -668,6 +697,46 @@ export default function NotesPanel({ group, orgId, onClose }) {
 
       {showPush && <PushModal note={activeNote} group={group} onClose={() => setShowPush(false)} />}
       {showTrello && <TrelloCardModal note={activeNote} group={group} trelloToken={trelloToken} onClose={() => setShowTrello(false)} />}
+      {showTemplates && (
+        <div style={{ position: "fixed", inset: 0, background: "var(--overlay)", zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+          onClick={e => e.target === e.currentTarget && setShowTemplates(false)}>
+          <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-red)", borderRadius: "var(--radius-md)", width: "100%", maxWidth: 520, padding: 28, maxHeight: "80vh", display: "flex", flexDirection: "column" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20, flexShrink: 0 }}>
+              <div>
+                <div style={{ fontFamily: "var(--ff-disp)", fontSize: 20, letterSpacing: "0.05em" }}>TEMPLATES DA ORG</div>
+                <div style={{ fontFamily: "var(--ff-mono)", fontSize: 9, letterSpacing: "0.25em", color: "var(--text-dim)", textTransform: "uppercase", marginTop: 2 }}>// modelos disponíveis para toda a organização</div>
+              </div>
+              <button onClick={() => setShowTemplates(false)} style={{ color: "var(--text-muted)", cursor: "pointer" }}><X size={16} /></button>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto" }}>
+              {templates.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-dim)", fontFamily: "var(--ff-mono)", fontSize: 12 }}>
+                  nenhum template ainda
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {templates.map(t => (
+                    <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: "var(--radius)", border: "1px solid var(--border)", background: "var(--surface)" }}>
+                      <FileText size={14} style={{ color: "var(--text-dim)", flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{t.title}</div>
+                        {t.profiles?.name && <div style={{ fontSize: 10, color: "var(--text-dim)", fontFamily: "var(--ff-mono)", marginTop: 2 }}>por {t.profiles.name}</div>}
+                      </div>
+                      <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+                        <button onClick={() => handleCreateFromTemplate(t)} style={{ padding: "5px 10px", borderRadius: "var(--radius)", border: "1px solid var(--border-red)", background: "var(--red-dim)", color: "#F0EDE8", fontFamily: "var(--ff-mono)", fontSize: 10, cursor: "pointer" }}>+ usar</button>
+                        <button onClick={() => deleteTemplate(t.id)} style={{ padding: "5px 7px", borderRadius: "var(--radius)", border: "1px solid var(--border)", background: "transparent", color: "var(--text-dim)", cursor: "pointer" }}><Trash2 size={10} /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)", flexShrink: 0 }}>
+              <button onClick={() => setShowTemplates(false)} className="btn btn-ghost" style={{ width: "100%", justifyContent: "center" }}>fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
