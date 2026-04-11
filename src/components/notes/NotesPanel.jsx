@@ -1,15 +1,17 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Image from '@tiptap/extension-image'
 import { useNotes } from '../../hooks/useNotes'
+import { useFolders } from '../../hooks/useFolders'
 import { pushFileToRepo } from '../../lib/github'
 import { createTrelloCard, fetchBoardLists } from '../../lib/trello'
 import {
   X, Plus, Pin, PinOff, Trash2, Bold, Italic, List, ListOrdered,
   Heading2, Code, Download, Send, LayoutList, ImageIcon, CheckCircle2, AlertCircle,
-  Globe, Lock, User
+  Globe, Lock, User, FolderPlus, Folder, FolderOpen, ChevronRight, ChevronDown,
+  Pencil, Upload
 } from 'lucide-react'
 import { useSounds } from '../../hooks/useSounds'
 
@@ -46,27 +48,114 @@ function toMarkdown(html) {
     .replace(/\n{3,}/g, '\n\n').trim()
 }
 
-// ── Image URL modal ───────────────────────────────────────────────────
-function ImageUrlModal({ onInsert, onClose }) {
+// ── Image modal (URL ou upload) ───────────────────────────────────────
+function ImageModal({ onInsert, onClose }) {
+  const [tab, setTab] = useState('upload') // 'upload' | 'url'
   const [url, setUrl] = useState('')
+  const [preview, setPreview] = useState(null)
+  const [dragging, setDragging] = useState(false)
+  const fileRef = useRef()
+
   const inp = { width: '100%', padding: '8px 10px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontFamily: 'var(--ff-mono)', fontSize: 11, borderRadius: 'var(--radius)', outline: 'none', boxSizing: 'border-box' }
   const lbl = { fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--text-dim)', display: 'block', marginBottom: 5 }
+
+  function handleFile(file) {
+    if (!file || !file.type.startsWith('image/')) return
+    const reader = new FileReader()
+    reader.onload = e => setPreview(e.target.result)
+    reader.readAsDataURL(file)
+  }
+
+  function handleDrop(e) {
+    e.preventDefault(); setDragging(false)
+    const file = e.dataTransfer.files?.[0]
+    handleFile(file)
+  }
+
+  function insertUpload() {
+    if (preview) { onInsert(preview); onClose() }
+  }
+
+  function insertUrl() {
+    if (url.trim()) { onInsert(url.trim()); onClose() }
+  }
+
+  const tabStyle = (active) => ({
+    flex: 1, padding: '6px 0', fontFamily: 'var(--ff-mono)', fontSize: 10,
+    letterSpacing: '0.15em', textTransform: 'uppercase', cursor: 'pointer',
+    borderBottom: active ? '2px solid var(--red)' : '2px solid transparent',
+    color: active ? 'var(--text)' : 'var(--text-dim)',
+    background: 'transparent', transition: 'all var(--fast)',
+  })
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'var(--overlay)', zIndex: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius-md)', width: '100%', maxWidth: 400, padding: 24 }}>
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius-md)', width: '100%', maxWidth: 420, padding: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
           <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 18, letterSpacing: '0.05em' }}>INSERIR IMAGEM</div>
           <button onClick={onClose} style={{ color: 'var(--text-muted)', cursor: 'pointer' }}><X size={14} /></button>
         </div>
-        <div className="field"><label style={lbl}>url da imagem</label><input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://..." style={inp} autoFocus /></div>
-        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-          <button onClick={onClose} className="btn btn-ghost" style={{ flex: 1 }}>cancelar</button>
-          <button onClick={() => { if (url.trim()) { onInsert(url.trim()); onClose() } }}
-            disabled={!url.trim()} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', opacity: !url.trim() ? 0.4 : 1 }}>
-            inserir
+
+        {/* tabs */}
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 16 }}>
+          <button style={tabStyle(tab === 'upload')} onClick={() => setTab('upload')}>
+            <Upload size={10} style={{ display: 'inline', marginRight: 4 }} />upload
+          </button>
+          <button style={tabStyle(tab === 'url')} onClick={() => setTab('url')}>
+            url
           </button>
         </div>
+
+        {tab === 'upload' ? (
+          <>
+            <div
+              onDragOver={e => { e.preventDefault(); setDragging(true) }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={handleDrop}
+              onClick={() => fileRef.current?.click()}
+              style={{
+                border: `2px dashed ${dragging ? 'var(--red)' : 'var(--border)'}`,
+                borderRadius: 'var(--radius)', padding: 20, textAlign: 'center',
+                cursor: 'pointer', marginBottom: 12, transition: 'border-color var(--fast)',
+                background: dragging ? 'var(--red-dim)' : 'transparent', minHeight: 100,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}>
+              {preview
+                ? <img src={preview} alt="" style={{ maxHeight: 120, maxWidth: '100%', borderRadius: 4, objectFit: 'contain' }} />
+                : <>
+                    <Upload size={22} style={{ color: 'var(--text-dim)' }} />
+                    <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-dim)' }}>
+                      clique ou arraste uma imagem aqui
+                    </span>
+                  </>
+              }
+            </div>
+            <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }}
+              onChange={e => handleFile(e.target.files?.[0])} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={onClose} className="btn btn-ghost" style={{ flex: 1 }}>cancelar</button>
+              <button onClick={insertUpload} disabled={!preview} className="btn btn-primary"
+                style={{ flex: 1, justifyContent: 'center', opacity: !preview ? 0.4 : 1 }}>
+                inserir
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="field">
+              <label style={lbl}>url da imagem</label>
+              <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://..." style={inp} autoFocus />
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+              <button onClick={onClose} className="btn btn-ghost" style={{ flex: 1 }}>cancelar</button>
+              <button onClick={insertUrl} disabled={!url.trim()} className="btn btn-primary"
+                style={{ flex: 1, justifyContent: 'center', opacity: !url.trim() ? 0.4 : 1 }}>
+                inserir
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
@@ -259,7 +348,7 @@ function NoteEditor({ note, onUpdate }) {
       </div>
       <EditorContent editor={editor} style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }} />
       {showImgModal && (
-        <ImageUrlModal
+        <ImageModal
           onInsert={src => editor.chain().focus().setImage({ src }).run()}
           onClose={() => setShowImgModal(false)}
         />
@@ -271,12 +360,18 @@ function NoteEditor({ note, onUpdate }) {
 // ── Main NotesPanel ───────────────────────────────────────────────────
 export default function NotesPanel({ group, orgId, onClose }) {
   const { notes, loading, createNote, updateNote, deleteNote, togglePin } = useNotes(group?.id, orgId)
+  const { folders, createFolder, renameFolder, deleteFolder } = useFolders(group?.id, orgId)
   const trelloToken = localStorage.getItem('atelier_trello_token') || ''
   const sounds = useSounds()
   const [activeNoteId, setActiveNoteId] = useState(null)
   const [editingTitle, setEditingTitle] = useState(null)
   const [showPush, setShowPush] = useState(false)
   const [showTrello, setShowTrello] = useState(false)
+  const [collapsedFolders, setCollapsedFolders] = useState({})
+  const [addingFolder, setAddingFolder] = useState(false)
+  const [folderDraft, setFolderDraft] = useState('')
+  const [editingFolder, setEditingFolder] = useState(null)
+  const [folderEditDraft, setFolderEditDraft] = useState('')
 
   const activeNote = notes.find(n => n.id === activeNoteId) || notes[0]
 
@@ -289,9 +384,25 @@ export default function NotesPanel({ group, orgId, onClose }) {
     [updateNote]
   )
 
-  async function handleCreate() {
-    const { data } = await createNote()
+  async function handleCreate(folderId = null) {
+    const { data } = await createNote(folderId ? { folder_id: folderId } : {})
     if (data) { setActiveNoteId(data.id); sounds.play('open') }
+  }
+
+  async function handleCreateFolder(name) {
+    setAddingFolder(false); setFolderDraft('')
+    await createFolder(name)
+  }
+
+  async function commitRenameFolder(id) {
+    if (folderEditDraft.trim() && folderEditDraft.trim() !== folders.find(f => f.id === id)?.name) {
+      await renameFolder(id, folderEditDraft.trim())
+    }
+    setEditingFolder(null); setFolderEditDraft('')
+  }
+
+  function toggleFolderCollapse(folderId) {
+    setCollapsedFolders(prev => ({ ...prev, [folderId]: !prev[folderId] }))
   }
 
   function exportMd() {
@@ -319,6 +430,9 @@ export default function NotesPanel({ group, orgId, onClose }) {
     </button>
   )
 
+  const folderNotes = (folderId) => notes.filter(n => n.folder_id === folderId)
+  const unfolderedNotes = notes.filter(n => !n.folder_id)
+
   return (
     <div style={{
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 200,
@@ -340,28 +454,131 @@ export default function NotesPanel({ group, orgId, onClose }) {
 
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
           {/* Sidebar - nota list */}
-          <div style={{ width: 200, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-            <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-              <button onClick={handleCreate} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', fontSize: 12, padding: '6px 12px' }}>
-                <Plus size={12} /> nova nota
-              </button>
+          <div style={{ width: 220, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+            <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', gap: 5 }}>
+                <button onClick={() => setAddingFolder(true)} disabled={addingFolder} className="btn btn-ghost"
+                  style={{ flex: 1, justifyContent: 'center', fontSize: 10, padding: '5px 8px', gap: 4 }}>
+                  <FolderPlus size={11} /> pasta
+                </button>
+                <button onClick={() => handleCreate(null)} className="btn btn-primary"
+                  style={{ flex: 1, justifyContent: 'center', fontSize: 11, padding: '5px 8px' }}>
+                  <Plus size={12} /> nota
+                </button>
+              </div>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
               {loading && <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: 8, fontFamily: 'var(--ff-mono)' }}>carregando_</div>}
-              {notes.map(note => (
-                <button key={note.id} onClick={() => setActiveNoteId(note.id)} style={{
-                  width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 'var(--radius)',
-                  background: activeNote?.id === note.id ? 'var(--red-dim)' : 'transparent',
-                  border: activeNote?.id === note.id ? '1px solid var(--border-red)' : '1px solid transparent',
-                  display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2,
-                  transition: 'all var(--fast)', cursor: 'pointer',
-                }}>
-                  {note.pinned && <Pin size={9} style={{ color: activeNote?.id === note.id ? '#F0EDE8' : 'var(--red)', flexShrink: 0 }} />}
-                  <span style={{ fontSize: 12, color: activeNote?.id === note.id ? '#F0EDE8' : 'var(--text-sub)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {note.title || 'sem título'}
-                  </span>
-                </button>
-              ))}
+
+              {/* Nova pasta inline */}
+              {addingFolder && (
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center', padding: '4px 4px', marginBottom: 2 }}>
+                  <Folder size={11} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
+                  <input
+                    autoFocus
+                    value={folderDraft}
+                    onChange={e => setFolderDraft(e.target.value)}
+                    placeholder="nome da pasta..."
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && folderDraft.trim()) handleCreateFolder(folderDraft.trim())
+                      if (e.key === 'Escape') { setAddingFolder(false); setFolderDraft('') }
+                    }}
+                    onBlur={() => { if (folderDraft.trim()) handleCreateFolder(folderDraft.trim()); else { setAddingFolder(false); setFolderDraft('') } }}
+                    style={{ flex: 1, minWidth: 0, background: 'var(--surface)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius)', padding: '3px 7px', color: 'var(--text)', fontFamily: 'var(--ff-mono)', fontSize: 11, outline: 'none' }}
+                  />
+                </div>
+              )}
+
+              {/* Pastas com suas notas */}
+              {folders.map(folder => {
+                const fNotes = folderNotes(folder.id)
+                const isOpen = !collapsedFolders[folder.id]
+                return (
+                  <div key={folder.id}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '5px 4px', borderRadius: 'var(--radius)', marginBottom: 1 }}
+                      onMouseEnter={e => e.currentTarget.dataset.hover = '1'}
+                      onMouseLeave={e => { delete e.currentTarget.dataset.hover; e.currentTarget.querySelector?.('.folder-actions')?.setAttribute('style', 'display:none') }}>
+                      <button onClick={() => toggleFolderCollapse(folder.id)} style={{ color: 'var(--text-dim)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                        {isOpen ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                      </button>
+                      <button onClick={() => toggleFolderCollapse(folder.id)} style={{ color: isOpen ? 'var(--red)' : 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                        {isOpen ? <FolderOpen size={12} /> : <Folder size={12} />}
+                      </button>
+                      {editingFolder === folder.id
+                        ? <input autoFocus value={folderEditDraft} onChange={e => setFolderEditDraft(e.target.value)}
+                            onBlur={() => commitRenameFolder(folder.id)}
+                            onKeyDown={e => { if (e.key === 'Enter') commitRenameFolder(folder.id); if (e.key === 'Escape') { setEditingFolder(null) } }}
+                            style={{ flex: 1, minWidth: 0, background: 'var(--surface)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius)', padding: '2px 5px', color: 'var(--text)', fontFamily: 'var(--ff-mono)', fontSize: 11, outline: 'none' }} />
+                        : <button onClick={() => toggleFolderCollapse(folder.id)} style={{ flex: 1, minWidth: 0, textAlign: 'left', fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text)', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '0.03em' }}>
+                            {folder.name}
+                          </button>
+                      }
+                      {editingFolder !== folder.id && (
+                        <div style={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+                          <button onClick={() => handleCreate(folder.id)} title="nova nota nesta pasta"
+                            style={{ color: 'var(--text-dim)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}
+                            onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
+                            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
+                            <Plus size={10} />
+                          </button>
+                          <button onClick={() => { setFolderEditDraft(folder.name); setEditingFolder(folder.id) }} title="renomear"
+                            style={{ color: 'var(--text-dim)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}
+                            onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
+                            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
+                            <Pencil size={9} />
+                          </button>
+                          <button onClick={() => deleteFolder(folder.id)} title="excluir pasta"
+                            style={{ color: 'var(--text-dim)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}
+                            onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
+                            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
+                            <Trash2 size={9} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    {isOpen && fNotes.map(note => (
+                      <button key={note.id} onClick={() => setActiveNoteId(note.id)} style={{
+                        width: '100%', textAlign: 'left', padding: '6px 9px 6px 24px', borderRadius: 'var(--radius)',
+                        background: activeNote?.id === note.id ? 'var(--red-dim)' : 'transparent',
+                        border: activeNote?.id === note.id ? '1px solid var(--border-red)' : '1px solid transparent',
+                        display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2,
+                        transition: 'all var(--fast)', cursor: 'pointer',
+                      }}>
+                        {note.pinned && <Pin size={8} style={{ color: activeNote?.id === note.id ? '#F0EDE8' : 'var(--red)', flexShrink: 0 }} />}
+                        <span style={{ fontSize: 11, color: activeNote?.id === note.id ? '#F0EDE8' : 'var(--text-sub)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {note.title || 'sem título'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )
+              })}
+
+              {/* Notas sem pasta */}
+              {(unfolderedNotes.length > 0 || folders.length > 0) && (
+                <div style={{ marginTop: folders.length > 0 ? 4 : 0 }}>
+                  {folders.length > 0 && unfolderedNotes.length > 0 && (
+                    <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--text-dim)', padding: '4px 4px 2px', opacity: 0.55 }}>
+                      sem pasta
+                    </div>
+                  )}
+                  {unfolderedNotes.map(note => (
+                    <button key={note.id} onClick={() => setActiveNoteId(note.id)} style={{
+                      width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 'var(--radius)',
+                      background: activeNote?.id === note.id ? 'var(--red-dim)' : 'transparent',
+                      border: activeNote?.id === note.id ? '1px solid var(--border-red)' : '1px solid transparent',
+                      display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2,
+                      transition: 'all var(--fast)', cursor: 'pointer',
+                    }}>
+                      {note.pinned && <Pin size={9} style={{ color: activeNote?.id === note.id ? '#F0EDE8' : 'var(--red)', flexShrink: 0 }} />}
+                      <span style={{ fontSize: 12, color: activeNote?.id === note.id ? '#F0EDE8' : 'var(--text-sub)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {note.title || 'sem título'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {!loading && notes.length === 0 && (
                 <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: '12px 8px', textAlign: 'center', fontFamily: 'var(--ff-mono)' }}>
                   nenhuma nota ainda

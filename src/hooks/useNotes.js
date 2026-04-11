@@ -65,6 +65,7 @@ export function useNotes(groupId, orgId) {
       content:    payload.content || '',
       pinned:     false,
       project_id: payload.project_id || null,
+      folder_id:  payload.folder_id || null,
     }
 
     // Tenta inserir com colunas v10
