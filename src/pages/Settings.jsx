@@ -107,12 +107,8 @@ export default function Settings({ currentOrgId }) {
     if (deleteInput !== 'DELETAR') return
     setDeleting(true); setDeleteError('')
     try {
-      // Chama a Edge Function que deleta a conta usando service role
-      const { error } = await supabase.functions.invoke('delete-account', {
-        body: { userId: user.id },
-      })
+      const { error } = await supabase.rpc('delete_my_account')
       if (error) throw error
-      // Faz logout e limpa localStorage
       localStorage.clear()
       await signOut()
     } catch (err) {
