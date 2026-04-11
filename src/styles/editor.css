@@ -13,3 +13,40 @@
 .ProseMirror blockquote { border-left: 2px solid var(--red); padding-left: 14px; color: var(--text-sub); margin: 12px 0; font-style: italic; }
 .ProseMirror hr { border: none; border-top: 1px solid var(--border-red); margin: 16px 0; }
 .ProseMirror p.is-editor-empty:first-child::before { content: attr(data-placeholder); float: left; color: var(--text-dim); pointer-events: none; height: 0; font-style: italic; }
+
+/* ── Tiptap Table ──────────────────────────────────────────────────── */
+.tiptap table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 12px 0;
+  font-family: var(--ff-mono);
+  font-size: 12px;
+}
+.tiptap table td,
+.tiptap table th {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  text-align: left;
+  min-width: 60px;
+  color: var(--text);
+  vertical-align: top;
+}
+.tiptap table th {
+  background: var(--surface);
+  color: var(--text-muted);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+.tiptap table tr:hover td {
+  background: rgba(255,255,255,0.02);
+}
+.tiptap .selectedCell:after {
+  z-index: 2;
+  position: absolute;
+  content: '';
+  left: 0; right: 0; top: 0; bottom: 0;
+  background: var(--red-dim);
+  pointer-events: none;
+}

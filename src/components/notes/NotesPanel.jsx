@@ -3,14 +3,18 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import { Image as TiptapImage } from '@tiptap/extension-image'
+import Table from '@tiptap/extension-table'
+import TableRow from '@tiptap/extension-table-row'
+import TableCell from '@tiptap/extension-table-cell'
+import TableHeader from '@tiptap/extension-table-header'
 
-// Extensão com resize via width/height
+// Extensão de imagem com resize via width/height
 const ResizableImage = TiptapImage.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
-      width:  { default: null, renderHTML: attrs => attrs.width  ? { width:  attrs.width  } : {} },
-      height: { default: null, renderHTML: attrs => attrs.height ? { height: attrs.height } : {} },
+      width:  { default: null, renderHTML: a => a.width  ? { width:  a.width  } : {} },
+      height: { default: null, renderHTML: a => a.height ? { height: a.height } : {} },
     }
   },
 })
@@ -22,9 +26,10 @@ import {
   X, Plus, Pin, PinOff, Trash2, Bold, Italic, List, ListOrdered,
   Heading2, Code, Download, Send, LayoutList, ImageIcon, CheckCircle2, AlertCircle,
   Globe, Lock, User, FolderPlus, Folder, FolderOpen, ChevronRight, ChevronDown,
-  Pencil, Upload
+  Pencil, Upload, Copy, LayoutTemplate, FileText, Table2
 } from 'lucide-react'
 import { useSounds } from '../../hooks/useSounds'
+import { useNoteTemplates } from '../../hooks/useNoteTemplates'
 
 function debounce(fn, ms) { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms) } }
 
@@ -302,14 +307,13 @@ function TrelloCardModal({ note, group, trelloToken, onClose }) {
 }
 
 
-// ── Modal de redimensionar imagem ─────────────────────────────────────
+// ── Modal redimensionar imagem ─────────────────────────────────────────
 function ResizeImageModal({ current, onApply, onClose }) {
   const [width,  setWidth]  = useState(current.width  || '')
   const [height, setHeight] = useState(current.height || '')
   const presets = [['original', '', ''], ['25%', '25%', ''], ['50%', '50%', ''], ['100%', '100%', ''], ['200px', '200', ''], ['400px', '400', ''], ['600px', '600', '']]
   const inp = { width: '100%', padding: '8px 10px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontFamily: 'var(--ff-mono)', fontSize: 11, borderRadius: 'var(--radius)', outline: 'none', boxSizing: 'border-box' }
   const lbl = { fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--text-dim)', display: 'block', marginBottom: 5 }
-
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'var(--overlay)', zIndex: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
       onClick={e => e.target === e.currentTarget && onClose()}>
@@ -321,12 +325,12 @@ function ResizeImageModal({ current, onApply, onClose }) {
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
           {presets.map(([label, w, h]) => (
             <button key={label} onClick={() => { setWidth(w); setHeight(h) }}
-              style={{ padding: '4px 10px', borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.08em', border: '1px solid var(--border)', background: width === w ? 'var(--red-dim)' : 'var(--surface)', color: width === w ? '#F0EDE8' : 'var(--text-muted)', cursor: 'pointer' }}>
+              style={{ padding: '4px 10px', borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 10, border: '1px solid var(--border)', background: width === w ? 'var(--red-dim)' : 'var(--surface)', color: width === w ? '#F0EDE8' : 'var(--text-muted)', cursor: 'pointer' }}>
               {label}
             </button>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 8 }}>
           <div style={{ flex: 1 }}>
             <label style={lbl}>largura (px ou %)</label>
             <input value={width} onChange={e => setWidth(e.target.value)} placeholder="ex: 400 ou 50%" style={inp} />
@@ -336,14 +340,12 @@ function ResizeImageModal({ current, onApply, onClose }) {
             <input value={height} onChange={e => setHeight(e.target.value)} placeholder="auto" style={inp} />
           </div>
         </div>
-        <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', marginBottom: 14, letterSpacing: '0.08em' }}>
-          deixe altura vazia para manter proporção · use % para responsivo
+        <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', marginBottom: 14 }}>
+          altura vazia = proporcional · use % para responsivo
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={onClose} className="btn btn-ghost" style={{ flex: 1 }}>cancelar</button>
-          <button onClick={() => onApply({ width: width || null, height: height || null })} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
-            aplicar
-          </button>
+          <button onClick={() => onApply({ width: width || null, height: height || null })} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>aplicar</button>
         </div>
       </div>
     </div>
@@ -361,6 +363,10 @@ function NoteEditor({ note, onUpdate }) {
       StarterKit,
       Placeholder.configure({ placeholder: '›_ escreva suas anotações aqui...' }),
       ResizableImage.configure({ inline: false, allowBase64: true }),
+      Table.configure({ resizable: false }),
+      TableRow,
+      TableHeader,
+      TableCell,
     ],
     content: note.content || '',
     onUpdate: ({ editor }) => onUpdate(note.id, { content: editor.getHTML() }),
@@ -414,12 +420,15 @@ function NoteEditor({ note, onUpdate }) {
         <ToolbarBtn action={() => editor.chain().focus().toggleCode().run()} active={editor.isActive('code')} title="código" icon={<Code size={12} />} />
         <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 4px' }} />
         <ToolbarBtn action={() => setShowImgModal(true)} active={false} title="inserir imagem (ou ctrl+v)" icon={<ImageIcon size={12} />} />
+        <ToolbarBtn
+          action={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
+          active={false} title="inserir tabela" icon={<Table2 size={12} />} />
         <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', opacity: 0.7 }}>ctrl+v · clique na imagem para redimensionar</span>
       </div>
       <EditorContent editor={editor} style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }} />
       {showImgModal && (
         <ImageModal
-          onInsert={src => editor.chain().focus().setImage({ src }).run()}
+          onInsert={imgSrc => editor.chain().focus().setImage({ src: imgSrc }).run()}
           onClose={() => setShowImgModal(false)}
         />
       )}
@@ -439,14 +448,17 @@ function NoteEditor({ note, onUpdate }) {
 
 // ── Main NotesPanel ───────────────────────────────────────────────────
 export default function NotesPanel({ group, orgId, onClose }) {
-  const { notes, loading, createNote, updateNote, deleteNote, togglePin } = useNotes(group?.id, orgId)
+  const { notes, loading, createNote, updateNote, deleteNote, togglePin, duplicateNote } = useNotes(group?.id, orgId)
   const { folders, createFolder, renameFolder, deleteFolder } = useFolders(group?.id, orgId)
+  const { templates, saveAsTemplate, deleteTemplate } = useNoteTemplates(orgId)
   const trelloToken = localStorage.getItem('atelier_trello_token') || ''
   const sounds = useSounds()
   const [activeNoteId, setActiveNoteId] = useState(null)
   const [editingTitle, setEditingTitle] = useState(null)
   const [showPush, setShowPush] = useState(false)
   const [showTrello, setShowTrello] = useState(false)
+  const [showTemplates, setShowTemplates] = useState(false)
+  const [templateFeedback, setTemplateFeedback] = useState(null)
   const [collapsedFolders, setCollapsedFolders] = useState({})
   const [addingFolder, setAddingFolder] = useState(false)
   const [folderDraft, setFolderDraft] = useState('')
@@ -467,6 +479,23 @@ export default function NotesPanel({ group, orgId, onClose }) {
   async function handleCreate(folderId = null) {
     const { data } = await createNote(folderId ? { folder_id: folderId } : {})
     if (data) { setActiveNoteId(data.id); sounds.play('open') }
+  }
+
+  async function handleDuplicate(note) {
+    const { data } = await duplicateNote(note.id)
+    if (data) { setActiveNoteId(data.id); sounds.play('open') }
+  }
+
+  async function handleSaveAsTemplate(note) {
+    setTemplateFeedback('saving')
+    const { error } = await saveAsTemplate({ title: note.title, content: note.content })
+    setTemplateFeedback(error ? 'error' : 'saved')
+    setTimeout(() => setTemplateFeedback(null), 2500)
+  }
+
+  async function handleCreateFromTemplate(template) {
+    const { data } = await createNote({ title: template.title, content: template.content })
+    if (data) { setActiveNoteId(data.id); setShowTemplates(false); sounds.play('open') }
   }
 
   async function handleCreateFolder(name) {
@@ -698,6 +727,14 @@ export default function NotesPanel({ group, orgId, onClose }) {
                     >
                       {activeNote.visibility === 'private' ? <Lock size={11} /> : <Globe size={11} />}
                     </button>
+                    {toolBtn('duplicar', <Copy size={11} />, () => handleDuplicate(activeNote), { label: 'duplicar' })}
+                    {toolBtn(
+                      templateFeedback === 'saved' ? '✓ salvo!' : templateFeedback === 'saving' ? '...' : 'salvar como template',
+                      <LayoutTemplate size={11} />,
+                      () => handleSaveAsTemplate(activeNote),
+                      { label: templateFeedback === 'saved' ? '✓ template' : templateFeedback === 'saving' ? '...' : 'template' }
+                    )}
+                    {toolBtn('usar template', <FileText size={11} />, () => setShowTemplates(true), { label: 'usar template' })}
                     {toolBtn('.md', <Download size={11} />, exportMd, { label: '.md' })}
                     {toolBtn('github', <Send size={11} />, () => setShowPush(true), { label: 'github' })}
                     {toolBtn('trello', <LayoutList size={11} />, () => setShowTrello(true), { label: 'trello' })}
@@ -748,6 +785,57 @@ export default function NotesPanel({ group, orgId, onClose }) {
 
       {showPush && <PushModal note={activeNote} group={group} onClose={() => setShowPush(false)} />}
       {showTrello && <TrelloCardModal note={activeNote} group={group} trelloToken={trelloToken} onClose={() => setShowTrello(false)} />}
+      {showTemplates && (
+        <div style={{ position: 'fixed', inset: 0, background: 'var(--overlay)', zIndex: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+          onClick={e => e.target === e.currentTarget && setShowTemplates(false)}>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius-md)', width: '100%', maxWidth: 520, padding: 28, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20, flexShrink: 0 }}>
+              <div>
+                <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 20, letterSpacing: '0.05em' }}>TEMPLATES DA ORG</div>
+                <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.25em', color: 'var(--text-dim)', textTransform: 'uppercase', marginTop: 2 }}>// modelos disponíveis para toda a organização</div>
+              </div>
+              <button onClick={() => setShowTemplates(false)} style={{ color: 'var(--text-muted)', cursor: 'pointer' }}><X size={16} /></button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {templates.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-dim)', fontFamily: 'var(--ff-mono)', fontSize: 12 }}>
+                  <LayoutTemplate size={28} style={{ opacity: 0.3, marginBottom: 12, display: 'block', margin: '0 auto 12px' }} />
+                  nenhum template ainda — salve uma nota como template para reutilizá-la aqui
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {templates.map(t => (
+                    <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--surface)', transition: 'border-color var(--fast)' }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border-red)'}
+                      onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
+                      <FileText size={14} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</div>
+                        {t.profiles?.name && <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'var(--ff-mono)', marginTop: 2 }}>por {t.profiles.name} · {new Date(t.created_at).toLocaleDateString('pt-BR')}</div>}
+                      </div>
+                      <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+                        <button onClick={() => handleCreateFromTemplate(t)}
+                          style={{ padding: '5px 10px', borderRadius: 'var(--radius)', border: '1px solid var(--border-red)', background: 'var(--red-dim)', color: '#F0EDE8', fontFamily: 'var(--ff-mono)', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Plus size={10} /> usar
+                        </button>
+                        <button onClick={() => deleteTemplate(t.id)} title="excluir template"
+                          style={{ padding: '5px 7px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                          onMouseEnter={e => { e.currentTarget.style.color = 'var(--red)'; e.currentTarget.style.borderColor = 'var(--border-red)' }}
+                          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-dim)'; e.currentTarget.style.borderColor = 'var(--border)' }}>
+                          <Trash2 size={10} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+              <button onClick={() => setShowTemplates(false)} className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center' }}>fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -249,33 +249,5 @@ export function useOrgNotes(orgId, projectId = null) {
 
   async function togglePin(id, pinned) { return updateNote(id, { pinned: !pinned }) }
 
-  async function duplicateNote(id) {
-    const source = notes.find(n => n.id === id)
-    if (!source) return { error: 'nota não encontrada' }
-    const groupId = source.group_id
-    return createNote(groupId, `${source.title || 'sem título'} (cópia)`, {
-      content: source.content,
-      folder_id: source.folder_id,
-      project_id: source.project_id,
-      visibility: source.visibility,
-    })
-  }
-
-  async function saveAsOrgTemplate(id) {
-    const source = notes.find(n => n.id === id)
-    if (!source) return { error: 'nota não encontrada' }
-    // Salva na tabela note_templates com escopo da org
-    const { data, error } = await supabase.from('note_templates').insert({
-      org_id: orgId,
-      title: source.title || 'Template sem título',
-      content: source.content,
-      created_by: user?.id,
-    }).select().single()
-    if (!error) {
-      await logActivity(orgId, user?.id, 'created', 'note_template', data.id, data.title)
-    }
-    return { data, error }
-  }
-
-  return { notes, loading, createNote, updateNote, deleteNote, togglePin, duplicateNote, saveAsOrgTemplate, refresh: fetchAll }
+  return { notes, loading, createNote, updateNote, deleteNote, togglePin, refresh: fetchAll }
 }
