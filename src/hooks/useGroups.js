@@ -47,5 +47,22 @@ export function useGroups(orgId, projectId = null) {
     return { error }
   }
 
-  return { groups, loading, createGroup, updateGroup, deleteGroup, refresh: fetchGroups }
+  async function duplicateGroup(id) {
+    const src = groups.find(g => g.id === id)
+    if (!src) return { error: 'grupo não encontrado' }
+    const { id: _, created_at, updated_at, ...rest } = src
+    return createGroup({ ...rest, name: src.name + ' (cópia)', is_template: false })
+  }
+
+  async function saveGroupAsTemplate(id) {
+    const src = groups.find(g => g.id === id)
+    if (!src) return { error: 'grupo não encontrado' }
+    return updateGroup(id, { is_template: true })
+  }
+
+  async function unsetGroupTemplate(id) {
+    return updateGroup(id, { is_template: false })
+  }
+
+  return { groups, loading, createGroup, updateGroup, deleteGroup, duplicateGroup, saveGroupAsTemplate, unsetGroupTemplate, refresh: fetchGroups }
 }

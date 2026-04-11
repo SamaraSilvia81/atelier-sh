@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react'
 import { fetchRepoInfo, fetchAtas, fetchAllCommits, fetchIssues, timeAgo } from '../../lib/github'
 import { fetchBoardLists } from '../../lib/trello'
 import { fetchFigmaFile } from '../../lib/figma'
-import { GitBranch, FileText, Pencil, Trash2, LayoutList, Monitor, Lock, Users, ChevronRight } from 'lucide-react'
+import { GitBranch, FileText, Pencil, Trash2, LayoutList, Monitor, Lock, Users, ChevronRight, Copy, LayoutTemplate } from 'lucide-react'
 import GroupDetailModal from './GroupDetailModal'
 
-export default function GroupCard({ group, trelloToken, onEdit, onDelete, onOpenNotes, onOpenReview, view = 'grid' }) {
+export default function GroupCard({ group, trelloToken, onEdit, onDelete, onOpenNotes, onOpenReview, onDuplicate, onSaveAsTemplate, view = 'grid' }) {
   const [github, setGithub] = useState(null)
   const [atas, setAtas] = useState([])
   const [loading, setLoading] = useState({ gh: false })
@@ -112,6 +112,9 @@ export default function GroupCard({ group, trelloToken, onEdit, onDelete, onOpen
               </span>
               {isPrivate && <Lock size={10} style={{ color: 'var(--amber)', flexShrink: 0 }} />}
               {group.figma_url && <span title="tem Figma" style={{ color: '#a259ff', fontSize: 10 }}>◈</span>}
+              {group.is_template && (
+                <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase', padding: '2px 6px', borderRadius: 'var(--radius)', background: 'rgba(200,146,42,0.15)', border: '1px solid rgba(200,146,42,0.4)', color: '#c8922a' }}>template</span>
+              )}
               {members.length > 0 && (
                 <span title={`${members.length} integrante${members.length !== 1 ? 's' : ''}`}
                   style={{ display: 'flex', alignItems: 'center', gap: 2, fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>
@@ -148,6 +151,8 @@ export default function GroupCard({ group, trelloToken, onEdit, onDelete, onOpen
             <div style={{ display: 'flex', gap: 3 }}>
               {actionBtn('anotações', <FileText size={11} />, () => onOpenNotes(group))}
               {actionBtn('⬡ ativar extensão', <Monitor size={11} />, () => onOpenReview(group))}
+              {onDuplicate && actionBtn('duplicar grupo', <Copy size={11} />, () => onDuplicate(group.id))}
+              {onSaveAsTemplate && actionBtn(group.is_template ? 'remover template' : 'salvar como template', <LayoutTemplate size={11} />, () => onSaveAsTemplate(group.id, group.is_template))}
               {actionBtn('editar', <Pencil size={11} />, () => onEdit(group))}
               {actionBtn('excluir', <Trash2 size={11} />, () => onDelete(group.id), true)}
             </div>

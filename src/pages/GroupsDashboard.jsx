@@ -9,7 +9,7 @@ import { useSounds }  from '../hooks/useSounds'
 
 export default function GroupsDashboard({ org, project, projectId, isAdmin, trelloToken, onBack }) {
   const { user }    = useAuth()
-  const { groups, loading, createGroup, updateGroup, deleteGroup } = useGroups(org?.id, projectId)
+  const { groups, loading, createGroup, updateGroup, deleteGroup, duplicateGroup, saveGroupAsTemplate, unsetGroupTemplate } = useGroups(org?.id, projectId)
   const sounds      = useSounds()
   const [showModal,     setShowModal]     = useState(false)
   const [editingGroup,  setEditingGroup]  = useState(null)
@@ -193,6 +193,8 @@ export default function GroupsDashboard({ org, project, projectId, isAdmin, trel
                 onDelete={isAdmin ? async (id) => { sounds.play('delete'); await deleteGroup(id) } : null}
                 onOpenNotes={(g) => setNotesGroup(g)}
                 onOpenReview={null}
+                onDuplicate={isAdmin ? (id) => duplicateGroup(id) : null}
+                onSaveAsTemplate={isAdmin ? (id, isTpl) => isTpl ? unsetGroupTemplate(id) : saveGroupAsTemplate(id) : null}
               />
             ))}
           </div>

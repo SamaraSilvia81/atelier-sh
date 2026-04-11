@@ -26,7 +26,7 @@ function VisibilityBadge({ visibility }) {
   )
 }
 
-function ProjectCard({ project, groupCount, onOpen, onEdit, isAdmin, view }) {
+function ProjectCard({ project, groupCount, onOpen, onEdit, onDuplicate, onSaveAsTemplate, isAdmin, view }) {
   const st = statusLabel(project.status)
   const isGrid = view === 'grid'
 
@@ -45,13 +45,32 @@ function ProjectCard({ project, groupCount, onOpen, onEdit, isAdmin, view }) {
       onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-red)'; e.currentTarget.style.background = 'var(--surface)' }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = isGrid ? 'var(--border)' : 'transparent'; e.currentTarget.style.background = 'var(--bg-card)' }}
     >
-      {/* botão editar — hover, só admin */}
+      {/* botões de ação — hover, só admin */}
       {isAdmin && (
-        <button
-          onClick={e => { e.stopPropagation(); onEdit(project) }}
-          title="Editar projeto"
-          style={{
-            position: 'absolute', top: 10, right: 10,
+        <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', gap: 4 }}>
+          {onDuplicate && (
+            <button onClick={e => { e.stopPropagation(); onDuplicate(project.id) }} title="Duplicar projeto"
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '4px 6px', cursor: 'pointer', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', opacity: 0, transition: 'opacity var(--fast)' }}
+              className="project-card-edit"
+              onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
+              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
+              <Copy size={11} />
+            </button>
+          )}
+          {onSaveAsTemplate && (
+            <button onClick={e => { e.stopPropagation(); onSaveAsTemplate(project.id, project.is_template) }}
+              title={project.is_template ? 'Remover template' : 'Salvar como template'}
+              style={{ background: project.is_template ? 'rgba(200,146,42,0.15)' : 'var(--surface)', border: `1px solid ${project.is_template ? 'rgba(200,146,42,0.4)' : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: '4px 6px', cursor: 'pointer', color: project.is_template ? '#c8922a' : 'var(--text-dim)', display: 'flex', alignItems: 'center', opacity: 0, transition: 'opacity var(--fast)' }}
+              className="project-card-edit">
+              <LayoutTemplate size={11} />
+            </button>
+          )}
+          <button
+            onClick={e => { e.stopPropagation(); onEdit(project) }}
+            title="Editar projeto"
+            style={{
+              background: 'var(--surface)', border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)', padding: '4px 6px',
             background: 'var(--surface)', border: '1px solid var(--border)',
             borderRadius: 'var(--radius)', padding: '4px 6px',
             cursor: 'pointer', color: 'var(--text-dim)',
@@ -59,9 +78,11 @@ function ProjectCard({ project, groupCount, onOpen, onEdit, isAdmin, view }) {
             opacity: 0, transition: 'opacity var(--fast)',
           }}
           className="project-card-edit"
-        >
-          <Pencil size={11} />
-        </button>
+          onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
+          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
+            <Pencil size={11} />
+          </button>
+        </div>
       )}
 
       {/* área clicável para entrar no projeto */}
@@ -108,6 +129,9 @@ function ProjectCard({ project, groupCount, onOpen, onEdit, isAdmin, view }) {
               {st.label}
             </span>
             <VisibilityBadge visibility={project.visibility} />
+            {project.is_template && (
+              <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 8, letterSpacing: '0.15em', textTransform: 'uppercase', padding: '1px 6px', borderRadius: 3, background: 'rgba(200,146,42,0.15)', border: '1px solid rgba(200,146,42,0.4)', color: '#c8922a', flexShrink: 0 }}>template</span>
+            )}
           </div>
 
           {project.description && (
@@ -149,7 +173,7 @@ function ProjectCard({ project, groupCount, onOpen, onEdit, isAdmin, view }) {
 
 export default function ProjectsDashboard({ org, isAdmin, onSelectProject }) {
   const sounds = useSounds()
-  const { projects, loading, createProject, updateProject, deleteProject } = useProjects(org?.id)
+  const { projects, loading, createProject, updateProject, deleteProject, duplicateProject, saveProjectAsTemplate, unsetProjectTemplate } = useProjects(org?.id)
   const { groups } = useGroups(org?.id)
 
   const [view,         setView]         = useState('grid')
@@ -269,6 +293,8 @@ export default function ProjectsDashboard({ org, isAdmin, onSelectProject }) {
                 isAdmin={isAdmin}
                 onOpen={onSelectProject}
                 onEdit={openEditModal}
+                onDuplicate={isAdmin ? (id) => duplicateProject(id) : null}
+                onSaveAsTemplate={isAdmin ? (id, isTpl) => isTpl ? unsetProjectTemplate(id) : saveProjectAsTemplate(id) : null}
               />
             ))}
 

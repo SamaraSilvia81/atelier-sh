@@ -60,5 +60,20 @@ export function useProjects(orgId) {
     return { error }
   }
 
-  return { projects, loading, createProject, updateProject, deleteProject, refresh: load }
+  async function duplicateProject(id) {
+    const src = projects.find(p => p.id === id)
+    if (!src) return { error: 'projeto não encontrado' }
+    const { id: _, created_at, updated_at, ...rest } = src
+    return createProject({ ...rest, name: src.name + ' (cópia)', is_template: false })
+  }
+
+  async function saveProjectAsTemplate(id) {
+    return updateProject(id, { is_template: true })
+  }
+
+  async function unsetProjectTemplate(id) {
+    return updateProject(id, { is_template: false })
+  }
+
+  return { projects, loading, createProject, updateProject, deleteProject, duplicateProject, saveProjectAsTemplate, unsetProjectTemplate, refresh: load }
 }
