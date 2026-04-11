@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useProjects } from '../hooks/useProjects'
 import { useGroups }   from '../hooks/useGroups'
-import { Plus, LayoutGrid, List, FolderKanban, User, ChevronRight, Pencil } from 'lucide-react'
+import { Plus, LayoutGrid, List, FolderKanban, User, ChevronRight, Pencil, Copy } from 'lucide-react'
 import ProjectModal from '../components/projects/ProjectModal'
 import { useSounds } from '../hooks/useSounds'
 
