@@ -26,7 +26,7 @@ export default function Login() {
     } else {
       const { error } = await signUp(email, password)
       if (error) setError(error.message)
-      else navigate(redirectTo !== '/' ? redirectTo : '/onboarding')
+      else navigate(redirectTo !== '/' ? redirectTo : '/')
     }
     setLoading(false)
   }

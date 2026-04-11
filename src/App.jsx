@@ -49,7 +49,7 @@ function SoundManager() {
 function AppShell() {
   const { user, loading }   = useAuth()
   const { orgs }            = useOrgs()
-  const { profile, loading: profileLoading } = useProfile()
+  const { profile } = useProfile()
 
   const [currentOrgId,     setCurrentOrgId]     = useState(() => localStorage.getItem('atelier_org_id') || null)
   const [currentProjectId, setCurrentProjectId] = useState(() => localStorage.getItem('atelier_project_id') || null)
@@ -109,14 +109,6 @@ function AppShell() {
 
   // splash — só na primeira vez na sessão
   if (!splashDone) return <SplashScreen onDone={handleSplashDone} />
-
-  // onboarding — usuário novo sem nome no perfil
-  if (!profileLoading && !profile?.name) {
-    // só redireciona se não estiver já em /onboarding
-    if (window.location.pathname !== '/onboarding') {
-      return <Navigate to="/onboarding" replace />
-    }
-  }
 
   const currentOrg = orgs.find(o => o.id === currentOrgId) || orgs[0] || null
   const sideW = collapsed ? 'var(--sidebar-col)' : 'var(--sidebar-w)'

@@ -22,6 +22,13 @@ CREATE INDEX IF NOT EXISTS note_folders_org_idx ON note_folders(org_id);
 
 ALTER TABLE note_folders ENABLE ROW LEVEL SECURITY;
 
+-- Remove policies existentes antes de recriar
+DROP POLICY IF EXISTS "owner_note_folders" ON note_folders;
+DROP POLICY IF EXISTS "member_note_folders_select" ON note_folders;
+DROP POLICY IF EXISTS "member_note_folders_insert" ON note_folders;
+DROP POLICY IF EXISTS "member_note_folders_update" ON note_folders;
+DROP POLICY IF EXISTS "member_note_folders_delete" ON note_folders;
+
 -- Owner da org gerencia pastas
 CREATE POLICY "owner_note_folders" ON note_folders
   FOR ALL USING (
@@ -73,6 +80,7 @@ CREATE POLICY "member_note_folders_delete" ON note_folders
   );
 
 -- Trigger updated_at
+DROP TRIGGER IF EXISTS trg_note_folders_updated ON note_folders;
 CREATE TRIGGER trg_note_folders_updated
   BEFORE UPDATE ON note_folders
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
