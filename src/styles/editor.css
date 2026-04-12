@@ -50,3 +50,122 @@
   background: var(--red-dim);
   pointer-events: none;
 }
+
+/* ── Checklist (TaskList / TaskItem) ───────────────────────────────── */
+.ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 4px;
+  margin-bottom: 10px;
+}
+
+.ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.ProseMirror ul[data-type="taskList"] li > label {
+  flex-shrink: 0;
+  margin-top: 2px;
+  cursor: pointer;
+}
+
+.ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--border-red);
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.15s;
+  display: block;
+}
+
+.ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"]:checked {
+  background: var(--red);
+  border-color: var(--red);
+}
+
+.ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 1px;
+  width: 5px;
+  height: 8px;
+  border: 1.5px solid #F0EDE8;
+  border-top: none;
+  border-left: none;
+  transform: rotate(45deg);
+}
+
+.ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div > p {
+  color: var(--text-dim);
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+/* checklist aninhado */
+.ProseMirror ul[data-type="taskList"] li > div > ul[data-type="taskList"] {
+  margin-top: 4px;
+  padding-left: 16px;
+}
+
+/* ── Menu Suspenso (details/summary) ───────────────────────────────── */
+.ProseMirror details {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin: 10px 0;
+  overflow: hidden;
+}
+
+.ProseMirror details summary {
+  padding: 8px 12px;
+  background: var(--surface);
+  cursor: pointer;
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.ProseMirror details summary::-webkit-details-marker {
+  display: none;
+}
+
+.ProseMirror details summary::before {
+  content: '▸';
+  color: var(--red);
+  font-size: 10px;
+  transition: transform 0.2s;
+  display: inline-block;
+}
+
+.ProseMirror details[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.ProseMirror details summary:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.ProseMirror details > *:not(summary) {
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+}

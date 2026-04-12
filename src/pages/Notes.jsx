@@ -1,8 +1,10 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useGroups } from '../hooks/useGroups'
 import { useOrgNotes } from '../hooks/useNotes'
 import { useFolders } from '../hooks/useFolders'
 import { useNoteTemplates } from '../hooks/useNoteTemplates'
+import { useAuth } from '../hooks/useAuth'
+import { supabase } from '../lib/supabase'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -11,6 +13,8 @@ import { Table } from '@tiptap/extension-table'
 import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
+import TaskList from '@tiptap/extension-task-list'
+import TaskItem from '@tiptap/extension-task-item'
 import { pushFileToRepo } from '../lib/github'
 import { createTrelloCard, fetchBoardLists } from '../lib/trello'
 import {
@@ -19,6 +23,7 @@ import {
   Download, Send, LayoutList, X, ImageIcon, AlertCircle, CheckCircle2,
   FolderPlus, Folder, FolderOpen, ChevronRight, ChevronDown,
   Pencil, FolderInput, Upload, Copy, LayoutTemplate, Table2,
+  CheckSquare, Lock, Eye, EyeOff, ChevronUp,
 } from 'lucide-react'
 
 function debounce(fn, ms) { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms) } }
@@ -41,6 +46,87 @@ function toMarkdown(html) {
     .replace(/<[^>]+>/g, '')
     .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
     .replace(/\n{3,}/g, '\n\n').trim()
+}
+
+// ── Presence hook — quem está editando a nota agora ─────────────────────────
+function useNotePresence(noteId, user) {
+  const [peers, setPeers] = useState([])
+  const channelRef = useRef(null)
+  const userRef    = useRef(user)
+  useEffect(() => { userRef.current = user })
+
+  useEffect(() => {
+    if (!noteId || !user) return  // sem setState síncrono aqui
+
+    const channel = supabase.channel(`note-presence:${noteId}`, {
+      config: { presence: { key: user.id } },
+    })
+
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState()
+        const others = Object.entries(state)
+          .filter(([key]) => key !== user.id)
+          .map(([, vals]) => vals[0])
+          .filter(Boolean)
+        setPeers(others)  // ✅ dentro de callback de sistema externo — correto
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          const u = userRef.current
+          await channel.track({
+            name:      u?.user_metadata?.name || u?.email?.split('@')[0] || 'alguém',
+            avatar:    u?.user_metadata?.avatar_url || null,
+            online_at: new Date().toISOString(),
+          })
+        }
+      })
+
+    channelRef.current = channel
+
+    return () => {
+      channel.untrack().then(() => supabase.removeChannel(channel))
+    }
+  }, [noteId, user?.id])
+
+  // sem noteId ou user → retorna vazio sem precisar de setState
+  return (noteId && user) ? peers : []
+}
+
+// ── Indicador de presença ─────────────────────────────────────────────────────
+function PresenceBar({ peers }) {
+  if (!peers.length) return null
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 6,
+      padding: '4px 14px', background: 'rgba(90,171,110,0.08)',
+      borderBottom: '1px solid rgba(90,171,110,0.2)', flexShrink: 0,
+    }}>
+      <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#5aab6e', flexShrink: 0, animation: 'pulse 2s infinite' }} />
+      <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, color: '#5aab6e', letterSpacing: '0.08em' }}>
+        {peers.length === 1
+          ? `${peers[0].name} também está editando`
+          : `${peers.map(p => p.name).join(', ')} também estão editando`}
+      </span>
+      <div style={{ display: 'flex', gap: -4 }}>
+        {peers.slice(0, 3).map((p, i) => (
+          <div key={i} title={p.name} style={{
+            width: 20, height: 20, borderRadius: '50%',
+            background: 'var(--surface)', border: '2px solid rgba(90,171,110,0.4)',
+            overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 9, fontFamily: 'var(--ff-mono)', color: '#5aab6e',
+            marginLeft: i > 0 ? -6 : 0,
+          }}>
+            {p.avatar
+              ? <img src={p.avatar} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : (p.name?.[0] || '?').toUpperCase()
+            }
+          </div>
+        ))}
+      </div>
+      <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
+    </div>
+  )
 }
 
 function CardModal({ type = 'confirm', title, message, onConfirm, onClose, confirmLabel = 'confirmar' }) {
@@ -221,9 +307,13 @@ function TableMenu({ editor }) {
   )
 }
 
+// ── NoteEditor — com Checklist, Dropdown (details) e Presence ─────────────────
 function NoteEditor({ note, onUpdate }) {
+  const { user }       = useAuth()
+  const peers          = useNotePresence(note?.id, user)
   const [showImgModal, setShowImgModal] = useState(false)
   const [, forceUpdate] = useState(0)
+
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -233,6 +323,9 @@ function NoteEditor({ note, onUpdate }) {
       TableRow,
       TableHeader,
       TableCell,
+      // ── Checklist ──────────────────────────────────────────
+      TaskList,
+      TaskItem.configure({ nested: true }),
     ],
     content: note.content || '',
     onUpdate: ({ editor }) => { onUpdate(note.id, { content: editor.getHTML() }); forceUpdate(n => n + 1) },
@@ -260,22 +353,38 @@ function NoteEditor({ note, onUpdate }) {
     },
   }, [note.id])
 
+  // ── Inserir bloco de menu suspenso (details/summary) ──────────────────────
+  function insertDropdownBlock() {
+    if (!editor) return
+    editor.chain().focus().insertContent(
+      '<details><summary>Clique para expandir</summary><p>Conteúdo do menu suspenso...</p></details><p></p>'
+    ).run()
+  }
+
   if (!editor) return null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+      {/* Presence bar */}
+      <PresenceBar peers={peers} />
+
+      {/* Toolbar */}
       <div style={{ display: 'flex', gap: 2, padding: '8px 14px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', flexShrink: 0, background: 'var(--bg-alt)', alignItems: 'center' }}>
         <ToolbarBtn action={() => editor.chain().focus().toggleBold().run()}             active={editor.isActive('bold')}              title="negrito"   icon={<Bold size={12} />} />
         <ToolbarBtn action={() => editor.chain().focus().toggleItalic().run()}           active={editor.isActive('italic')}             title="itálico"   icon={<Italic size={12} />} />
         <ToolbarBtn action={() => editor.chain().focus().toggleHeading({level:2}).run()} active={editor.isActive('heading',{level:2})} title="título"    icon={<Heading2 size={12} />} />
         <ToolbarBtn action={() => editor.chain().focus().toggleBulletList().run()}       active={editor.isActive('bulletList')}         title="lista"     icon={<List size={12} />} />
         <ToolbarBtn action={() => editor.chain().focus().toggleOrderedList().run()}      active={editor.isActive('orderedList')}        title="numerada"  icon={<ListOrdered size={12} />} />
+        {/* ── Checklist ─────────────────────────────────────── */}
+        <ToolbarBtn action={() => editor.chain().focus().toggleTaskList().run()}         active={editor.isActive('taskList')}           title="checklist" icon={<CheckSquare size={12} />} />
         <ToolbarBtn action={() => editor.chain().focus().toggleCode().run()}             active={editor.isActive('code')}               title="código"    icon={<Code size={12} />} />
         <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 4px' }} />
         <ToolbarBtn action={() => setShowImgModal(true)} active={false} title="inserir imagem (ou ctrl+v para colar)" icon={<ImageIcon size={12} />} />
         <ToolbarBtn action={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
           active={editor.isActive('table')} title="inserir tabela" icon={<Table2 size={12} />} />
-        <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', opacity: 0.7 }}>ctrl+v · clique para inserir tabela</span>
+        {/* ── Menu suspenso (dropdown/details) ──────────────── */}
+        <ToolbarBtn action={insertDropdownBlock} active={false} title="inserir bloco suspenso (expandir/recolher)" icon={<ChevronDown size={12} />} />
+        <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', opacity: 0.7 }}>ctrl+v · ☑ check · ▾ suspenso</span>
       </div>
       <TableMenu editor={editor} />
       <EditorContent editor={editor} style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }} />
@@ -350,9 +459,13 @@ function TrelloCardModal({ note, group, trelloToken, onClose }) {
   const [status, setStatus]     = useState(null)
   const [loading, setLoading]   = useState(false)
 
-  useState(() => {
+  // ✅ CORREÇÃO: era useState(() => {...}, []) — deve ser useEffect
+  useEffect(() => {
     if (trelloToken && group?.trello_board_id) {
-      fetchBoardLists(trelloToken, group.trello_board_id).then(ls => { setLists(ls); if (ls[0]) setListId(ls[0].id) })
+      fetchBoardLists(trelloToken, group.trello_board_id).then(ls => {
+        setLists(ls)
+        if (ls[0]) setListId(ls[0].id)
+      })
     }
   }, [])
 
@@ -417,24 +530,43 @@ function TrelloCardModal({ note, group, trelloToken, onClose }) {
   )
 }
 
-function NoteItem({ note, active, indent = false, onClick }) {
+// ── NoteItem — com indicador de privacidade ───────────────────────────────────
+function NoteItem({ note, active, indent = false, onClick, isOwner, currentUserId }) {
   function stripHtml(html) { return (html || '').replace(/<[^>]*>/g, '').trim() }
+
+  // nota private que não é minha → bloqueada
+  const isLocked = note.visibility === 'private'
+    && note.author_id !== currentUserId
+    && !isOwner
+
   return (
-    <button onClick={onClick} style={{
-      width: '100%', textAlign: 'left',
-      padding: indent ? '7px 9px 7px 28px' : '8px 9px',
-      borderRadius: 'var(--radius-md)', marginBottom: 2,
-      background: active ? 'var(--red-dim)' : 'transparent',
-      border: active ? '1px solid var(--border-red)' : '1px solid transparent',
-      transition: 'all var(--fast)', cursor: 'pointer',
-    }}>
+    <button
+      onClick={isLocked ? undefined : onClick}
+      style={{
+        width: '100%', textAlign: 'left',
+        padding: indent ? '7px 9px 7px 28px' : '8px 9px',
+        borderRadius: 'var(--radius-md)', marginBottom: 2,
+        background: active ? 'var(--red-dim)' : 'transparent',
+        border: active ? '1px solid var(--border-red)' : '1px solid transparent',
+        transition: 'all var(--fast)',
+        cursor: isLocked ? 'not-allowed' : 'pointer',
+        opacity: isLocked ? 0.55 : 1,
+      }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
         {note.pinned && <Pin size={9} style={{ color: active ? '#F0EDE8' : 'var(--red)', flexShrink: 0 }} />}
+        {isLocked
+          ? <Lock size={9} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
+          : note.visibility === 'private' && <EyeOff size={9} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
+        }
         <span style={{ fontSize: 12, fontWeight: 500, color: active ? '#F0EDE8' : 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {note.title || 'sem título'}
         </span>
       </div>
-      {note.content && (
+      {isLocked ? (
+        <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, color: 'var(--text-dim)', marginTop: 2, opacity: 0.5 }}>
+          conteúdo privado
+        </div>
+      ) : note.content && (
         <div style={{ fontFamily: 'var(--ff-body)', fontSize: 11, color: active ? 'rgba(240,237,232,0.45)' : 'var(--text-dim)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {stripHtml(note.content).substring(0, 55)}
         </div>
@@ -528,10 +660,14 @@ function NewFolderInput({ onConfirm, onCancel }) {
 }
 
 export default function Notes({ org }) {
+  const { user }  = useAuth()
   const { groups } = useGroups(org?.id)
   const { notes, loading, createNote, updateNote, deleteNote, togglePin } = useOrgNotes(org?.id)
   const { templates, saveAsTemplate, deleteTemplate } = useNoteTemplates(org?.id)
   const trelloToken = localStorage.getItem('atelier_trello_token') || ''
+
+  // Resolve se o usuário é owner da org
+  const isOwner = org?.owner_id === user?.id
 
   const [activeNoteId, setActiveNoteId]     = useState(null)
   const [search, setSearch]                 = useState('')
@@ -559,7 +695,10 @@ export default function Notes({ org }) {
     return matchSearch && matchGroup
   })
 
-  const handleUpdate = useCallback(debounce((id, payload) => updateNote(id, payload), 700), [updateNote])
+  const handleUpdate = useMemo(
+    () => debounce((id, payload) => updateNote(id, payload), 700),
+    [updateNote]
+  )
 
   async function handleCreate(folderId = null) {
     const gId = groupFilter !== 'all' ? groupFilter : groups[0]?.id
@@ -610,6 +749,12 @@ export default function Notes({ org }) {
     setShowFolderPicker(false)
   }
 
+  // Toggle privacidade
+  async function toggleVisibility(note) {
+    const next = note.visibility === 'private' ? 'org' : 'private'
+    await updateNote(note.id, { visibility: next })
+  }
+
   function askDelete(id) {
     setModal({
       type: 'confirm',
@@ -653,13 +798,17 @@ export default function Notes({ org }) {
     <button key={title} onClick={onClick} title={title} style={{
       display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px',
       borderRadius: 'var(--radius)', border: '1px solid var(--border)',
-      background: 'var(--surface)',
-      color: opts.danger ? 'var(--text-dim)' : 'var(--text-muted)',
+      background: opts.active ? 'var(--red-dim)' : 'var(--surface)',
+      color: opts.danger ? 'var(--text-dim)' : opts.active ? '#F0EDE8' : 'var(--text-muted)',
       fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.08em',
       cursor: 'pointer', transition: 'all var(--fast)',
+      ...(opts.active && { borderColor: 'var(--border-red)' }),
     }}
       onMouseEnter={e => { e.currentTarget.style.color = opts.danger ? 'var(--red)' : 'var(--text)'; e.currentTarget.style.borderColor = 'var(--border-red)' }}
-      onMouseLeave={e => { e.currentTarget.style.color = opts.danger ? 'var(--text-dim)' : 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}>
+      onMouseLeave={e => {
+        e.currentTarget.style.color = opts.danger ? 'var(--text-dim)' : opts.active ? '#F0EDE8' : 'var(--text-muted)'
+        e.currentTarget.style.borderColor = opts.active ? 'var(--border-red)' : 'var(--border)'
+      }}>
       {icon}{opts.label && <span>{opts.label}</span>}
     </button>
   )
@@ -668,6 +817,11 @@ export default function Notes({ org }) {
   const showFolderTree   = groupFilter !== 'all'
   const folderNotes      = (folderId) => filtered.filter(n => n.folder_id === folderId)
   const unfolderedNotes  = filtered.filter(n => !n.folder_id)
+
+  // Privacidade: a nota ativa é minha ou sou owner?
+  const canEditActiveNote = activeNote
+    ? (isOwner || activeNote.author_id === user?.id || activeNote.visibility === 'org')
+    : false
 
   return (
     <div className="page-wrap" style={{ height: '100vh', overflow: 'hidden' }}>
@@ -741,7 +895,9 @@ export default function Notes({ org }) {
                         onAddNote={() => handleCreate(folder.id)}
                       />
                       {isOpen && fNotes.map(note => (
-                        <NoteItem key={note.id} note={note} active={activeNoteId === note.id} indent onClick={() => setActiveNoteId(note.id)} />
+                        <NoteItem key={note.id} note={note} active={activeNoteId === note.id} indent
+                          onClick={() => setActiveNoteId(note.id)}
+                          isOwner={isOwner} currentUserId={user?.id} />
                       ))}
                     </div>
                   )
@@ -754,7 +910,9 @@ export default function Notes({ org }) {
                       </div>
                     )}
                     {unfolderedNotes.map(note => (
-                      <NoteItem key={note.id} note={note} active={activeNoteId === note.id} onClick={() => setActiveNoteId(note.id)} />
+                      <NoteItem key={note.id} note={note} active={activeNoteId === note.id}
+                        onClick={() => setActiveNoteId(note.id)}
+                        isOwner={isOwner} currentUserId={user?.id} />
                     ))}
                     {unfolderedNotes.length === 0 && folders.length > 0 && (
                       <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, color: 'var(--text-dim)', padding: '4px 8px', opacity: 0.5 }}>—</div>
@@ -777,7 +935,9 @@ export default function Notes({ org }) {
                   </div>
                 )}
                 {filtered.map(note => (
-                  <NoteItem key={note.id} note={note} active={activeNoteId === note.id} onClick={() => setActiveNoteId(note.id)} />
+                  <NoteItem key={note.id} note={note} active={activeNoteId === note.id}
+                    onClick={() => setActiveNoteId(note.id)}
+                    isOwner={isOwner} currentUserId={user?.id} />
                 ))}
               </>
             )}
@@ -798,7 +958,11 @@ export default function Notes({ org }) {
                     onBlur={e => { updateNote(activeNote.id, { title: e.target.value }); setEditingTitle(null) }}
                     onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
                     style={{ flex: 1, minWidth: 0, background: 'var(--surface)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius)', padding: '4px 8px', color: 'var(--text)', fontSize: 14, fontWeight: 600, outline: 'none' }} />
-                : <div onClick={() => setEditingTitle(activeNote.id)} style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, color: 'var(--text)', cursor: 'text', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                : <div onClick={() => canEditActiveNote && setEditingTitle(activeNote.id)}
+                    style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, color: 'var(--text)', cursor: canEditActiveNote ? 'text' : 'default', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {activeNote.visibility === 'private' && (
+                      <Lock size={12} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
+                    )}
                     {activeNote.title || 'sem título'}
                   </div>
               }
@@ -836,6 +1000,16 @@ export default function Notes({ org }) {
                   style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: activeNote.pinned ? 'var(--red-dim)' : 'var(--surface)', color: activeNote.pinned ? '#F0EDE8' : 'var(--text-muted)', fontFamily: 'var(--ff-mono)', fontSize: 10, cursor: 'pointer', transition: 'all var(--fast)' }}>
                   {activeNote.pinned ? <PinOff size={11} /> : <Pin size={11} />}
                 </button>
+                {/* ── Botão de privacidade ── */}
+                {toolBtn(
+                  activeNote.visibility === 'private' ? 'tornar visível para a org' : 'tornar privado (só você e o owner)',
+                  activeNote.visibility === 'private' ? <Eye size={11} /> : <EyeOff size={11} />,
+                  () => toggleVisibility(activeNote),
+                  {
+                    label: activeNote.visibility === 'private' ? 'privado' : 'visível',
+                    active: activeNote.visibility === 'private',
+                  }
+                )}
                 {toolBtn('duplicar', <Copy size={11} />, () => handleDuplicate(activeNote), { label: 'duplicar' })}
                 <button
                   onClick={() => templateFeedback !== 'saving' && handleSaveAsTemplate(activeNote)}
@@ -853,7 +1027,7 @@ export default function Notes({ org }) {
                   onMouseLeave={e => { if (!templateFeedback) { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' } }}
                 >
                   <LayoutTemplate size={11} />
-                  <span>{templateFeedback === 'saved' ? '✓ template salvo!' : templateFeedback === 'saving' ? 'salvando...' : templateFeedback === 'error' ? '✗ erro' : 'template'}</span>
+                  <span>{templateFeedback === 'saved' ? '✓ template salvo!' : templateFeedback === 'saving' ? 'salvando...' : templateFeedback === 'error' ? '✗ erro — rode a migration v12' : 'template'}</span>
                 </button>
                 {toolBtn('usar template', <FileText size={11} />, () => setShowTemplates(true), { label: 'usar template' })}
                 {toolBtn('.md', <Download size={11} />, exportMd, { label: '.md' })}
@@ -863,7 +1037,7 @@ export default function Notes({ org }) {
               </div>
             </div>
             <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              <NoteEditor note={activeNote} onUpdate={handleUpdate} />
+              <NoteEditor note={activeNote} onUpdate={handleUpdate} org={org} />
             </div>
             <div style={{ padding: '6px 16px', borderTop: '1px solid var(--border)', fontFamily: 'var(--ff-mono)', fontSize: 10, color: 'var(--text-dim)', display: 'flex', justifyContent: 'space-between', flexShrink: 0 }}>
               <span>
@@ -872,6 +1046,11 @@ export default function Notes({ org }) {
                   <span style={{ marginLeft: 10, opacity: 0.6 }}>
                     <Folder size={9} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} />
                     {activeNoteFolder.name}
+                  </span>
+                )}
+                {activeNote.visibility === 'private' && (
+                  <span style={{ marginLeft: 10, color: 'var(--text-dim)', opacity: 0.7, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                    <Lock size={9} /> privado
                   </span>
                 )}
               </span>
@@ -912,6 +1091,9 @@ export default function Notes({ org }) {
                 <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-dim)', fontFamily: 'var(--ff-mono)', fontSize: 12 }}>
                   <LayoutTemplate size={28} style={{ opacity: 0.3, marginBottom: 12, display: 'block', margin: '0 auto 12px' }} />
                   nenhum template ainda — salve uma nota como template para reutilizá-la aqui
+                  <div style={{ marginTop: 12, fontSize: 10, opacity: 0.6 }}>
+                    se já salvou um e não aparece, rode a migration v12 no Supabase
+                  </div>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

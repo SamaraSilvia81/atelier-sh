@@ -1,91 +1,97 @@
-import { useState, useEffect, useCallback } from 'react'
-import { supabase } from '../lib/supabase'
-import { useAuth } from './useAuth'
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from './useAuth';
 
-// ─── hook principal ──────────────────────────────────────────────────────────
 export function useActivityLog(orgId, { limit = 50, entityType = null, entityId = null } = {}) {
-  const { user }     = useAuth()
-  const [logs,       setLogs]    = useState([])
-  const [loading,    setLoading] = useState(true)
-  const [hasMore,    setHasMore] = useState(false)
-  const [offset,     setOffset]  = useState(0)
+  
+  const { user } = useAuth(); // O 'user' agora será usado nas dependências
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const [unavailable, setUnavailable] = useState(false);
 
-  useEffect(() => {
-    if (!orgId) { setLogs([]); setLoading(false); return }
-    setOffset(0)
-    load(0)
-  }, [orgId, entityType, entityId])
-
-  const load = useCallback(async (off = 0) => {
-    if (!orgId) return
-    setLoading(true)
-    let q = supabase
-      .from('activity_log')
-      .select('*, profiles(name, avatar)')
-      .eq('org_id', orgId)
-      .order('created_at', { ascending: false })
-      .range(off, off + limit - 1)
-
-    if (entityType) q = q.eq('entity_type', entityType)
-    if (entityId)   q = q.eq('entity_id',   entityId)
-
-    const { data, error } = await q
-    if (!error) {
-      if (off === 0) setLogs(data || [])
-      else           setLogs(prev => [...prev, ...(data || [])])
-      setHasMore((data || []).length === limit)
+  // 1. Função de carga memoizada
+  const fetchLogs = useCallback(async (currentOffset, isInitial = false) => {
+    // Verificamos orgId e user para garantir que a query só rode se houver sessão
+    if (!orgId || !user) {
+      setLoading(false);
+      return;
     }
-    setLoading(false)
-  }, [orgId, entityType, entityId, limit])
+    
+    setLoading(true);
+    try {
+      let q = supabase
+        .from('activity_log')
+        .select('*, profiles(name, avatar)')
+        .eq('org_id', orgId)
+        .order('created_at', { ascending: false })
+        .range(currentOffset, currentOffset + limit - 1);
 
-  function loadMore() {
-    const next = offset + limit
-    setOffset(next)
-    load(next)
-  }
+      if (entityType) q = q.eq('entity_type', entityType);
+      if (entityId) q = q.eq('entity_id', entityId);
 
-  return { logs, loading, hasMore, loadMore, refresh: () => { setOffset(0); load(0) } }
+      const { data, error } = await q;
+
+      if (error) {
+        if (['42P01', 'PGRST116', '42501'].includes(error.code)) {
+          setUnavailable(true);
+          setLogs([]);
+        }
+        return;
+      }
+
+      const newLogs = data || [];
+      setLogs(prev => (isInitial ? newLogs : [...prev, ...newLogs]));
+      setHasMore(newLogs.length === limit);
+    } catch (err) {
+      console.error('Erro ao buscar logs:', err);
+    } finally {
+      setLoading(false);
+    }
+    // Incluímos user?.id para que se o usuário mudar, a função seja recriada
+  }, [orgId, user?.id, entityType, entityId, limit]);
+
+  // 2. Efeito para disparar a carga inicial
+  // O erro de "cascading renders" sumirá aqui porque fetchLogs está isolado
+  useEffect(() => {
+    setOffset(0);
+    setUnavailable(false);
+    fetchLogs(0, true);
+  }, [fetchLogs]);
+
+  const loadMore = () => {
+    if (loading || !hasMore) return;
+    const nextOffset = offset + limit;
+    setOffset(nextOffset);
+    fetchLogs(nextOffset, false);
+  };
+
+  const refresh = () => {
+    setOffset(0);
+    setUnavailable(false);
+    fetchLogs(0, true);
+  };
+
+  return { logs, loading, hasMore, unavailable, loadMore, refresh };
 }
 
-// ─── função utilitária para registrar ações (use nos hooks existentes) ───────
+/**
+ * Utilitário para registrar logs
+ */
 export async function logActivity(orgId, userId, action, entityType, entityId, entityName, meta = {}) {
-  if (!orgId || !userId) return
-  await supabase.from('activity_log').insert({
-    org_id: orgId,
-    user_id: userId,
-    action,
-    entity_type: entityType,
-    entity_id: entityId,
-    entity_name: entityName,
-    meta,
-  })
-}
-
-// ─── labels legíveis por humanos ─────────────────────────────────────────────
-export function actionLabel(action, entityType) {
-  const map = {
-    created:            'criou',
-    updated:            'atualizou',
-    deleted:            'deletou',
-    invited:            'convidou',
-    role_changed:       'alterou a role de',
-    note_edited:        'editou a nota',
-    permission_changed: 'alterou permissões de',
-    status_changed:     'mudou o status de',
-    visibility_changed: 'alterou visibilidade de',
+  if (!orgId || !userId) return;
+  try {
+    await supabase.from('activity_log').insert({
+      org_id: orgId,
+      user_id: userId,
+      action: action,
+      entity_type: entityType,
+      entity_id: entityId,
+      entity_name: entityName,
+      meta: meta,
+    });
+  } catch (err) {
+    console.warn('Erro ao salvar log:', err);
   }
-  return map[action] || action
-}
-
-export function entityLabel(entityType) {
-  const map = {
-    organization: 'organização',
-    project:      'projeto',
-    group:        'grupo',
-    note:         'nota',
-    member:       'membro',
-    invite:       'convite',
-    permission:   'permissão',
-  }
-  return map[entityType] || entityType
 }
