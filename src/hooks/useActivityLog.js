@@ -77,6 +77,37 @@ export function useActivityLog(orgId, { limit = 50, entityType = null, entityId 
 }
 
 /**
+ * Tradutores de labels para a UI
+ */
+export function actionLabel(action) {
+  const labels = {
+    created: 'criou',
+    updated: 'atualizou',
+    deleted: 'removeu',
+    invited: 'convidou',
+    role_changed: 'alterou cargo',
+    note_edited: 'editou nota',
+    permission_changed: 'alterou permissão',
+    status_changed: 'alterou status',
+    visibility_changed: 'alterou visibilidade',
+  };
+  return labels[action] || action;
+}
+
+export function entityLabel(type) {
+  const labels = {
+    organization: 'organização',
+    project: 'projeto',
+    group: 'grupo',
+    note: 'nota',
+    member: 'membro',
+    invite: 'convite',
+    permission: 'permissão',
+  };
+  return labels[type] || type;
+}
+
+/**
  * Utilitário para registrar logs
  */
 export async function logActivity(orgId, userId, action, entityType, entityId, entityName, meta = {}) {

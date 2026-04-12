@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import { useActivityLog, actionLabel, entityLabel } from '../hooks/useActivityLog'
 import {
   Activity, RefreshCw, ChevronDown,
