@@ -3,7 +3,7 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import { Image as TiptapImage } from '@tiptap/extension-image'
-import { Table } from "@tiptap/extension-table";
+import Table from '@tiptap/extension-table'
 import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
@@ -352,11 +352,56 @@ function ResizeImageModal({ current, onApply, onClose }) {
   )
 }
 
+// ── TableMenu — aparece quando o cursor está dentro de uma tabela ──────
+function TableMenu({ editor }) {
+  const isInTable = editor.isActive('table')
+  if (!isInTable) return null
+
+  const btn = (label, action, title) => (
+    <button
+      key={label}
+      onClick={action}
+      title={title || label}
+      style={{
+        padding: '3px 8px', borderRadius: 'var(--radius)',
+        fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.05em',
+        border: '1px solid var(--border-red)', background: 'var(--red-dim)',
+        color: '#F0EDE8', cursor: 'pointer', whiteSpace: 'nowrap',
+        transition: 'all var(--fast)',
+      }}
+      onMouseEnter={e => e.currentTarget.style.background = 'var(--red)'}
+      onMouseLeave={e => e.currentTarget.style.background = 'var(--red-dim)'}
+    >
+      {label}
+    </button>
+  )
+
+  return (
+    <div style={{
+      display: 'flex', gap: 4, padding: '5px 12px', borderBottom: '1px solid var(--border)',
+      background: 'rgba(192,33,28,0.06)', flexWrap: 'wrap', alignItems: 'center', flexShrink: 0,
+    }}>
+      <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--red)', opacity: 0.8, marginRight: 4 }}>tabela ›</span>
+      {btn('+ linha acima', () => editor.chain().focus().addRowBefore().run())}
+      {btn('+ linha abaixo', () => editor.chain().focus().addRowAfter().run())}
+      {btn('− linha', () => editor.chain().focus().deleteRow().run())}
+      <div style={{ width: 1, height: 14, background: 'var(--border-red)', opacity: 0.4 }} />
+      {btn('+ col. antes', () => editor.chain().focus().addColumnBefore().run())}
+      {btn('+ col. depois', () => editor.chain().focus().addColumnAfter().run())}
+      {btn('− coluna', () => editor.chain().focus().deleteColumn().run())}
+      <div style={{ width: 1, height: 14, background: 'var(--border-red)', opacity: 0.4 }} />
+      {btn('merge', () => editor.chain().focus().mergeOrSplit().run(), 'unir/separar células selecionadas')}
+      {btn('× excluir tabela', () => editor.chain().focus().deleteTable().run())}
+    </div>
+  )
+}
+
 // ── NoteEditor ────────────────────────────────────────────────────────
 function NoteEditor({ note, onUpdate }) {
   const [showImgModal, setShowImgModal] = useState(false)
   const [showResizeModal, setShowResizeModal] = useState(false)
   const [selectedImg, setSelectedImg] = useState(null)
+  const [, forceUpdate] = useState(0)
 
   const editor = useEditor({
     extensions: [
@@ -369,7 +414,11 @@ function NoteEditor({ note, onUpdate }) {
       TableCell,
     ],
     content: note.content || '',
-    onUpdate: ({ editor }) => onUpdate(note.id, { content: editor.getHTML() }),
+    onUpdate: ({ editor }) => {
+      onUpdate(note.id, { content: editor.getHTML() })
+      forceUpdate(n => n + 1) // re-render para atualizar TableMenu
+    },
+    onSelectionUpdate: () => forceUpdate(n => n + 1), // detecta cursor entrando/saindo de tabela
     editorProps: {
       handlePaste(view, event) {
         const items = event.clipboardData?.items
@@ -422,9 +471,11 @@ function NoteEditor({ note, onUpdate }) {
         <ToolbarBtn action={() => setShowImgModal(true)} active={false} title="inserir imagem (ou ctrl+v)" icon={<ImageIcon size={12} />} />
         <ToolbarBtn
           action={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
-          active={false} title="inserir tabela" icon={<Table2 size={12} />} />
+          active={editor.isActive('table')} title="inserir tabela / editar tabela" icon={<Table2 size={12} />} />
         <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', opacity: 0.7 }}>ctrl+v · clique na imagem para redimensionar</span>
       </div>
+      {/* Menu contextual de tabela — aparece quando cursor está dentro de uma tabela */}
+      <TableMenu editor={editor} />
       <EditorContent editor={editor} style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }} />
       {showImgModal && (
         <ImageModal
@@ -487,10 +538,10 @@ export default function NotesPanel({ group, orgId, onClose }) {
   }
 
   async function handleSaveAsTemplate(note) {
-    setTemplateFeedback('saving')
-    const { error } = await saveAsTemplate({ title: note.title, content: note.content })
-    setTemplateFeedback(error ? 'error' : 'saved')
-    setTimeout(() => setTemplateFeedback(null), 2500)
+    setTemplateFeedback("saving")
+    const { data, error } = await saveAsTemplate({ title: note.title, content: note.content })
+    setTemplateFeedback(error ? "error" : "saved")
+    setTimeout(() => setTemplateFeedback(null), 3000)
   }
 
   async function handleCreateFromTemplate(template) {
@@ -728,12 +779,26 @@ export default function NotesPanel({ group, orgId, onClose }) {
                       {activeNote.visibility === 'private' ? <Lock size={11} /> : <Globe size={11} />}
                     </button>
                     {toolBtn('duplicar', <Copy size={11} />, () => handleDuplicate(activeNote), { label: 'duplicar' })}
-                    {toolBtn(
-                      templateFeedback === 'saved' ? '✓ salvo!' : templateFeedback === 'saving' ? '...' : 'salvar como template',
-                      <LayoutTemplate size={11} />,
-                      () => handleSaveAsTemplate(activeNote),
-                      { label: templateFeedback === 'saved' ? '✓ template' : templateFeedback === 'saving' ? '...' : 'template' }
-                    )}
+                    <button
+                      onClick={() => templateFeedback !== 'saving' && handleSaveAsTemplate(activeNote)}
+                      title="salvar esta nota como template reutilizável"
+                      disabled={templateFeedback === 'saving'}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 4, padding: '4px 7px',
+                        borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.08em',
+                        cursor: templateFeedback === 'saving' ? 'wait' : 'pointer', transition: 'all var(--fast)',
+                        border: templateFeedback === 'saved' ? '1px solid #2a6e3a' : templateFeedback === 'error' ? '1px solid var(--border-red)' : '1px solid var(--border)',
+                        background: templateFeedback === 'saved' ? 'rgba(90,171,110,0.15)' : templateFeedback === 'error' ? 'var(--red-dim)' : 'var(--surface)',
+                        color: templateFeedback === 'saved' ? '#5aab6e' : templateFeedback === 'error' ? 'var(--red)' : 'var(--text-muted)',
+                      }}
+                      onMouseEnter={e => { if (!templateFeedback) { e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.borderColor = 'var(--border-red)' } }}
+                      onMouseLeave={e => { if (!templateFeedback) { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' } }}
+                    >
+                      <LayoutTemplate size={11} />
+                      <span>
+                        {templateFeedback === 'saved' ? '✓ salvo como template!' : templateFeedback === 'saving' ? 'salvando...' : templateFeedback === 'error' ? '✗ erro' : 'template'}
+                      </span>
+                    </button>
                     {toolBtn('usar template', <FileText size={11} />, () => setShowTemplates(true), { label: 'usar template' })}
                     {toolBtn('.md', <Download size={11} />, exportMd, { label: '.md' })}
                     {toolBtn('github', <Send size={11} />, () => setShowPush(true), { label: 'github' })}

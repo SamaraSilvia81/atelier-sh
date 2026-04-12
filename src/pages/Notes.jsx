@@ -2,10 +2,15 @@ import { useState, useCallback, useRef } from 'react'
 import { useGroups } from '../hooks/useGroups'
 import { useOrgNotes } from '../hooks/useNotes'
 import { useFolders } from '../hooks/useFolders'
+import { useNoteTemplates } from '../hooks/useNoteTemplates'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Image from '@tiptap/extension-image'
+import Table from '@tiptap/extension-table'
+import TableRow from '@tiptap/extension-table-row'
+import TableCell from '@tiptap/extension-table-cell'
+import TableHeader from '@tiptap/extension-table-header'
 import { pushFileToRepo } from '../lib/github'
 import { createTrelloCard, fetchBoardLists } from '../lib/trello'
 import {
@@ -13,7 +18,7 @@ import {
   List, ListOrdered, Heading2, Code, FileText,
   Download, Send, LayoutList, X, ImageIcon, AlertCircle, CheckCircle2,
   FolderPlus, Folder, FolderOpen, ChevronRight, ChevronDown,
-  Pencil, FolderInput, Upload,
+  Pencil, FolderInput, Upload, Copy, LayoutTemplate, Table2,
 } from 'lucide-react'
 
 function debounce(fn, ms) { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms) } }
@@ -185,16 +190,53 @@ function ToolbarBtn({ action, active, title, icon }) {
   )
 }
 
+function TableMenu({ editor }) {
+  const isInTable = editor.isActive('table')
+  if (!isInTable) return null
+  const btn = (label, action, title) => (
+    <button key={label} onClick={action} title={title || label} style={{
+      padding: '3px 8px', borderRadius: 'var(--radius)',
+      fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.05em',
+      border: '1px solid var(--border-red)', background: 'var(--red-dim)',
+      color: '#F0EDE8', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all var(--fast)',
+    }}
+      onMouseEnter={e => e.currentTarget.style.background = 'var(--red)'}
+      onMouseLeave={e => e.currentTarget.style.background = 'var(--red-dim)'}
+    >{label}</button>
+  )
+  return (
+    <div style={{ display: 'flex', gap: 4, padding: '5px 14px', borderBottom: '1px solid var(--border)', background: 'rgba(192,33,28,0.06)', flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
+      <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--red)', opacity: 0.8, marginRight: 4 }}>tabela ›</span>
+      {btn('+ linha acima', () => editor.chain().focus().addRowBefore().run())}
+      {btn('+ linha abaixo', () => editor.chain().focus().addRowAfter().run())}
+      {btn('− linha', () => editor.chain().focus().deleteRow().run())}
+      <div style={{ width: 1, height: 14, background: 'var(--border-red)', opacity: 0.4 }} />
+      {btn('+ col. antes', () => editor.chain().focus().addColumnBefore().run())}
+      {btn('+ col. depois', () => editor.chain().focus().addColumnAfter().run())}
+      {btn('− coluna', () => editor.chain().focus().deleteColumn().run())}
+      <div style={{ width: 1, height: 14, background: 'var(--border-red)', opacity: 0.4 }} />
+      {btn('merge', () => editor.chain().focus().mergeOrSplit().run(), 'unir/separar células')}
+      {btn('× excluir tabela', () => editor.chain().focus().deleteTable().run())}
+    </div>
+  )
+}
+
 function NoteEditor({ note, onUpdate }) {
   const [showImgModal, setShowImgModal] = useState(false)
+  const [, forceUpdate] = useState(0)
   const editor = useEditor({
     extensions: [
       StarterKit,
       Placeholder.configure({ placeholder: '›_ escreva suas anotações aqui...' }),
       Image.configure({ inline: false, allowBase64: true }),
+      Table.configure({ resizable: false }),
+      TableRow,
+      TableHeader,
+      TableCell,
     ],
     content: note.content || '',
-    onUpdate: ({ editor }) => onUpdate(note.id, { content: editor.getHTML() }),
+    onUpdate: ({ editor }) => { onUpdate(note.id, { content: editor.getHTML() }); forceUpdate(n => n + 1) },
+    onSelectionUpdate: () => forceUpdate(n => n + 1),
     editorProps: {
       handlePaste(view, event) {
         const items = event.clipboardData?.items
@@ -231,8 +273,11 @@ function NoteEditor({ note, onUpdate }) {
         <ToolbarBtn action={() => editor.chain().focus().toggleCode().run()}             active={editor.isActive('code')}               title="código"    icon={<Code size={12} />} />
         <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 4px' }} />
         <ToolbarBtn action={() => setShowImgModal(true)} active={false} title="inserir imagem (ou ctrl+v para colar)" icon={<ImageIcon size={12} />} />
-        <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', opacity: 0.7 }}>ctrl+v para colar imagem</span>
+        <ToolbarBtn action={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
+          active={editor.isActive('table')} title="inserir tabela" icon={<Table2 size={12} />} />
+        <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', opacity: 0.7 }}>ctrl+v · clique para inserir tabela</span>
       </div>
+      <TableMenu editor={editor} />
       <EditorContent editor={editor} style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }} />
       {showImgModal && (
         <ImageModal
@@ -485,6 +530,7 @@ function NewFolderInput({ onConfirm, onCancel }) {
 export default function Notes({ org }) {
   const { groups } = useGroups(org?.id)
   const { notes, loading, createNote, updateNote, deleteNote, togglePin } = useOrgNotes(org?.id)
+  const { templates, saveAsTemplate, deleteTemplate } = useNoteTemplates(org?.id)
   const trelloToken = localStorage.getItem('atelier_trello_token') || ''
 
   const [activeNoteId, setActiveNoteId]     = useState(null)
@@ -494,6 +540,8 @@ export default function Notes({ org }) {
   const [creating, setCreating]             = useState(false)
   const [showPush, setShowPush]             = useState(false)
   const [showTrello, setShowTrello]         = useState(false)
+  const [showTemplates, setShowTemplates]   = useState(false)
+  const [templateFeedback, setTemplateFeedback] = useState(null)
   const [modal, setModal]                   = useState(null)
   const [collapsedFolders, setCollapsedFolders] = useState({})
   const [addingFolder, setAddingFolder]         = useState(false)
@@ -520,6 +568,36 @@ export default function Notes({ org }) {
     const { data } = await createNote(gId, 'Nova anotação', { folder_id: folderId || null })
     if (data) setActiveNoteId(data.id)
     setCreating(false)
+  }
+
+  async function handleDuplicate(note) {
+    const gId = note.group_id || (groupFilter !== 'all' ? groupFilter : groups[0]?.id)
+    if (!gId) return
+    const { data } = await createNote(gId, `${note.title || 'sem título'} (cópia)`, {
+      folder_id: note.folder_id || null,
+    })
+    if (data) {
+      await updateNote(data.id, { content: note.content || '' })
+      setActiveNoteId(data.id)
+    }
+  }
+
+  async function handleSaveAsTemplate(note) {
+    setTemplateFeedback('saving')
+    const { error } = await saveAsTemplate({ title: note.title, content: note.content })
+    setTemplateFeedback(error ? 'error' : 'saved')
+    setTimeout(() => setTemplateFeedback(null), 3000)
+  }
+
+  async function handleCreateFromTemplate(template) {
+    const gId = groupFilter !== 'all' ? groupFilter : groups[0]?.id
+    if (!gId) return
+    const { data } = await createNote(gId, template.title, {})
+    if (data) {
+      await updateNote(data.id, { content: template.content || '' })
+      setActiveNoteId(data.id)
+      setShowTemplates(false)
+    }
   }
 
   async function handleCreateFolder(name) {
@@ -758,6 +836,26 @@ export default function Notes({ org }) {
                   style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: activeNote.pinned ? 'var(--red-dim)' : 'var(--surface)', color: activeNote.pinned ? '#F0EDE8' : 'var(--text-muted)', fontFamily: 'var(--ff-mono)', fontSize: 10, cursor: 'pointer', transition: 'all var(--fast)' }}>
                   {activeNote.pinned ? <PinOff size={11} /> : <Pin size={11} />}
                 </button>
+                {toolBtn('duplicar', <Copy size={11} />, () => handleDuplicate(activeNote), { label: 'duplicar' })}
+                <button
+                  onClick={() => templateFeedback !== 'saving' && handleSaveAsTemplate(activeNote)}
+                  title="salvar esta nota como template reutilizável"
+                  disabled={templateFeedback === 'saving'}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px',
+                    borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.08em',
+                    cursor: templateFeedback === 'saving' ? 'wait' : 'pointer', transition: 'all var(--fast)',
+                    border: templateFeedback === 'saved' ? '1px solid #2a6e3a' : templateFeedback === 'error' ? '1px solid var(--border-red)' : '1px solid var(--border)',
+                    background: templateFeedback === 'saved' ? 'rgba(90,171,110,0.15)' : templateFeedback === 'error' ? 'var(--red-dim)' : 'var(--surface)',
+                    color: templateFeedback === 'saved' ? '#5aab6e' : templateFeedback === 'error' ? 'var(--red)' : 'var(--text-muted)',
+                  }}
+                  onMouseEnter={e => { if (!templateFeedback) { e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.borderColor = 'var(--border-red)' } }}
+                  onMouseLeave={e => { if (!templateFeedback) { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' } }}
+                >
+                  <LayoutTemplate size={11} />
+                  <span>{templateFeedback === 'saved' ? '✓ template salvo!' : templateFeedback === 'saving' ? 'salvando...' : templateFeedback === 'error' ? '✗ erro' : 'template'}</span>
+                </button>
+                {toolBtn('usar template', <FileText size={11} />, () => setShowTemplates(true), { label: 'usar template' })}
                 {toolBtn('.md', <Download size={11} />, exportMd, { label: '.md' })}
                 {toolBtn('github', <Send size={11} />, () => setShowPush(true), { label: 'github' })}
                 {toolBtn('trello', <LayoutList size={11} />, () => setShowTrello(true), { label: 'trello' })}
@@ -797,6 +895,58 @@ export default function Notes({ org }) {
       {showPush   && <PushModal note={activeNote} group={activeGroup} onClose={() => setShowPush(false)} />}
       {showTrello && <TrelloCardModal note={activeNote} group={activeGroup} trelloToken={trelloToken} onClose={() => setShowTrello(false)} />}
       {modal && <CardModal {...modal} onClose={() => setModal(null)} confirmLabel="excluir" />}
+
+      {showTemplates && (
+        <div style={{ position: 'fixed', inset: 0, background: 'var(--overlay)', zIndex: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+          onClick={e => e.target === e.currentTarget && setShowTemplates(false)}>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius-md)', width: '100%', maxWidth: 520, padding: 28, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20, flexShrink: 0 }}>
+              <div>
+                <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 20, letterSpacing: '0.05em' }}>TEMPLATES DA ORG</div>
+                <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.25em', color: 'var(--text-dim)', textTransform: 'uppercase', marginTop: 2 }}>// modelos disponíveis para toda a organização</div>
+              </div>
+              <button onClick={() => setShowTemplates(false)} style={{ color: 'var(--text-muted)', cursor: 'pointer' }}><X size={16} /></button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {templates.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-dim)', fontFamily: 'var(--ff-mono)', fontSize: 12 }}>
+                  <LayoutTemplate size={28} style={{ opacity: 0.3, marginBottom: 12, display: 'block', margin: '0 auto 12px' }} />
+                  nenhum template ainda — salve uma nota como template para reutilizá-la aqui
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {templates.map(t => (
+                    <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--surface)', transition: 'border-color var(--fast)' }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border-red)'}
+                      onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
+                      <FileText size={14} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</div>
+                        {t.profiles?.name && <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'var(--ff-mono)', marginTop: 2 }}>por {t.profiles.name} · {new Date(t.created_at).toLocaleDateString('pt-BR')}</div>}
+                      </div>
+                      <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+                        <button onClick={() => handleCreateFromTemplate(t)}
+                          style={{ padding: '5px 10px', borderRadius: 'var(--radius)', border: '1px solid var(--border-red)', background: 'var(--red-dim)', color: '#F0EDE8', fontFamily: 'var(--ff-mono)', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Plus size={10} /> usar
+                        </button>
+                        <button onClick={() => deleteTemplate(t.id)} title="excluir template"
+                          style={{ padding: '5px 7px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                          onMouseEnter={e => { e.currentTarget.style.color = 'var(--red)'; e.currentTarget.style.borderColor = 'var(--border-red)' }}
+                          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-dim)'; e.currentTarget.style.borderColor = 'var(--border)' }}>
+                          <Trash2 size={10} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+              <button onClick={() => setShowTemplates(false)} className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center' }}>fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
