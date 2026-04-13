@@ -1,705 +1,103 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
-import { useGroups } from '../hooks/useGroups'
-import { useOrgNotes } from '../hooks/useNotes'
-import { useFolders } from '../hooks/useFolders'
-import { useNoteTemplates } from '../hooks/useNoteTemplates'
-import { useAuth } from '../hooks/useAuth'
-import { supabase } from '../lib/supabase'
-import { useEditor, EditorContent } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
-import Placeholder from '@tiptap/extension-placeholder'
-import Image from '@tiptap/extension-image'
-import { Table } from '@tiptap/extension-table'
-import TableRow from '@tiptap/extension-table-row'
-import TableCell from '@tiptap/extension-table-cell'
-import TableHeader from '@tiptap/extension-table-header'
-import TaskList from '@tiptap/extension-task-list'
-import TaskItem from '@tiptap/extension-task-item'
-import { pushFileToRepo } from '../lib/github'
-import { createTrelloCard, fetchBoardLists } from '../lib/trello'
+import { useState, useMemo } from 'react'
 import {
-  Pin, PinOff, Plus, Trash2, Search, Bold, Italic,
-  List, ListOrdered, Heading2, Code, FileText,
-  Download, Send, LayoutList, X, ImageIcon, AlertCircle, CheckCircle2,
-  FolderPlus, Folder, FolderOpen, ChevronRight, ChevronDown,
-  Pencil, FolderInput, Upload, Copy, LayoutTemplate, Table2,
-  CheckSquare, Lock, Eye, EyeOff, ChevronUp,
+  Pin, PinOff, Plus, Trash2, Search, FileText,
+  Download, Send, LayoutList, FolderPlus, Folder,
+  FolderInput, Copy, LayoutTemplate, Lock, Eye, EyeOff,
 } from 'lucide-react'
+import { useGroups }        from '../hooks/useGroups'
+import { useOrgNotes }      from '../hooks/useNotes'
+import { useFolders }       from '../hooks/useFolders'
+import { useNoteTemplates } from '../hooks/useNoteTemplates'
+import { useAuth }          from '../hooks/useAuth'
+import { toMarkdown, debounce } from '../utils/notes'
 
-function debounce(fn, ms) { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms) } }
+import NoteEditor    from '../components/notes/NoteEditor'
+import NoteItem      from '../components/notes/NoteItem'
+import FolderTree, { NewFolderInput } from '../components/notes/FolderTree'
+import CardModal     from '../components/notes/modals/CardModal'
+import TemplatesModal from '../components/notes/modals/TemplatesModal'
+import { PushNoteModal, PushFolderModal } from '../components/notes/modals/PushModal'
+import TrelloCardModal from '../components/notes/modals/TrelloCardModal'
 
-function toMarkdown(html) {
-  if (!html) return ''
-  return html
-    .replace(/<h1[^>]*>(.*?)<\/h1>/gi, '# $1\n\n')
-    .replace(/<h2[^>]*>(.*?)<\/h2>/gi, '## $1\n\n')
-    .replace(/<h3[^>]*>(.*?)<\/h3>/gi, '### $1\n\n')
-    .replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**')
-    .replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*')
-    .replace(/<code[^>]*>(.*?)<\/code>/gi, '`$1`')
-    .replace(/<img[^>]+src="([^"]+)"[^>]*>/gi, '![]($1)')
-    .replace(/<li[^>]*>(.*?)<\/li>/gi, '- $1\n')
-    .replace(/<ul[^>]*>|<\/ul>/gi, '')
-    .replace(/<ol[^>]*>|<\/ol>/gi, '')
-    .replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
-    .replace(/\n{3,}/g, '\n\n').trim()
+// ── debounce estável ──────────────────────────────────────────────────────────
+function useStableUpdate(updateNote) {
+  return useMemo(() => debounce((id, payload) => updateNote(id, payload), 700), [updateNote])
 }
 
-// ── Presence hook — quem está editando a nota agora ─────────────────────────
-function useNotePresence(noteId, user) {
-  const [peers, setPeers] = useState([])
-  const channelRef = useRef(null)
-  const userRef    = useRef(user)
-  useEffect(() => { userRef.current = user })
-
-  useEffect(() => {
-    if (!noteId || !user) return  // sem setState síncrono aqui
-
-    const channel = supabase.channel(`note-presence:${noteId}`, {
-      config: { presence: { key: user.id } },
-    })
-
-    channel
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState()
-        const others = Object.entries(state)
-          .filter(([key]) => key !== user.id)
-          .map(([, vals]) => vals[0])
-          .filter(Boolean)
-        setPeers(others)  // ✅ dentro de callback de sistema externo — correto
-      })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          const u = userRef.current
-          await channel.track({
-            name:      u?.user_metadata?.name || u?.email?.split('@')[0] || 'alguém',
-            avatar:    u?.user_metadata?.avatar_url || null,
-            online_at: new Date().toISOString(),
-          })
-        }
-      })
-
-    channelRef.current = channel
-
-    return () => {
-      channel.untrack().then(() => supabase.removeChannel(channel))
-    }
-  }, [noteId, user?.id])
-
-  // sem noteId ou user → retorna vazio sem precisar de setState
-  return (noteId && user) ? peers : []
-}
-
-// ── Indicador de presença ─────────────────────────────────────────────────────
-function PresenceBar({ peers }) {
-  if (!peers.length) return null
+// ── botão de ação reutilizável ────────────────────────────────────────────────
+function ToolBtn({ title, icon, onClick, label, active, danger }) {
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 6,
-      padding: '4px 14px', background: 'rgba(90,171,110,0.08)',
-      borderBottom: '1px solid rgba(90,171,110,0.2)', flexShrink: 0,
-    }}>
-      <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#5aab6e', flexShrink: 0, animation: 'pulse 2s infinite' }} />
-      <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, color: '#5aab6e', letterSpacing: '0.08em' }}>
-        {peers.length === 1
-          ? `${peers[0].name} também está editando`
-          : `${peers.map(p => p.name).join(', ')} também estão editando`}
-      </span>
-      <div style={{ display: 'flex', gap: -4 }}>
-        {peers.slice(0, 3).map((p, i) => (
-          <div key={i} title={p.name} style={{
-            width: 20, height: 20, borderRadius: '50%',
-            background: 'var(--surface)', border: '2px solid rgba(90,171,110,0.4)',
-            overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 9, fontFamily: 'var(--ff-mono)', color: '#5aab6e',
-            marginLeft: i > 0 ? -6 : 0,
-          }}>
-            {p.avatar
-              ? <img src={p.avatar} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              : (p.name?.[0] || '?').toUpperCase()
-            }
-          </div>
-        ))}
-      </div>
-      <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
-    </div>
-  )
-}
-
-function CardModal({ type = 'confirm', title, message, onConfirm, onClose, confirmLabel = 'confirmar' }) {
-  const isConfirm = type === 'confirm'
-  const accentColor = type === 'error' ? 'var(--red)' : type === 'success' ? '#5aab6e' : '#c8922a'
-  const borderColor = type === 'error' ? 'var(--border-red)' : type === 'success' ? '#2a6e3a' : '#7a5a1a'
-  const Icon = type === 'success' ? CheckCircle2 : AlertCircle
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'var(--overlay)', zIndex: 700,
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
-      onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: 'var(--bg-card)', border: `1px solid ${borderColor}`,
-        borderRadius: 'var(--radius-md)', width: '100%', maxWidth: 380, padding: 28 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 22 }}>
-          <Icon size={20} style={{ color: accentColor, flexShrink: 0, marginTop: 3 }} />
-          <div>
-            <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 18, letterSpacing: '0.05em', color: 'var(--text)', marginBottom: 7 }}>{title}</div>
-            <div style={{ fontFamily: 'var(--ff-body)', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.65 }}>{message}</div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-          {isConfirm && <button onClick={onClose} className="btn btn-ghost">cancelar</button>}
-          <button onClick={isConfirm ? onConfirm : onClose} className="btn btn-primary" style={{ background: accentColor }}>
-            {isConfirm ? confirmLabel : 'ok'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ImageModal({ onInsert, onClose }) {
-  const [tab, setTab] = useState('upload')
-  const [url, setUrl] = useState('')
-  const [alt, setAlt] = useState('')
-  const [preview, setPreview] = useState(null)
-  const [dragging, setDragging] = useState(false)
-  const fileRef = useRef()
-
-  const inp = { width: '100%', padding: '8px 10px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontFamily: 'var(--ff-mono)', fontSize: 11, borderRadius: 'var(--radius)', outline: 'none' }
-  const lbl = { fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--text-dim)', display: 'block', marginBottom: 5 }
-
-  function handleFile(file) {
-    if (!file || !file.type.startsWith('image/')) return
-    const reader = new FileReader()
-    reader.onload = e => setPreview(e.target.result)
-    reader.readAsDataURL(file)
-  }
-
-  function handleDrop(e) {
-    e.preventDefault(); setDragging(false)
-    handleFile(e.dataTransfer.files?.[0])
-  }
-
-  const tabStyle = (active) => ({
-    flex: 1, padding: '6px 0', fontFamily: 'var(--ff-mono)', fontSize: 10,
-    letterSpacing: '0.15em', textTransform: 'uppercase', cursor: 'pointer',
-    borderBottom: active ? '2px solid var(--red)' : '2px solid transparent',
-    color: active ? 'var(--text)' : 'var(--text-dim)',
-    background: 'transparent', transition: 'all var(--fast)',
-  })
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'var(--overlay)', zIndex: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
-      onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius-md)', width: '100%', maxWidth: 420, padding: 28 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-          <div>
-            <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 20, letterSpacing: '0.05em' }}>INSERIR IMAGEM</div>
-            <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.25em', color: 'var(--text-dim)', textTransform: 'uppercase', marginTop: 2 }}>// upload ou url</div>
-          </div>
-          <button onClick={onClose} style={{ color: 'var(--text-muted)', cursor: 'pointer' }}><X size={16} /></button>
-        </div>
-
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 16 }}>
-          <button style={tabStyle(tab === 'upload')} onClick={() => setTab('upload')}>
-            <Upload size={10} style={{ display: 'inline', marginRight: 4 }} />upload
-          </button>
-          <button style={tabStyle(tab === 'url')} onClick={() => setTab('url')}>url</button>
-        </div>
-
-        {tab === 'upload' ? (
-          <>
-            <div
-              onDragOver={e => { e.preventDefault(); setDragging(true) }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={handleDrop}
-              onClick={() => fileRef.current?.click()}
-              style={{
-                border: `2px dashed ${dragging ? 'var(--red)' : 'var(--border)'}`,
-                borderRadius: 'var(--radius)', padding: 20, textAlign: 'center',
-                cursor: 'pointer', marginBottom: 12, transition: 'border-color var(--fast)',
-                background: dragging ? 'var(--red-dim)' : 'transparent', minHeight: 110,
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
-              }}>
-              {preview
-                ? <img src={preview} alt="" style={{ maxHeight: 130, maxWidth: '100%', borderRadius: 4, objectFit: 'contain' }} />
-                : <>
-                    <Upload size={24} style={{ color: 'var(--text-dim)' }} />
-                    <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-dim)' }}>clique ou arraste uma imagem aqui</span>
-                  </>
-              }
-            </div>
-            <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }}
-              onChange={e => handleFile(e.target.files?.[0])} />
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={onClose} className="btn btn-ghost" style={{ flex: 1 }}>cancelar</button>
-              <button onClick={() => { if (preview) { onInsert(preview, ''); onClose() } }}
-                disabled={!preview} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', opacity: !preview ? 0.4 : 1 }}>
-                inserir
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="field">
-              <label style={lbl}>url da imagem</label>
-              <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://..." style={inp} autoFocus />
-            </div>
-            <div className="field">
-              <label style={lbl}>descrição <span style={{ opacity: 0.4 }}>(opcional)</span></label>
-              <input value={alt} onChange={e => setAlt(e.target.value)} placeholder="captura de tela do projeto" style={inp} />
-            </div>
-            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-              <button onClick={onClose} className="btn btn-ghost" style={{ flex: 1 }}>cancelar</button>
-              <button onClick={() => { if (url.trim()) { onInsert(url.trim(), alt.trim()); onClose() } }}
-                disabled={!url.trim()} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', opacity: !url.trim() ? 0.4 : 1 }}>
-                inserir
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function ToolbarBtn({ action, active, title, icon }) {
-  return (
-    <button onClick={action} title={title} style={{
-      padding: '4px 8px', borderRadius: 'var(--radius)',
-      background: active ? 'var(--red-dim)' : 'transparent',
-      color: active ? '#F0EDE8' : 'var(--text-muted)',
-      border: active ? '1px solid var(--border-red)' : '1px solid transparent',
-      transition: 'all var(--fast)', cursor: 'pointer',
-    }}>{icon}</button>
-  )
-}
-
-function TableMenu({ editor }) {
-  const isInTable = editor.isActive('table')
-  if (!isInTable) return null
-  const btn = (label, action, title) => (
-    <button key={label} onClick={action} title={title || label} style={{
-      padding: '3px 8px', borderRadius: 'var(--radius)',
-      fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.05em',
-      border: '1px solid var(--border-red)', background: 'var(--red-dim)',
-      color: '#F0EDE8', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all var(--fast)',
+    <button onClick={onClick} title={title} style={{
+      display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px',
+      borderRadius: 'var(--radius)', border: `1px solid ${active ? 'var(--border-red)' : 'var(--border)'}`,
+      background: active ? 'var(--red-dim)' : 'var(--surface)',
+      color: danger ? 'var(--text-dim)' : active ? '#F0EDE8' : 'var(--text-muted)',
+      fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.08em',
+      cursor: 'pointer', transition: 'all var(--fast)',
     }}
-      onMouseEnter={e => e.currentTarget.style.background = 'var(--red)'}
-      onMouseLeave={e => e.currentTarget.style.background = 'var(--red-dim)'}
-    >{label}</button>
-  )
-  return (
-    <div style={{ display: 'flex', gap: 4, padding: '5px 14px', borderBottom: '1px solid var(--border)', background: 'rgba(192,33,28,0.06)', flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
-      <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--red)', opacity: 0.8, marginRight: 4 }}>tabela ›</span>
-      {btn('+ linha acima', () => editor.chain().focus().addRowBefore().run())}
-      {btn('+ linha abaixo', () => editor.chain().focus().addRowAfter().run())}
-      {btn('− linha', () => editor.chain().focus().deleteRow().run())}
-      <div style={{ width: 1, height: 14, background: 'var(--border-red)', opacity: 0.4 }} />
-      {btn('+ col. antes', () => editor.chain().focus().addColumnBefore().run())}
-      {btn('+ col. depois', () => editor.chain().focus().addColumnAfter().run())}
-      {btn('− coluna', () => editor.chain().focus().deleteColumn().run())}
-      <div style={{ width: 1, height: 14, background: 'var(--border-red)', opacity: 0.4 }} />
-      {btn('merge', () => editor.chain().focus().mergeOrSplit().run(), 'unir/separar células')}
-      {btn('× excluir tabela', () => editor.chain().focus().deleteTable().run())}
-    </div>
-  )
-}
-
-// ── NoteEditor — com Checklist, Dropdown (details) e Presence ─────────────────
-function NoteEditor({ note, onUpdate }) {
-  const { user }       = useAuth()
-  const peers          = useNotePresence(note?.id, user)
-  const [showImgModal, setShowImgModal] = useState(false)
-  const [, forceUpdate] = useState(0)
-
-  const editor = useEditor({
-    extensions: [
-      StarterKit,
-      Placeholder.configure({ placeholder: '›_ escreva suas anotações aqui...' }),
-      Image.configure({ inline: false, allowBase64: true }),
-      Table.configure({ resizable: false }),
-      TableRow,
-      TableHeader,
-      TableCell,
-      // ── Checklist ──────────────────────────────────────────
-      TaskList,
-      TaskItem.configure({ nested: true }),
-    ],
-    content: note.content || '',
-    onUpdate: ({ editor }) => { onUpdate(note.id, { content: editor.getHTML() }); forceUpdate(n => n + 1) },
-    onSelectionUpdate: () => forceUpdate(n => n + 1),
-    editorProps: {
-      handlePaste(view, event) {
-        const items = event.clipboardData?.items
-        if (!items) return false
-        for (const item of items) {
-          if (item.type.startsWith('image/')) {
-            const file = item.getAsFile()
-            if (!file) continue
-            const reader = new FileReader()
-            reader.onload = e => {
-              view.dispatch(view.state.tr.replaceSelectionWith(
-                view.state.schema.nodes.image.create({ src: e.target.result })
-              ))
-            }
-            reader.readAsDataURL(file)
-            return true
-          }
-        }
-        return false
-      },
-    },
-  }, [note.id])
-
-  // ── Inserir bloco de menu suspenso (details/summary) ──────────────────────
-  function insertDropdownBlock() {
-    if (!editor) return
-    editor.chain().focus().insertContent(
-      '<details><summary>Clique para expandir</summary><p>Conteúdo do menu suspenso...</p></details><p></p>'
-    ).run()
-  }
-
-  if (!editor) return null
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-      {/* Presence bar */}
-      <PresenceBar peers={peers} />
-
-      {/* Toolbar */}
-      <div style={{ display: 'flex', gap: 2, padding: '8px 14px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', flexShrink: 0, background: 'var(--bg-alt)', alignItems: 'center' }}>
-        <ToolbarBtn action={() => editor.chain().focus().toggleBold().run()}             active={editor.isActive('bold')}              title="negrito"   icon={<Bold size={12} />} />
-        <ToolbarBtn action={() => editor.chain().focus().toggleItalic().run()}           active={editor.isActive('italic')}             title="itálico"   icon={<Italic size={12} />} />
-        <ToolbarBtn action={() => editor.chain().focus().toggleHeading({level:2}).run()} active={editor.isActive('heading',{level:2})} title="título"    icon={<Heading2 size={12} />} />
-        <ToolbarBtn action={() => editor.chain().focus().toggleBulletList().run()}       active={editor.isActive('bulletList')}         title="lista"     icon={<List size={12} />} />
-        <ToolbarBtn action={() => editor.chain().focus().toggleOrderedList().run()}      active={editor.isActive('orderedList')}        title="numerada"  icon={<ListOrdered size={12} />} />
-        {/* ── Checklist ─────────────────────────────────────── */}
-        <ToolbarBtn action={() => editor.chain().focus().toggleTaskList().run()}         active={editor.isActive('taskList')}           title="checklist" icon={<CheckSquare size={12} />} />
-        <ToolbarBtn action={() => editor.chain().focus().toggleCode().run()}             active={editor.isActive('code')}               title="código"    icon={<Code size={12} />} />
-        <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 4px' }} />
-        <ToolbarBtn action={() => setShowImgModal(true)} active={false} title="inserir imagem (ou ctrl+v para colar)" icon={<ImageIcon size={12} />} />
-        <ToolbarBtn action={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
-          active={editor.isActive('table')} title="inserir tabela" icon={<Table2 size={12} />} />
-        {/* ── Menu suspenso (dropdown/details) ──────────────── */}
-        <ToolbarBtn action={insertDropdownBlock} active={false} title="inserir bloco suspenso (expandir/recolher)" icon={<ChevronDown size={12} />} />
-        <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', opacity: 0.7 }}>ctrl+v · ☑ check · ▾ suspenso</span>
-      </div>
-      <TableMenu editor={editor} />
-      <EditorContent editor={editor} style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }} />
-      {showImgModal && (
-        <ImageModal
-          onInsert={(src, alt) => editor.chain().focus().setImage({ src, alt: alt || undefined }).run()}
-          onClose={() => setShowImgModal(false)}
-        />
-      )}
-    </div>
-  )
-}
-
-function PushModal({ note, group, onClose }) {
-  const [repo, setRepo]     = useState('sua-org/repositorio')
-  const [path, setPath]     = useState(`devolutivas/${group?.name?.toLowerCase().replace(/\s+/g,'-') || 'grupo'}/${note?.title?.toLowerCase().replace(/\s+/g,'-') || 'nota'}.md`)
-  const [msg, setMsg]       = useState(`docs: devolutiva ${group?.name || ''} — ${note?.title || ''}`)
-  const [status, setStatus] = useState(null)
-  const [loading, setLoading] = useState(false)
-
-  async function handlePush() {
-    setLoading(true); setStatus(null)
-    const header = `# ${note.title || 'Devolutiva'}\n\n> **Grupo:** ${group?.name || '—'}  \n> **Data:** ${new Date().toLocaleDateString('pt-BR')}\n\n---\n\n`
-    const result = await pushFileToRepo({ repo, path, content: header + toMarkdown(note.content || ''), message: msg })
-    setStatus(result.success ? { ok: true, msg: '✓ enviado com sucesso!' } : { ok: false, msg: '✗ ' + result.error })
-    setLoading(false)
-  }
-
-  const inp = { width: '100%', padding: '8px 10px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontFamily: 'var(--ff-mono)', fontSize: 11, borderRadius: 'var(--radius)', outline: 'none' }
-  const lbl = { fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--text-dim)', display: 'block', marginBottom: 5 }
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'var(--overlay)', zIndex: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
-      onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius-md)', width: '100%', maxWidth: 480, padding: 28 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
-          <div>
-            <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 20, letterSpacing: '0.05em' }}>ENVIAR AO GITHUB</div>
-            <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.25em', color: 'var(--text-dim)', textTransform: 'uppercase', marginTop: 2 }}>// push como arquivo .md</div>
-          </div>
-          <button onClick={onClose} style={{ color: 'var(--text-muted)', cursor: 'pointer' }}><X size={16} /></button>
-        </div>
-        <div className="field"><label style={lbl}>repositório</label><input value={repo} onChange={e => setRepo(e.target.value)} style={inp} /></div>
-        <div className="field"><label style={lbl}>caminho do arquivo</label><input value={path} onChange={e => setPath(e.target.value)} style={inp} /></div>
-        <div className="field"><label style={lbl}>mensagem do commit</label><input value={msg} onChange={e => setMsg(e.target.value)} style={inp} /></div>
-        {status && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 'var(--radius)', marginBottom: 14,
-            color: status.ok ? '#5aab6e' : 'var(--red)',
-            background: status.ok ? 'rgba(90,171,110,0.08)' : 'rgba(192,33,28,0.08)',
-            border: `1px solid ${status.ok ? '#2a6e3a' : 'var(--border-red)'}`,
-            fontFamily: 'var(--ff-mono)', fontSize: 11 }}>
-            {status.ok ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
-            {status.msg}
-          </div>
-        )}
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={onClose} className="btn btn-ghost" style={{ flex: 1 }}>fechar</button>
-          <button onClick={handlePush} disabled={loading} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
-            {loading ? 'enviando...' : '↑ push'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function TrelloCardModal({ note, group, trelloToken, onClose }) {
-  const [lists, setLists]       = useState([])
-  const [listId, setListId]     = useState('')
-  const [cardName, setCardName] = useState(note?.title || '')
-  const [cardDesc, setCardDesc] = useState(toMarkdown(note?.content || '').substring(0, 300))
-  const [status, setStatus]     = useState(null)
-  const [loading, setLoading]   = useState(false)
-
-  // ✅ CORREÇÃO: era useState(() => {...}, []) — deve ser useEffect
-  useEffect(() => {
-    if (trelloToken && group?.trello_board_id) {
-      fetchBoardLists(trelloToken, group.trello_board_id).then(ls => {
-        setLists(ls)
-        if (ls[0]) setListId(ls[0].id)
-      })
-    }
-  }, [])
-
-  async function handleCreate() {
-    if (!listId || !cardName) return
-    setLoading(true); setStatus(null)
-    const { data, error } = await createTrelloCard(trelloToken, { listId, name: cardName, desc: cardDesc })
-    setStatus(error ? { ok: false, msg: '✗ ' + error } : { ok: true, msg: '✓ card criado!', url: data?.url })
-    setLoading(false)
-  }
-
-  const inp = { width: '100%', padding: '8px 10px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontFamily: 'var(--ff-mono)', fontSize: 11, borderRadius: 'var(--radius)', outline: 'none' }
-  const lbl = { fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--text-dim)', display: 'block', marginBottom: 5 }
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'var(--overlay)', zIndex: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
-      onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius-md)', width: '100%', maxWidth: 460, padding: 28 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
-          <div>
-            <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 20, letterSpacing: '0.05em' }}>CRIAR CARD TRELLO</div>
-            <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.25em', color: 'var(--text-dim)', textTransform: 'uppercase', marginTop: 2 }}>// {group?.name}</div>
-          </div>
-          <button onClick={onClose} style={{ color: 'var(--text-muted)', cursor: 'pointer' }}><X size={16} /></button>
-        </div>
-        {!trelloToken && <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: '#c8922a', marginBottom: 16 }}>configure o token Trello nas configurações</div>}
-        {!group?.trello_board_id && <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: '#c8922a', marginBottom: 16 }}>vincule um board Trello a este grupo primeiro</div>}
-        <div className="field">
-          <label style={lbl}>lista do board</label>
-          {lists.length > 0
-            ? <select value={listId} onChange={e => setListId(e.target.value)} style={{ ...inp, appearance: 'none' }}>
-                {lists.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-              </select>
-            : <input value={listId} onChange={e => setListId(e.target.value)} placeholder="ID da lista Trello" style={inp} />
-          }
-        </div>
-        <div className="field"><label style={lbl}>título do card</label><input value={cardName} onChange={e => setCardName(e.target.value)} style={inp} /></div>
-        <div className="field">
-          <label style={lbl}>descrição</label>
-          <textarea value={cardDesc} onChange={e => setCardDesc(e.target.value)} rows={4} style={{ ...inp, resize: 'vertical', fontFamily: 'var(--ff-body)', fontSize: 12 }} />
-        </div>
-        {status && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 'var(--radius)', marginBottom: 14,
-            color: status.ok ? '#5aab6e' : 'var(--red)',
-            background: status.ok ? 'rgba(90,171,110,0.08)' : 'rgba(192,33,28,0.08)',
-            border: `1px solid ${status.ok ? '#2a6e3a' : 'var(--border-red)'}`,
-            fontFamily: 'var(--ff-mono)', fontSize: 11 }}>
-            {status.ok ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
-            <span>{status.msg}</span>
-            {status.url && <a href={status.url} target="_blank" rel="noopener" style={{ color: '#5aab6e', marginLeft: 6 }}>abrir ↗</a>}
-          </div>
-        )}
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={onClose} className="btn btn-ghost" style={{ flex: 1 }}>fechar</button>
-          <button onClick={handleCreate} disabled={loading || !listId || !cardName} className="btn btn-primary"
-            style={{ flex: 1, justifyContent: 'center', opacity: (!listId || !cardName) ? 0.4 : 1 }}>
-            {loading ? 'criando...' : '+ criar card'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── NoteItem — com indicador de privacidade ───────────────────────────────────
-function NoteItem({ note, active, indent = false, onClick, isOwner, currentUserId }) {
-  function stripHtml(html) { return (html || '').replace(/<[^>]*>/g, '').trim() }
-
-  // nota private que não é minha → bloqueada
-  const isLocked = note.visibility === 'private'
-    && note.author_id !== currentUserId
-    && !isOwner
-
-  return (
-    <button
-      onClick={isLocked ? undefined : onClick}
-      style={{
-        width: '100%', textAlign: 'left',
-        padding: indent ? '7px 9px 7px 28px' : '8px 9px',
-        borderRadius: 'var(--radius-md)', marginBottom: 2,
-        background: active ? 'var(--red-dim)' : 'transparent',
-        border: active ? '1px solid var(--border-red)' : '1px solid transparent',
-        transition: 'all var(--fast)',
-        cursor: isLocked ? 'not-allowed' : 'pointer',
-        opacity: isLocked ? 0.55 : 1,
+      onMouseEnter={e => { e.currentTarget.style.color = danger ? 'var(--red)' : 'var(--text)'; e.currentTarget.style.borderColor = 'var(--border-red)' }}
+      onMouseLeave={e => {
+        e.currentTarget.style.color = danger ? 'var(--text-dim)' : active ? '#F0EDE8' : 'var(--text-muted)'
+        e.currentTarget.style.borderColor = active ? 'var(--border-red)' : 'var(--border)'
       }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
-        {note.pinned && <Pin size={9} style={{ color: active ? '#F0EDE8' : 'var(--red)', flexShrink: 0 }} />}
-        {isLocked
-          ? <Lock size={9} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
-          : note.visibility === 'private' && <EyeOff size={9} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
-        }
-        <span style={{ fontSize: 12, fontWeight: 500, color: active ? '#F0EDE8' : 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {note.title || 'sem título'}
-        </span>
-      </div>
-      {isLocked ? (
-        <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, color: 'var(--text-dim)', marginTop: 2, opacity: 0.5 }}>
-          conteúdo privado
-        </div>
-      ) : note.content && (
-        <div style={{ fontFamily: 'var(--ff-body)', fontSize: 11, color: active ? 'rgba(240,237,232,0.45)' : 'var(--text-dim)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {stripHtml(note.content).substring(0, 55)}
-        </div>
-      )}
+      {icon}{label && <span>{label}</span>}
     </button>
   )
 }
 
-function FolderRow({ folder, open, onToggle, onRename, onDelete, onAddNote, noteCount }) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft]     = useState(folder.name)
-  const [hover, setHover]     = useState(false)
-
-  function commitRename() {
-    if (draft.trim() && draft.trim() !== folder.name) onRename(folder.id, draft.trim())
-    setEditing(false)
-  }
-
-  return (
-    <div
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '5px 6px 5px 4px', borderRadius: 'var(--radius)', marginBottom: 1, userSelect: 'none' }}
-    >
-      <button onClick={onToggle} style={{ color: 'var(--text-dim)', cursor: 'pointer', padding: 2, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
-        {open ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-      </button>
-      <button onClick={onToggle} style={{ color: open ? 'var(--red)' : 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-        {open ? <FolderOpen size={13} /> : <Folder size={13} />}
-      </button>
-      {editing
-        ? <input
-            autoFocus
-            value={draft}
-            onChange={e => setDraft(e.target.value)}
-            onBlur={commitRename}
-            onKeyDown={e => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setEditing(false) }}
-            style={{ flex: 1, minWidth: 0, background: 'var(--surface)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius)', padding: '2px 6px', color: 'var(--text)', fontFamily: 'var(--ff-mono)', fontSize: 11, outline: 'none' }}
-          />
-        : <button onClick={onToggle} style={{ flex: 1, minWidth: 0, textAlign: 'left', fontFamily: 'var(--ff-mono)', fontSize: 11, letterSpacing: '0.05em', color: 'var(--text)', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {folder.name}
-          </button>
-      }
-      {!editing && (
-        <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', flexShrink: 0, opacity: hover ? 0 : 0.7 }}>
-          {noteCount}
-        </span>
-      )}
-      {hover && !editing && (
-        <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
-          <button onClick={onAddNote} title="nova nota nesta pasta" style={{ color: 'var(--text-dim)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}
-            onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
-            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
-            <Plus size={11} />
-          </button>
-          <button onClick={() => { setDraft(folder.name); setEditing(true) }} title="renomear" style={{ color: 'var(--text-dim)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}
-            onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
-            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
-            <Pencil size={10} />
-          </button>
-          <button onClick={() => onDelete(folder.id)} title="excluir pasta" style={{ color: 'var(--text-dim)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}
-            onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
-            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
-            <Trash2 size={10} />
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function NewFolderInput({ onConfirm, onCancel }) {
-  const [name, setName] = useState('')
-  return (
-    <div style={{ display: 'flex', gap: 4, alignItems: 'center', padding: '4px 6px', marginBottom: 2 }}>
-      <Folder size={12} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
-      <input
-        autoFocus
-        value={name}
-        onChange={e => setName(e.target.value)}
-        placeholder="nome da pasta..."
-        onKeyDown={e => {
-          if (e.key === 'Enter' && name.trim()) onConfirm(name.trim())
-          if (e.key === 'Escape') onCancel()
-        }}
-        onBlur={() => { if (name.trim()) onConfirm(name.trim()); else onCancel() }}
-        style={{ flex: 1, minWidth: 0, background: 'var(--surface)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius)', padding: '3px 7px', color: 'var(--text)', fontFamily: 'var(--ff-mono)', fontSize: 11, outline: 'none' }}
-      />
-    </div>
-  )
-}
-
+// ─────────────────────────────────────────────────────────────────────────────
 export default function Notes({ org }) {
-  const { user }  = useAuth()
+  const { user }   = useAuth()
   const { groups } = useGroups(org?.id)
   const { notes, loading, createNote, updateNote, deleteNote, togglePin } = useOrgNotes(org?.id)
   const { templates, saveAsTemplate, deleteTemplate } = useNoteTemplates(org?.id)
   const trelloToken = localStorage.getItem('atelier_trello_token') || ''
+  const isOwner     = org?.owner_id === user?.id
 
-  // Resolve se o usuário é owner da org
-  const isOwner = org?.owner_id === user?.id
-
-  const [activeNoteId, setActiveNoteId]     = useState(null)
-  const [search, setSearch]                 = useState('')
-  const [groupFilter, setGroupFilter]       = useState('all')
-  const [editingTitle, setEditingTitle]     = useState(null)
-  const [creating, setCreating]             = useState(false)
-  const [showPush, setShowPush]             = useState(false)
-  const [showTrello, setShowTrello]         = useState(false)
-  const [showTemplates, setShowTemplates]   = useState(false)
-  const [templateFeedback, setTemplateFeedback] = useState(null)
-  const [modal, setModal]                   = useState(null)
-  const [collapsedFolders, setCollapsedFolders] = useState({})
-  const [addingFolder, setAddingFolder]         = useState(false)
+  // ── state da UI ──────────────────────────────────────────────────────────
+  const [activeNoteId, setActiveNoteId]   = useState(null)
+  const [search, setSearch]               = useState('')
+  const [groupFilter, setGroupFilter]     = useState('all')
+  const [editingTitle, setEditingTitle]   = useState(null)
+  const [creating, setCreating]           = useState(false)
+  const [addingFolder, setAddingFolder]   = useState(false)
   const [showFolderPicker, setShowFolderPicker] = useState(false)
+  const [templateFeedback, setTemplateFeedback] = useState(null)
 
+  // modais
+  const [modal, setModal]               = useState(null)   // CardModal genérico
+  const [showPushNote, setShowPushNote] = useState(false)
+  const [showPushFolder, setShowPushFolder] = useState(false)
+  const [showTrello, setShowTrello]     = useState(false)
+  const [showTemplates, setShowTemplates] = useState(false)
+
+  // ── pastas ───────────────────────────────────────────────────────────────
   const groupForFolders = groupFilter !== 'all' ? groupFilter : null
-  const { folders, createFolder, renameFolder, deleteFolder } = useFolders(groupForFolders, org?.id)
+  const { folders, buildTree, createFolder, renameFolder, deleteFolder } = useFolders(groupForFolders, org?.id)
+  const showFolderTree = groupFilter !== 'all'
 
+  // ── dados derivados ──────────────────────────────────────────────────────
   const activeNote  = notes.find(n => n.id === activeNoteId)
   const activeGroup = groups.find(g => g.id === activeNote?.group_id)
+  const activeNoteFolder = activeNote?.folder_id ? folders.find(f => f.id === activeNote.folder_id) : null
+  const canEditActiveNote = activeNote
+    ? (isOwner || activeNote.author_id === user?.id || activeNote.visibility === 'org')
+    : false
 
   const filtered = notes.filter(n => {
-    const matchSearch = !search || n.title?.toLowerCase().includes(search.toLowerCase()) || n.content?.replace(/<[^>]*>/g,'').toLowerCase().includes(search.toLowerCase())
-    const matchGroup  = groupFilter === 'all' || n.group_id === groupFilter
+    const matchSearch = !search
+      || n.title?.toLowerCase().includes(search.toLowerCase())
+      || n.content?.replace(/<[^>]*>/g, '').toLowerCase().includes(search.toLowerCase())
+    const matchGroup = groupFilter === 'all' || n.group_id === groupFilter
     return matchSearch && matchGroup
   })
 
-  const handleUpdate = useMemo(
-    () => debounce((id, payload) => updateNote(id, payload), 700),
-    [updateNote]
-  )
+  const unfolderedNotes = filtered.filter(n => !n.folder_id)
+  const folderTree      = buildTree()
 
+  const handleUpdate = useStableUpdate(updateNote)
+
+  // ── ações ────────────────────────────────────────────────────────────────
   async function handleCreate(folderId = null) {
     const gId = groupFilter !== 'all' ? groupFilter : groups[0]?.id
     if (!gId) return
@@ -712,13 +110,8 @@ export default function Notes({ org }) {
   async function handleDuplicate(note) {
     const gId = note.group_id || (groupFilter !== 'all' ? groupFilter : groups[0]?.id)
     if (!gId) return
-    const { data } = await createNote(gId, `${note.title || 'sem título'} (cópia)`, {
-      folder_id: note.folder_id || null,
-    })
-    if (data) {
-      await updateNote(data.id, { content: note.content || '' })
-      setActiveNoteId(data.id)
-    }
+    const { data } = await createNote(gId, `${note.title || 'sem título'} (cópia)`, { folder_id: note.folder_id || null })
+    if (data) { await updateNote(data.id, { content: note.content || '' }); setActiveNoteId(data.id) }
   }
 
   async function handleSaveAsTemplate(note) {
@@ -732,16 +125,7 @@ export default function Notes({ org }) {
     const gId = groupFilter !== 'all' ? groupFilter : groups[0]?.id
     if (!gId) return
     const { data } = await createNote(gId, template.title, {})
-    if (data) {
-      await updateNote(data.id, { content: template.content || '' })
-      setActiveNoteId(data.id)
-      setShowTemplates(false)
-    }
-  }
-
-  async function handleCreateFolder(name) {
-    setAddingFolder(false)
-    await createFolder(name)
+    if (data) { await updateNote(data.id, { content: template.content || '' }); setActiveNoteId(data.id); setShowTemplates(false) }
   }
 
   async function moveNoteToFolder(noteId, folderId) {
@@ -749,82 +133,47 @@ export default function Notes({ org }) {
     setShowFolderPicker(false)
   }
 
-  // Toggle privacidade
   async function toggleVisibility(note) {
-    const next = note.visibility === 'private' ? 'org' : 'private'
-    await updateNote(note.id, { visibility: next })
+    await updateNote(note.id, { visibility: note.visibility === 'private' ? 'org' : 'private' })
   }
 
   function askDelete(id) {
     setModal({
-      type: 'confirm',
-      title: 'EXCLUIR ANOTAÇÃO',
-      message: 'Tem certeza? Esta anotação será removida permanentemente e não poderá ser recuperada.',
+      type: 'confirm', title: 'EXCLUIR ANOTAÇÃO',
+      message: 'Tem certeza? Esta anotação será removida permanentemente.',
       onConfirm: async () => {
         setModal(null)
         if (activeNoteId === id) setActiveNoteId(null)
         await deleteNote(id)
-      }
+      },
     })
   }
 
   function askDeleteFolder(folderId) {
-    const f = folders.find(x => x.id === folderId)
+    const f     = folders.find(x => x.id === folderId)
     const count = filtered.filter(n => n.folder_id === folderId).length
     setModal({
-      type: 'confirm',
-      title: 'EXCLUIR PASTA',
-      message: `Excluir a pasta "${f?.name}"? ${count > 0 ? `As ${count} anotação(ões) dentro dela ficam sem pasta — não serão apagadas.` : 'Ela está vazia.'}`,
-      onConfirm: async () => {
-        setModal(null)
-        await deleteFolder(folderId)
-      }
+      type: 'confirm', title: 'EXCLUIR PASTA',
+      message: `Excluir a pasta "${f?.name}"? ${count > 0 ? `As ${count} nota(s) ficam sem pasta — não serão apagadas.` : 'Ela está vazia.'}`,
+      onConfirm: async () => { setModal(null); await deleteFolder(folderId) },
     })
-  }
-
-  function toggleFolderCollapse(folderId) {
-    setCollapsedFolders(prev => ({ ...prev, [folderId]: !prev[folderId] }))
   }
 
   function exportMd() {
     if (!activeNote) return
     const md = `# ${activeNote.title || 'Anotação'}\n\n> Grupo: ${activeGroup?.name || '—'} · ${new Date(activeNote.updated_at).toLocaleDateString('pt-BR')}\n\n---\n\n` + toMarkdown(activeNote.content || '')
-    const blob = new Blob([md], { type: 'text/markdown' })
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
-    a.download = `${(activeNote.title || 'nota').toLowerCase().replace(/\s+/g,'-')}.md`; a.click()
+    const a = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(new Blob([md], { type: 'text/markdown' })),
+      download: `${(activeNote.title || 'nota').toLowerCase().replace(/\s+/g, '-')}.md`,
+    })
+    a.click()
   }
 
-  const toolBtn = (title, icon, onClick, opts = {}) => (
-    <button key={title} onClick={onClick} title={title} style={{
-      display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px',
-      borderRadius: 'var(--radius)', border: '1px solid var(--border)',
-      background: opts.active ? 'var(--red-dim)' : 'var(--surface)',
-      color: opts.danger ? 'var(--text-dim)' : opts.active ? '#F0EDE8' : 'var(--text-muted)',
-      fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.08em',
-      cursor: 'pointer', transition: 'all var(--fast)',
-      ...(opts.active && { borderColor: 'var(--border-red)' }),
-    }}
-      onMouseEnter={e => { e.currentTarget.style.color = opts.danger ? 'var(--red)' : 'var(--text)'; e.currentTarget.style.borderColor = 'var(--border-red)' }}
-      onMouseLeave={e => {
-        e.currentTarget.style.color = opts.danger ? 'var(--text-dim)' : opts.active ? '#F0EDE8' : 'var(--text-muted)'
-        e.currentTarget.style.borderColor = opts.active ? 'var(--border-red)' : 'var(--border)'
-      }}>
-      {icon}{opts.label && <span>{opts.label}</span>}
-    </button>
-  )
-
-  const activeNoteFolder = activeNote?.folder_id ? folders.find(f => f.id === activeNote.folder_id) : null
-  const showFolderTree   = groupFilter !== 'all'
-  const folderNotes      = (folderId) => filtered.filter(n => n.folder_id === folderId)
-  const unfolderedNotes  = filtered.filter(n => !n.folder_id)
-
-  // Privacidade: a nota ativa é minha ou sou owner?
-  const canEditActiveNote = activeNote
-    ? (isOwner || activeNote.author_id === user?.id || activeNote.visibility === 'org')
-    : false
-
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="page-wrap" style={{ height: '100vh', overflow: 'hidden' }}>
+
+      {/* ── Header ── */}
       <header style={{ borderBottom: '1px solid var(--border)', padding: '14px 32px', background: 'var(--header-bg)', backdropFilter: 'blur(12px)', flexShrink: 0 }}>
         <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, letterSpacing: '0.2em', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>
           atelier.sh
@@ -839,6 +188,7 @@ export default function Notes({ org }) {
 
         {/* ── SIDEBAR ── */}
         <div style={{ width: 270, flexShrink: 0, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', background: 'var(--bg-alt)' }}>
+          {/* controles topo */}
           <div style={{ padding: 10, borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 7 }}>
             <div style={{ position: 'relative' }}>
               <Search size={11} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)' }} />
@@ -850,285 +200,223 @@ export default function Notes({ org }) {
               <option value="all">// todos os grupos</option>
               {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
             </select>
-            {showFolderTree
-              ? (
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button onClick={() => setAddingFolder(true)} disabled={addingFolder} className="btn btn-ghost"
-                    style={{ flex: 1, justifyContent: 'center', fontSize: 10, gap: 4 }}>
-                    <FolderPlus size={11} /> nova pasta
-                  </button>
-                  <button onClick={() => handleCreate(null)} disabled={creating || groups.length === 0} className="btn btn-primary"
-                    style={{ flex: 1, justifyContent: 'center', fontSize: 10, gap: 4 }}>
-                    <Plus size={11} /> {creating ? '...' : 'nota'}
-                  </button>
-                </div>
-              )
-              : (
-                <button onClick={() => handleCreate(null)} disabled={creating || groups.length === 0} className="btn btn-primary"
-                  style={{ width: '100%', justifyContent: 'center', opacity: groups.length === 0 ? 0.4 : 1 }}>
-                  <Plus size={12} /> {creating ? 'criando...' : 'nova anotação'}
+            {showFolderTree ? (
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={() => setAddingFolder(true)} disabled={addingFolder} className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center', fontSize: 10, gap: 4 }}>
+                  <FolderPlus size={11} /> nova pasta
                 </button>
-              )
-            }
+                <button onClick={() => handleCreate(null)} disabled={creating || groups.length === 0} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', fontSize: 10, gap: 4 }}>
+                  <Plus size={11} /> {creating ? '...' : 'nota'}
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => handleCreate(null)} disabled={creating || groups.length === 0} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', opacity: groups.length === 0 ? 0.4 : 1 }}>
+                <Plus size={12} /> {creating ? 'criando...' : 'nova anotação'}
+              </button>
+            )}
           </div>
 
+          {/* lista de notas / árvore de pastas */}
           <div style={{ flex: 1, overflowY: 'auto', padding: 6 }}>
             {loading && <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-dim)', padding: 8 }}>carregando_</div>}
 
             {!loading && showFolderTree && (
               <>
                 {addingFolder && (
-                  <NewFolderInput onConfirm={handleCreateFolder} onCancel={() => setAddingFolder(false)} />
+                  <NewFolderInput
+                    onConfirm={name => { setAddingFolder(false); createFolder(name) }}
+                    onCancel={() => setAddingFolder(false)}
+                  />
                 )}
-                {folders.map(folder => {
-                  const fNotes = folderNotes(folder.id)
-                  const isOpen = !collapsedFolders[folder.id]
-                  return (
-                    <div key={folder.id}>
-                      <FolderRow
-                        folder={folder}
-                        open={isOpen}
-                        noteCount={fNotes.length}
-                        onToggle={() => toggleFolderCollapse(folder.id)}
-                        onRename={renameFolder}
-                        onDelete={askDeleteFolder}
-                        onAddNote={() => handleCreate(folder.id)}
-                      />
-                      {isOpen && fNotes.map(note => (
-                        <NoteItem key={note.id} note={note} active={activeNoteId === note.id} indent
-                          onClick={() => setActiveNoteId(note.id)}
-                          isOwner={isOwner} currentUserId={user?.id} />
-                      ))}
-                    </div>
-                  )
-                })}
-                {(unfolderedNotes.length > 0 || folders.length > 0) && (
-                  <div style={{ marginTop: folders.length > 0 ? 6 : 0 }}>
-                    {folders.length > 0 && (
+                <FolderTree
+                  tree={folderTree}
+                  notes={filtered}
+                  activeNoteId={activeNoteId}
+                  onNoteClick={setActiveNoteId}
+                  onAddNote={handleCreate}
+                  onAddSubfolder={(name, parentId) => createFolder(name, parentId)}
+                  onRename={renameFolder}
+                  onDelete={askDeleteFolder}
+                  isOwner={isOwner}
+                  currentUserId={user?.id}
+                />
+                {/* notas sem pasta */}
+                {(unfolderedNotes.length > 0 || folderTree.length > 0) && (
+                  <div style={{ marginTop: folderTree.length > 0 ? 8 : 0 }}>
+                    {folderTree.length > 0 && (
                       <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--text-dim)', padding: '4px 6px 3px', opacity: 0.6 }}>
                         sem pasta
                       </div>
                     )}
                     {unfolderedNotes.map(note => (
                       <NoteItem key={note.id} note={note} active={activeNoteId === note.id}
-                        onClick={() => setActiveNoteId(note.id)}
-                        isOwner={isOwner} currentUserId={user?.id} />
+                        onClick={() => setActiveNoteId(note.id)} isOwner={isOwner} currentUserId={user?.id} />
                     ))}
-                    {unfolderedNotes.length === 0 && folders.length > 0 && (
-                      <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, color: 'var(--text-dim)', padding: '4px 8px', opacity: 0.5 }}>—</div>
-                    )}
                   </div>
                 )}
-                {!loading && filtered.length === 0 && folders.length === 0 && !addingFolder && (
-                  <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-dim)', padding: '12px 8px', textAlign: 'center', lineHeight: 1.7 }}>
-                    nenhuma anotação ainda
-                  </div>
+                {!loading && filtered.length === 0 && folderTree.length === 0 && !addingFolder && (
+                  <Empty>nenhuma anotação ainda</Empty>
                 )}
               </>
             )}
 
             {!loading && !showFolderTree && (
               <>
-                {filtered.length === 0 && (
-                  <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-dim)', padding: '12px 8px', textAlign: 'center', lineHeight: 1.7 }}>
-                    {notes.length === 0 ? 'nenhuma anotação ainda' : 'sem resultados'}
-                  </div>
-                )}
+                {filtered.length === 0 && <Empty>{notes.length === 0 ? 'nenhuma anotação ainda' : 'sem resultados'}</Empty>}
                 {filtered.map(note => (
                   <NoteItem key={note.id} note={note} active={activeNoteId === note.id}
-                    onClick={() => setActiveNoteId(note.id)}
-                    isOwner={isOwner} currentUserId={user?.id} />
+                    onClick={() => setActiveNoteId(note.id)} isOwner={isOwner} currentUserId={user?.id} />
                 ))}
               </>
             )}
           </div>
 
+          {/* rodapé sidebar */}
           <div style={{ padding: '7px 10px', borderTop: '1px solid var(--border)', fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.12em' }}>
-            {filtered.length} anotaç{filtered.length !== 1 ? 'ões' : 'ão'} · {notes.filter(n => n.pinned).length} fixada{notes.filter(n=>n.pinned).length!==1?'s':''}
+            {filtered.length} anotaç{filtered.length !== 1 ? 'ões' : 'ão'} · {notes.filter(n => n.pinned).length} fixada{notes.filter(n => n.pinned).length !== 1 ? 's' : ''}
             {showFolderTree && folders.length > 0 && ` · ${folders.length} pasta${folders.length !== 1 ? 's' : ''}`}
           </div>
         </div>
 
         {/* ── EDITOR ── */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
-          {activeNote ? (<>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-card)', flexShrink: 0, flexWrap: 'wrap' }}>
-              {editingTitle === activeNote.id
-                ? <input autoFocus defaultValue={activeNote.title}
+          {activeNote ? (
+            <>
+              {/* barra de título + ações */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-card)', flexShrink: 0, flexWrap: 'wrap' }}>
+                {editingTitle === activeNote.id ? (
+                  <input autoFocus defaultValue={activeNote.title}
                     onBlur={e => { updateNote(activeNote.id, { title: e.target.value }); setEditingTitle(null) }}
                     onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
                     style={{ flex: 1, minWidth: 0, background: 'var(--surface)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius)', padding: '4px 8px', color: 'var(--text)', fontSize: 14, fontWeight: 600, outline: 'none' }} />
-                : <div onClick={() => canEditActiveNote && setEditingTitle(activeNote.id)}
+                ) : (
+                  <div onClick={() => canEditActiveNote && setEditingTitle(activeNote.id)}
                     style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, color: 'var(--text)', cursor: canEditActiveNote ? 'text' : 'default', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    {activeNote.visibility === 'private' && (
-                      <Lock size={12} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
-                    )}
+                    {activeNote.visibility === 'private' && <Lock size={12} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />}
                     {activeNote.title || 'sem título'}
                   </div>
-              }
-              <div style={{ display: 'flex', gap: 4, flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
-                {showFolderTree && folders.length > 0 && (
-                  <div style={{ position: 'relative' }}>
-                    <button onClick={() => setShowFolderPicker(v => !v)} title="mover para pasta"
-                      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--surface)', color: activeNoteFolder ? 'var(--text)' : 'var(--text-muted)', fontFamily: 'var(--ff-mono)', fontSize: 10, cursor: 'pointer', transition: 'all var(--fast)' }}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-red)' }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)' }}>
-                      <FolderInput size={11} />
-                      <span style={{ maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {activeNoteFolder ? activeNoteFolder.name : 'sem pasta'}
-                      </span>
-                    </button>
-                    {showFolderPicker && (
-                      <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: 'var(--bg-card)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius-md)', padding: 4, zIndex: 200, minWidth: 150, boxShadow: '0 8px 24px rgba(0,0,0,0.35)' }}>
-                        <button onClick={() => moveNoteToFolder(activeNote.id, null)}
-                          style={{ width: '100%', textAlign: 'left', padding: '5px 9px', borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 11, color: !activeNote.folder_id ? 'var(--red)' : 'var(--text-muted)', cursor: 'pointer', background: 'transparent' }}>
-                          sem pasta
-                        </button>
-                        {folders.map(f => (
-                          <button key={f.id} onClick={() => moveNoteToFolder(activeNote.id, f.id)}
-                            style={{ width: '100%', textAlign: 'left', padding: '5px 9px', borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 11, color: activeNote.folder_id === f.id ? 'var(--red)' : 'var(--text-muted)', cursor: 'pointer', background: 'transparent', display: 'flex', alignItems: 'center', gap: 6 }}
-                            onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
-                            onMouseLeave={e => e.currentTarget.style.color = activeNote.folder_id === f.id ? 'var(--red)' : 'var(--text-muted)'}>
-                            <Folder size={10} /> {f.name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
                 )}
-                <button onClick={() => togglePin(activeNote.id, activeNote.pinned)} title={activeNote.pinned ? 'desafixar' : 'fixar'}
-                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: activeNote.pinned ? 'var(--red-dim)' : 'var(--surface)', color: activeNote.pinned ? '#F0EDE8' : 'var(--text-muted)', fontFamily: 'var(--ff-mono)', fontSize: 10, cursor: 'pointer', transition: 'all var(--fast)' }}>
-                  {activeNote.pinned ? <PinOff size={11} /> : <Pin size={11} />}
-                </button>
-                {/* ── Botão de privacidade ── */}
-                {toolBtn(
-                  activeNote.visibility === 'private' ? 'tornar visível para a org' : 'tornar privado (só você e o owner)',
-                  activeNote.visibility === 'private' ? <Eye size={11} /> : <EyeOff size={11} />,
-                  () => toggleVisibility(activeNote),
-                  {
-                    label: activeNote.visibility === 'private' ? 'privado' : 'visível',
-                    active: activeNote.visibility === 'private',
-                  }
-                )}
-                {toolBtn('duplicar', <Copy size={11} />, () => handleDuplicate(activeNote), { label: 'duplicar' })}
-                <button
-                  onClick={() => templateFeedback !== 'saving' && handleSaveAsTemplate(activeNote)}
-                  title="salvar esta nota como template reutilizável"
-                  disabled={templateFeedback === 'saving'}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px',
-                    borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.08em',
-                    cursor: templateFeedback === 'saving' ? 'wait' : 'pointer', transition: 'all var(--fast)',
-                    border: templateFeedback === 'saved' ? '1px solid #2a6e3a' : templateFeedback === 'error' ? '1px solid var(--border-red)' : '1px solid var(--border)',
-                    background: templateFeedback === 'saved' ? 'rgba(90,171,110,0.15)' : templateFeedback === 'error' ? 'var(--red-dim)' : 'var(--surface)',
-                    color: templateFeedback === 'saved' ? '#5aab6e' : templateFeedback === 'error' ? 'var(--red)' : 'var(--text-muted)',
-                  }}
-                  onMouseEnter={e => { if (!templateFeedback) { e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.borderColor = 'var(--border-red)' } }}
-                  onMouseLeave={e => { if (!templateFeedback) { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' } }}
-                >
-                  <LayoutTemplate size={11} />
-                  <span>{templateFeedback === 'saved' ? '✓ template salvo!' : templateFeedback === 'saving' ? 'salvando...' : templateFeedback === 'error' ? '✗ erro — rode a migration v12' : 'template'}</span>
-                </button>
-                {toolBtn('usar template', <FileText size={11} />, () => setShowTemplates(true), { label: 'usar template' })}
-                {toolBtn('.md', <Download size={11} />, exportMd, { label: '.md' })}
-                {toolBtn('github', <Send size={11} />, () => setShowPush(true), { label: 'github' })}
-                {toolBtn('trello', <LayoutList size={11} />, () => setShowTrello(true), { label: 'trello' })}
-                {toolBtn('excluir', <Trash2 size={11} />, () => askDelete(activeNote.id), { danger: true })}
+
+                <div style={{ display: 'flex', gap: 4, flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {/* mover para pasta */}
+                  {showFolderTree && folders.length > 0 && (
+                    <div style={{ position: 'relative' }}>
+                      <button onClick={() => setShowFolderPicker(v => !v)} title="mover para pasta"
+                        style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--surface)', color: activeNoteFolder ? 'var(--text)' : 'var(--text-muted)', fontFamily: 'var(--ff-mono)', fontSize: 10, cursor: 'pointer' }}>
+                        <FolderInput size={11} />
+                        <span style={{ maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {activeNoteFolder ? activeNoteFolder.name : 'sem pasta'}
+                        </span>
+                      </button>
+                      {showFolderPicker && (
+                        <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: 'var(--bg-card)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius-md)', padding: 4, zIndex: 200, minWidth: 150, boxShadow: '0 8px 24px rgba(0,0,0,0.35)' }}>
+                          <FolderOption label="sem pasta" active={!activeNote.folder_id} onClick={() => moveNoteToFolder(activeNote.id, null)} />
+                          {folders.map(f => (
+                            <FolderOption key={f.id} label={f.name} active={activeNote.folder_id === f.id} onClick={() => moveNoteToFolder(activeNote.id, f.id)} />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <button onClick={() => togglePin(activeNote.id, activeNote.pinned)} title={activeNote.pinned ? 'desafixar' : 'fixar'}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: activeNote.pinned ? 'var(--red-dim)' : 'var(--surface)', color: activeNote.pinned ? '#F0EDE8' : 'var(--text-muted)', fontFamily: 'var(--ff-mono)', fontSize: 10, cursor: 'pointer' }}>
+                    {activeNote.pinned ? <PinOff size={11} /> : <Pin size={11} />}
+                  </button>
+
+                  <ToolBtn title={activeNote.visibility === 'private' ? 'tornar visível para a org' : 'tornar privado'} icon={activeNote.visibility === 'private' ? <Eye size={11} /> : <EyeOff size={11} />} onClick={() => toggleVisibility(activeNote)} label={activeNote.visibility === 'private' ? 'privado' : 'visível'} active={activeNote.visibility === 'private'} />
+                  <ToolBtn title="duplicar" icon={<Copy size={11} />} onClick={() => handleDuplicate(activeNote)} label="duplicar" />
+
+                  {/* salvar como template */}
+                  <button onClick={() => templateFeedback !== 'saving' && handleSaveAsTemplate(activeNote)} disabled={templateFeedback === 'saving'}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.08em', cursor: templateFeedback === 'saving' ? 'wait' : 'pointer',
+                      border: templateFeedback === 'saved' ? '1px solid #2a6e3a' : templateFeedback === 'error' ? '1px solid var(--border-red)' : '1px solid var(--border)',
+                      background: templateFeedback === 'saved' ? 'rgba(90,171,110,0.15)' : templateFeedback === 'error' ? 'var(--red-dim)' : 'var(--surface)',
+                      color: templateFeedback === 'saved' ? '#5aab6e' : templateFeedback === 'error' ? 'var(--red)' : 'var(--text-muted)',
+                    }}>
+                    <LayoutTemplate size={11} />
+                    <span>{templateFeedback === 'saved' ? '✓ salvo!' : templateFeedback === 'saving' ? '...' : templateFeedback === 'error' ? '✗ erro' : 'template'}</span>
+                  </button>
+
+                  <ToolBtn title="usar template" icon={<FileText size={11} />} onClick={() => setShowTemplates(true)} label="usar template" />
+                  <ToolBtn title="exportar .md" icon={<Download size={11} />} onClick={exportMd} label=".md" />
+                  <ToolBtn title="enviar nota ao GitHub" icon={<Send size={11} />} onClick={() => setShowPushNote(true)} label="github" />
+                  {activeNoteFolder && (
+                    <ToolBtn title="enviar pasta inteira ao GitHub" icon={<Folder size={11} />} onClick={() => setShowPushFolder(true)} label="pasta→git" />
+                  )}
+                  <ToolBtn title="criar card no Trello" icon={<LayoutList size={11} />} onClick={() => setShowTrello(true)} label="trello" />
+                  <ToolBtn title="excluir nota" icon={<Trash2 size={11} />} onClick={() => askDelete(activeNote.id)} danger />
+                </div>
               </div>
-            </div>
-            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              <NoteEditor note={activeNote} onUpdate={handleUpdate} org={org} />
-            </div>
-            <div style={{ padding: '6px 16px', borderTop: '1px solid var(--border)', fontFamily: 'var(--ff-mono)', fontSize: 10, color: 'var(--text-dim)', display: 'flex', justifyContent: 'space-between', flexShrink: 0 }}>
-              <span>
-                ›_ salvo automaticamente
-                {activeNoteFolder && (
-                  <span style={{ marginLeft: 10, opacity: 0.6 }}>
-                    <Folder size={9} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} />
-                    {activeNoteFolder.name}
-                  </span>
-                )}
-                {activeNote.visibility === 'private' && (
-                  <span style={{ marginLeft: 10, color: 'var(--text-dim)', opacity: 0.7, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                    <Lock size={9} /> privado
-                  </span>
-                )}
-              </span>
-              <span>{new Date(activeNote.updated_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
-            </div>
-          </>) : (
+
+              {/* editor */}
+              <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <NoteEditor note={activeNote} onUpdate={handleUpdate} />
+              </div>
+
+              {/* rodapé editor */}
+              <div style={{ padding: '6px 16px', borderTop: '1px solid var(--border)', fontFamily: 'var(--ff-mono)', fontSize: 10, color: 'var(--text-dim)', display: 'flex', justifyContent: 'space-between', flexShrink: 0 }}>
+                <span>
+                  ›_ salvo automaticamente
+                  {activeNoteFolder && (
+                    <span style={{ marginLeft: 10, opacity: 0.6 }}>
+                      <Folder size={9} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} />
+                      {activeNoteFolder.name}
+                    </span>
+                  )}
+                  {activeNote.visibility === 'private' && (
+                    <span style={{ marginLeft: 10, opacity: 0.7, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                      <Lock size={9} /> privado
+                    </span>
+                  )}
+                </span>
+                <span>{new Date(activeNote.updated_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+            </>
+          ) : (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
               <FileText size={36} style={{ color: 'var(--text-dim)', opacity: 0.25 }} />
               <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 22, letterSpacing: '0.08em', color: 'var(--text-dim)' }}>SELECIONE UMA NOTA</div>
               <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.15em' }}>ou crie uma nova ao lado</div>
-              {groups.length > 0 && <button onClick={() => handleCreate(null)} className="btn btn-primary" style={{ marginTop: 8 }}><Plus size={12} /> nova anotação</button>}
+              {groups.length > 0 && (
+                <button onClick={() => handleCreate(null)} className="btn btn-primary" style={{ marginTop: 8 }}>
+                  <Plus size={12} /> nova anotação
+                </button>
+              )}
             </div>
           )}
         </div>
       </div>
 
-      {showFolderPicker && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 199 }} onClick={() => setShowFolderPicker(false)} />
-      )}
+      {/* ── overlay folder picker ── */}
+      {showFolderPicker && <div style={{ position: 'fixed', inset: 0, zIndex: 199 }} onClick={() => setShowFolderPicker(false)} />}
 
-      {showPush   && <PushModal note={activeNote} group={activeGroup} onClose={() => setShowPush(false)} />}
-      {showTrello && <TrelloCardModal note={activeNote} group={activeGroup} trelloToken={trelloToken} onClose={() => setShowTrello(false)} />}
-      {modal && <CardModal {...modal} onClose={() => setModal(null)} confirmLabel="excluir" />}
-
-      {showTemplates && (
-        <div style={{ position: 'fixed', inset: 0, background: 'var(--overlay)', zIndex: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
-          onClick={e => e.target === e.currentTarget && setShowTemplates(false)}>
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius-md)', width: '100%', maxWidth: 520, padding: 28, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20, flexShrink: 0 }}>
-              <div>
-                <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 20, letterSpacing: '0.05em' }}>TEMPLATES DA ORG</div>
-                <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.25em', color: 'var(--text-dim)', textTransform: 'uppercase', marginTop: 2 }}>// modelos disponíveis para toda a organização</div>
-              </div>
-              <button onClick={() => setShowTemplates(false)} style={{ color: 'var(--text-muted)', cursor: 'pointer' }}><X size={16} /></button>
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto' }}>
-              {templates.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-dim)', fontFamily: 'var(--ff-mono)', fontSize: 12 }}>
-                  <LayoutTemplate size={28} style={{ opacity: 0.3, marginBottom: 12, display: 'block', margin: '0 auto 12px' }} />
-                  nenhum template ainda — salve uma nota como template para reutilizá-la aqui
-                  <div style={{ marginTop: 12, fontSize: 10, opacity: 0.6 }}>
-                    se já salvou um e não aparece, rode a migration v12 no Supabase
-                  </div>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {templates.map(t => (
-                    <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--surface)', transition: 'border-color var(--fast)' }}
-                      onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border-red)'}
-                      onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
-                      <FileText size={14} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</div>
-                        {t.profiles?.name && <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'var(--ff-mono)', marginTop: 2 }}>por {t.profiles.name} · {new Date(t.created_at).toLocaleDateString('pt-BR')}</div>}
-                      </div>
-                      <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
-                        <button onClick={() => handleCreateFromTemplate(t)}
-                          style={{ padding: '5px 10px', borderRadius: 'var(--radius)', border: '1px solid var(--border-red)', background: 'var(--red-dim)', color: '#F0EDE8', fontFamily: 'var(--ff-mono)', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <Plus size={10} /> usar
-                        </button>
-                        <button onClick={() => deleteTemplate(t.id)} title="excluir template"
-                          style={{ padding: '5px 7px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                          onMouseEnter={e => { e.currentTarget.style.color = 'var(--red)'; e.currentTarget.style.borderColor = 'var(--border-red)' }}
-                          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-dim)'; e.currentTarget.style.borderColor = 'var(--border)' }}>
-                          <Trash2 size={10} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)', flexShrink: 0 }}>
-              <button onClick={() => setShowTemplates(false)} className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center' }}>fechar</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ── Modais ── */}
+      {showPushNote  && <PushNoteModal note={activeNote} group={activeGroup} onClose={() => setShowPushNote(false)} />}
+      {showPushFolder && <PushFolderModal folder={activeNoteFolder} notes={notes} group={activeGroup} onClose={() => setShowPushFolder(false)} />}
+      {showTrello    && <TrelloCardModal note={activeNote} group={activeGroup} trelloToken={trelloToken} onClose={() => setShowTrello(false)} />}
+      {showTemplates && <TemplatesModal templates={templates} onUse={handleCreateFromTemplate} onDelete={deleteTemplate} onClose={() => setShowTemplates(false)} />}
+      {modal         && <CardModal {...modal} onClose={() => setModal(null)} confirmLabel="excluir" />}
     </div>
+  )
+}
+
+// ── helpers inline ────────────────────────────────────────────────────────────
+function Empty({ children }) {
+  return (
+    <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-dim)', padding: '12px 8px', textAlign: 'center', lineHeight: 1.7 }}>
+      {children}
+    </div>
+  )
+}
+
+function FolderOption({ label, active, onClick }) {
+  return (
+    <button onClick={onClick}
+      style={{ width: '100%', textAlign: 'left', padding: '5px 9px', borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 11, color: active ? 'var(--red)' : 'var(--text-muted)', cursor: 'pointer', background: 'transparent', display: 'flex', alignItems: 'center', gap: 6 }}
+      onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
+      onMouseLeave={e => e.currentTarget.style.color = active ? 'var(--red)' : 'var(--text-muted)'}>
+      <Folder size={10} /> {label}
+    </button>
   )
 }
