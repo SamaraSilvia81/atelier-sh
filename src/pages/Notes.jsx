@@ -3,6 +3,7 @@ import {
   Pin, PinOff, Plus, Trash2, Search, FileText,
   Download, Send, LayoutList, FolderPlus, Folder,
   FolderInput, Copy, LayoutTemplate, Lock, Eye, EyeOff,
+  PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react'
 import { useGroups }        from '../hooks/useGroups'
 import { useOrgNotes }      from '../hooks/useNotes'
@@ -53,6 +54,7 @@ export default function Notes({ org }) {
   const { templates, saveAsTemplate, deleteTemplate } = useNoteTemplates(org?.id)
   const trelloToken = localStorage.getItem('atelier_trello_token') || ''
   const isOwner     = org?.owner_id === user?.id
+  const [sidebarOpen, setSidebarOpen] = useState(true)
 
   // ── state da UI ──────────────────────────────────────────────────────────
   const [activeNoteId, setActiveNoteId]   = useState(null)
@@ -184,10 +186,10 @@ export default function Notes({ org }) {
         </div>
       </header>
 
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0, position: 'relative' }}>
 
         {/* ── SIDEBAR ── */}
-        <div style={{ width: 270, flexShrink: 0, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', background: 'var(--bg-alt)' }}>
+        <div style={{ position: 'relative', width: sidebarOpen ? 270 : 0, minWidth: sidebarOpen ? 270 : 0, flexShrink: 0, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', background: 'var(--bg-alt)', overflow: 'hidden', transition: 'width 0.2s ease, min-width 0.2s ease' }}>
           {/* controles topo */}
           <div style={{ padding: 10, borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 7 }}>
             <div style={{ position: 'relative' }}>
@@ -272,11 +274,36 @@ export default function Notes({ org }) {
           </div>
 
           {/* rodapé sidebar */}
-          <div style={{ padding: '7px 10px', borderTop: '1px solid var(--border)', fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.12em' }}>
-            {filtered.length} anotaç{filtered.length !== 1 ? 'ões' : 'ão'} · {notes.filter(n => n.pinned).length} fixada{notes.filter(n => n.pinned).length !== 1 ? 's' : ''}
-            {showFolderTree && folders.length > 0 && ` · ${folders.length} pasta${folders.length !== 1 ? 's' : ''}`}
+          <div style={{ padding: '7px 10px', borderTop: '1px solid var(--border)', fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.12em', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>{filtered.length} anotaç{filtered.length !== 1 ? 'ões' : 'ão'} · {notes.filter(n => n.pinned).length} fixada{notes.filter(n => n.pinned).length !== 1 ? 's' : ''}
+            {showFolderTree && folders.length > 0 && ` · ${folders.length} pasta${folders.length !== 1 ? 's' : ''}`}</span>
+            <button onClick={() => setSidebarOpen(v => !v)} title={sidebarOpen ? 'Retrair' : 'Expandir'}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', padding: 2, borderRadius: 'var(--radius)' }}
+              onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
+              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
+              {sidebarOpen ? <PanelLeftClose size={13} /> : <PanelLeftOpen size={13} />}
+            </button>
           </div>
         </div>
+
+        {/* ── Botão flutuante para expandir sidebar quando retraída ── */}
+        {!sidebarOpen && (
+          <button
+            onClick={() => setSidebarOpen(true)}
+            title="Expandir sidebar"
+            style={{
+              position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)',
+              zIndex: 10, background: 'var(--bg-alt)', border: '1px solid var(--border)',
+              borderLeft: 'none', borderRadius: '0 var(--radius) var(--radius) 0',
+              padding: '10px 5px', cursor: 'pointer', color: 'var(--text-dim)',
+              display: 'flex', alignItems: 'center', transition: 'all var(--fast)',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.borderColor = 'var(--border-red)' }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-dim)'; e.currentTarget.style.borderColor = 'var(--border)' }}
+          >
+            <PanelLeftOpen size={13} />
+          </button>
+        )}
 
         {/* ── EDITOR ── */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>

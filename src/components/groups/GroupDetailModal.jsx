@@ -1,3 +1,4 @@
+import AvaliacaoTab from './AvaliacaoTab'
 import { useState, useEffect } from 'react'
 import {
   X, Pencil, FileText, Monitor, GitBranch, LayoutList, Lock,
@@ -88,6 +89,7 @@ export default function GroupDetailModal({ group, trelloToken, onClose, onEdit, 
     'trello',
     'atas',
     'integrantes',
+    'avaliacao',
     ...(group.figma_url ? ['figma'] : []),
   ]
 
@@ -577,6 +579,12 @@ export default function GroupDetailModal({ group, trelloToken, onClose, onEdit, 
           })()}
         </div>
       </div>
+
+          {tab === 'avaliacao' && (
+            <div style={{ margin: '-20px -28px', height: 'calc(100% + 40px)', overflow: 'hidden' }}>
+              <AvaliacaoTab group={group} />
+            </div>
+          )}
 
       <style>{`
         @keyframes slideInRight {

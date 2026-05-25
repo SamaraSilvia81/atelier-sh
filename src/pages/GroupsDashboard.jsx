@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useGroups }  from '../hooks/useGroups'
 import { useAuth }    from '../hooks/useAuth'
 import GroupCard      from '../components/groups/GroupCard'
@@ -7,19 +7,29 @@ import NotesPanel     from '../components/notes/NotesPanel'
 import { LayoutGrid, List, ChevronLeft } from 'lucide-react'
 import { useSounds }  from '../hooks/useSounds'
 
-export default function GroupsDashboard({ org, project, projectId, isAdmin, trelloToken, onBack }) {
+export default function GroupsDashboard({ org, project, projectId, isAdmin, trelloToken, onBack, initialGroupId, onGroupOpened }) {
   const { user }    = useAuth()
   const { groups, loading, createGroup, updateGroup, deleteGroup, duplicateGroup, saveGroupAsTemplate, unsetGroupTemplate } = useGroups(org?.id, projectId)
   const sounds      = useSounds()
-  const [showModal,     setShowModal]     = useState(false)
-  const [editingGroup,  setEditingGroup]  = useState(null)
-  const [notesGroup,    setNotesGroup]    = useState(null)
-  const [search,        setSearch]        = useState('')
-  const [view,          setView]          = useState('grid')
-  const [filter,        setFilter]        = useState('all')
-  const [searchFocused, setSearchFocused] = useState(false)
+  const [showModal,        setShowModal]        = useState(false)
+  const [editingGroup,     setEditingGroup]     = useState(null)
+  const [notesGroup,       setNotesGroup]       = useState(null)
+  const [sidebarGroupId,   setSidebarGroupId]   = useState(null)
+  const [search,           setSearch]           = useState('')
+  const [view,             setView]             = useState('grid')
+  const [filter,           setFilter]           = useState('all')
+  const [searchFocused,    setSearchFocused]    = useState(false)
 
-  // visibilidade por role
+  // Abre o grupo quando clicado no sidebar
+  useEffect(() => {
+    if (!initialGroupId || !groups.length) return
+    const found = groups.find(g => g.id === initialGroupId)
+    if (found) {
+      setSidebarGroupId(initialGroupId)
+      if (onGroupOpened) onGroupOpened()
+    }
+  }, [initialGroupId, groups])
+
   const visibleGroups = isAdmin
     ? groups
     : groups.filter(g => {
@@ -35,7 +45,6 @@ export default function GroupsDashboard({ org, project, projectId, isAdmin, trel
     return matchSearch && matchFilter
   })
 
-  // contadores
   const total     = visibleGroups.length
   const ativos    = visibleGroups.filter(g => g.status === 'active').length
   const atencao   = visibleGroups.filter(g => g.status === 'attention').length
@@ -55,7 +64,6 @@ export default function GroupsDashboard({ org, project, projectId, isAdmin, trel
 
   return (
     <div className="page-wrap">
-      {/* header */}
       <header style={{
         borderBottom: '1px solid var(--border)',
         padding: '14px 32px 14px 24px',
@@ -77,7 +85,6 @@ export default function GroupsDashboard({ org, project, projectId, isAdmin, trel
         <div style={{ width: 80 }} />
       </header>
 
-      {/* hero */}
       <section style={{ padding: '48px var(--content-pad) 36px', borderBottom: '1px solid var(--border)', position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', top: 0, right: 0, width: '40%', height: '100%', background: 'radial-gradient(ellipse at right, var(--glow-red), transparent 70%)', pointerEvents: 'none' }} />
         <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.44em', color: 'var(--red)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
@@ -87,8 +94,6 @@ export default function GroupsDashboard({ org, project, projectId, isAdmin, trel
         <h1 style={{ fontFamily: 'var(--ff-disp)', fontSize: 'clamp(2rem, 4vw, 3.4rem)', lineHeight: 0.92, letterSpacing: '0.02em', color: 'var(--text)', marginBottom: 28 }}>
           GRUPOS <span style={{ color: 'var(--red)' }}>EM</span><br />TEMPO REAL
         </h1>
-
-        {/* barra de busca estilo terminal */}
         <div className="terminal-search-wrap">
           <div className="terminal-prompt">
             ›_
@@ -114,7 +119,6 @@ export default function GroupsDashboard({ org, project, projectId, isAdmin, trel
         </div>
       </section>
 
-      {/* barra de filtros + ações */}
       <div style={{ padding: '12px var(--content-pad)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
           {[['all','// todos'],['active','// ativos'],['attention','// atenção'],['inactive','// inativos']].map(([val, lbl]) => (
@@ -145,7 +149,6 @@ export default function GroupsDashboard({ org, project, projectId, isAdmin, trel
         </div>
       </div>
 
-      {/* stats bar */}
       <div style={{ padding: '10px var(--content-pad)', display: 'flex', gap: 24, borderBottom: '1px solid var(--border)', background: 'var(--bg-alt)', flexWrap: 'wrap' }}>
         {[
           { dot: 'var(--red)',      label: 'total',     val: total },
@@ -161,7 +164,6 @@ export default function GroupsDashboard({ org, project, projectId, isAdmin, trel
         ))}
       </div>
 
-      {/* conteúdo */}
       <main style={{ flex: 1, padding: '28px var(--content-pad)' }}>
         {loading ? (
           <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 12, color: 'var(--text-dim)', letterSpacing: '0.2em' }}>carregando_</div>
@@ -169,13 +171,9 @@ export default function GroupsDashboard({ org, project, projectId, isAdmin, trel
           <div style={{ textAlign: 'center', padding: '80px 0' }}>
             <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 36, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 10 }}>NENHUM GRUPO</div>
             <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, letterSpacing: '0.22em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 20 }}>
-              {isAdmin
-                ? (search ? 'nenhum resultado' : 'adicione grupos para começar')
-                : 'você ainda não foi atribuído a um grupo'}
+              {isAdmin ? (search ? 'nenhum resultado' : 'adicione grupos para começar') : 'você ainda não foi atribuído a um grupo'}
             </div>
-            {isAdmin && !search && (
-              <button onClick={() => setShowModal(true)} className="btn btn-primary">+ adicionar grupo</button>
-            )}
+            {isAdmin && !search && <button onClick={() => setShowModal(true)} className="btn btn-primary">+ adicionar grupo</button>}
           </div>
         ) : (
           <div style={{
@@ -195,6 +193,8 @@ export default function GroupsDashboard({ org, project, projectId, isAdmin, trel
                 onOpenReview={null}
                 onDuplicate={isAdmin ? (id) => duplicateGroup(id) : null}
                 onSaveAsTemplate={isAdmin ? (id, isTpl) => isTpl ? unsetGroupTemplate(id) : saveGroupAsTemplate(id) : null}
+                initialOpen={sidebarGroupId === group.id}
+                onDetailClose={() => setSidebarGroupId(null)}
               />
             ))}
           </div>

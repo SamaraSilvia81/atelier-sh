@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import { useOrgs }    from './hooks/useOrgs'
@@ -15,6 +16,8 @@ import Settings        from './pages/Settings'
 import Profile         from './pages/Profile'
 import AcceptInvite    from './pages/AcceptInvite'
 import ActivityLog     from './pages/ActivityLog'
+import Avaliacoes      from './pages/Avaliacoes'
+import GrupoPagina     from './pages/GrupoPagina'
 import SplashScreen    from './components/SplashScreen'
 import { useTheme, ThemeProvider } from './hooks/useTheme.jsx'
 import { useSounds }   from './hooks/useSounds'
@@ -55,13 +58,13 @@ function AppShell() {
   const [currentProjectId, setCurrentProjectId] = useState(() => localStorage.getItem('atelier_project_id') || null)
   const [trelloToken]      = useState(() => localStorage.getItem('atelier_trello_token') || '')
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('atelier_sidebar') === 'collapsed')
+  const navigate = useNavigate()
+  const [sidebarSelectedGroupId, setSidebarSelectedGroupId] = useState(null)
   const [splashDone, setSplashDone] = useState(() => sessionStorage.getItem('atelier_splash_done') === '1')
 
   const { role, isAdmin } = useRole(currentOrgId)
   const { projects }      = useProjects(currentOrgId)
 
-  // activeProject derivado — sem useEffect, sem setState cascata
-  // ATENÇÃO: useProjects deve ficar ACIMA deste useMemo (evitar TDZ)
   const activeProject = useMemo(() => {
     if (!currentProjectId || !projects.length) return null
     return projects.find(p => p.id === currentProjectId) || null
@@ -107,7 +110,6 @@ function AppShell() {
 
   if (!user) return <Login />
 
-  // splash — só na primeira vez na sessão
   if (!splashDone) return <SplashScreen onDone={handleSplashDone} />
 
   const currentOrg = orgs.find(o => o.id === currentOrgId) || orgs[0] || null
@@ -123,12 +125,11 @@ function AppShell() {
         setCurrentProjectId={setCurrentProjectId}
         collapsed={collapsed}
         setCollapsed={setCollapsed}
+        onSelectGroup={(g) => navigate(`/grupo/${g.id}`)}
       />
       <main style={{ marginLeft: sideW, flex: 1, transition: 'margin-left var(--mid) var(--ease)', minWidth: 0, minHeight: '100vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
         <Routes>
           <Route path="/onboarding" element={<Onboarding />} />
-
-          {/* dashboard: sem projeto → lista de projetos | com projeto → lista de grupos */}
           <Route path="/" element={
             activeProject
               ? <GroupsDashboard
@@ -139,6 +140,8 @@ function AppShell() {
                   isAdmin={isAdmin}
                   trelloToken={trelloToken}
                   onBack={handleBackToProjects}
+                  initialGroupId={sidebarSelectedGroupId}
+                  onGroupOpened={() => setSidebarSelectedGroupId(null)}
                 />
               : <ProjectsDashboard
                   org={currentOrg}
@@ -146,13 +149,14 @@ function AppShell() {
                   onSelectProject={handleSelectProject}
                 />
           } />
-
-          <Route path="/notes"    element={<Notes    org={currentOrg} projectId={currentProjectId} role={role} isAdmin={isAdmin} />} />
-          <Route path="/activity" element={<ActivityLog org={currentOrg} />} />
-          <Route path="/settings" element={<Settings currentOrgId={currentOrgId} />} />
-          <Route path="/profile"  element={<Profile />} />
-          <Route path="/invite"   element={<AcceptInvite />} />
-          <Route path="*"         element={<Navigate to="/" />} />
+          <Route path="/notes"      element={<Notes       org={currentOrg} projectId={currentProjectId} role={role} isAdmin={isAdmin} />} />
+          <Route path="/activity"   element={<ActivityLog org={currentOrg} />} />
+          <Route path="/settings"   element={<Settings    currentOrgId={currentOrgId} />} />
+          <Route path="/profile"    element={<Profile />} />
+          <Route path="/invite"     element={<AcceptInvite />} />
+          <Route path="/avaliacoes" element={<Avaliacoes  org={currentOrg} projectId={currentProjectId} trelloToken={trelloToken} />} />
+          <Route path="/grupo/:id"    element={<GrupoPagina  org={currentOrg} trelloToken={trelloToken} isAdmin={isAdmin} />} />
+          <Route path="*"           element={<Navigate to="/" />} />
         </Routes>
       </main>
     </div>

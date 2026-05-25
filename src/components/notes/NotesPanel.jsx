@@ -25,7 +25,7 @@ import { createTrelloCard, fetchBoardLists } from '../../lib/trello'
 import {
   X, Plus, Pin, PinOff, Trash2, Bold, Italic, List, ListOrdered,
   Heading2, Code, Download, Send, LayoutList, ImageIcon, CheckCircle2, AlertCircle,
-  Globe, Lock, User, FolderPlus, Folder, FolderOpen, ChevronRight, ChevronDown,
+  Globe, Lock, User, FolderPlus, Folder, FolderOpen, ChevronRight, ChevronDown, PanelLeftClose, PanelLeftOpen,
   Pencil, Upload, Copy, LayoutTemplate, FileText, Table2
 } from 'lucide-react'
 import { useSounds } from '../../hooks/useSounds'
@@ -498,7 +498,7 @@ function NoteEditor({ note, onUpdate }) {
 }
 
 // ── Main NotesPanel ───────────────────────────────────────────────────
-export default function NotesPanel({ group, orgId, onClose }) {
+export default function NotesPanel({ group, orgId, onClose, inline = false }) {
   const { notes, loading, createNote, updateNote, deleteNote, togglePin, duplicateNote } = useNotes(group?.id, orgId)
   const { folders, createFolder, renameFolder, deleteFolder } = useFolders(group?.id, orgId)
   const { templates, saveAsTemplate, deleteTemplate } = useNoteTemplates(orgId)
@@ -511,6 +511,7 @@ export default function NotesPanel({ group, orgId, onClose }) {
   const [showTemplates, setShowTemplates] = useState(false)
   const [templateFeedback, setTemplateFeedback] = useState(null)
   const [collapsedFolders, setCollapsedFolders] = useState({})
+  const [listOpen, setListOpen] = useState(true)
   const [addingFolder, setAddingFolder] = useState(false)
   const [folderDraft, setFolderDraft] = useState('')
   const [editingFolder, setEditingFolder] = useState(null)
@@ -593,261 +594,9 @@ export default function NotesPanel({ group, orgId, onClose }) {
   const folderNotes = (folderId) => notes.filter(n => n.folder_id === folderId)
   const unfolderedNotes = notes.filter(n => !n.folder_id)
 
-  return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 200,
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24
-    }} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{
-        width: '100%', maxWidth: 860, height: '88vh', background: 'var(--bg-card)',
-        border: '1px solid var(--border-2)', borderRadius: 'var(--radius-xl)',
-        display: 'flex', flexDirection: 'column', overflow: 'hidden'
-      }}>
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 20px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: group?.color || 'var(--red)', flexShrink: 0 }} />
-          <span style={{ fontWeight: 600, fontSize: 14 }}>{group?.name}</span>
-          <span style={{ color: 'var(--text-muted)', fontSize: 12, fontFamily: 'var(--ff-mono)' }}>/ anotações</span>
-          <div style={{ flex: 1 }} />
-          <button onClick={onClose} style={{ color: 'var(--text-muted)', padding: 4, cursor: 'pointer' }}><X size={16} /></button>
-        </div>
 
-        <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
-          {/* Sidebar - nota list */}
-          <div style={{ width: 220, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-            <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div style={{ display: 'flex', gap: 5 }}>
-                <button onClick={() => setAddingFolder(true)} disabled={addingFolder} className="btn btn-ghost"
-                  style={{ flex: 1, justifyContent: 'center', fontSize: 10, padding: '5px 8px', gap: 4 }}>
-                  <FolderPlus size={11} /> pasta
-                </button>
-                <button onClick={() => handleCreate(null)} className="btn btn-primary"
-                  style={{ flex: 1, justifyContent: 'center', fontSize: 11, padding: '5px 8px' }}>
-                  <Plus size={12} /> nota
-                </button>
-              </div>
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
-              {loading && <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: 8, fontFamily: 'var(--ff-mono)' }}>carregando_</div>}
-
-              {/* Nova pasta inline */}
-              {addingFolder && (
-                <div style={{ display: 'flex', gap: 4, alignItems: 'center', padding: '4px 4px', marginBottom: 2 }}>
-                  <Folder size={11} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
-                  <input
-                    autoFocus
-                    value={folderDraft}
-                    onChange={e => setFolderDraft(e.target.value)}
-                    placeholder="nome da pasta..."
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && folderDraft.trim()) handleCreateFolder(folderDraft.trim())
-                      if (e.key === 'Escape') { setAddingFolder(false); setFolderDraft('') }
-                    }}
-                    onBlur={() => { if (folderDraft.trim()) handleCreateFolder(folderDraft.trim()); else { setAddingFolder(false); setFolderDraft('') } }}
-                    style={{ flex: 1, minWidth: 0, background: 'var(--surface)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius)', padding: '3px 7px', color: 'var(--text)', fontFamily: 'var(--ff-mono)', fontSize: 11, outline: 'none' }}
-                  />
-                </div>
-              )}
-
-              {/* Pastas com suas notas */}
-              {folders.map(folder => {
-                const fNotes = folderNotes(folder.id)
-                const isOpen = !collapsedFolders[folder.id]
-                return (
-                  <div key={folder.id}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '5px 4px', borderRadius: 'var(--radius)', marginBottom: 1 }}
-                      onMouseEnter={e => e.currentTarget.dataset.hover = '1'}
-                      onMouseLeave={e => { delete e.currentTarget.dataset.hover; e.currentTarget.querySelector?.('.folder-actions')?.setAttribute('style', 'display:none') }}>
-                      <button onClick={() => toggleFolderCollapse(folder.id)} style={{ color: 'var(--text-dim)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                        {isOpen ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
-                      </button>
-                      <button onClick={() => toggleFolderCollapse(folder.id)} style={{ color: isOpen ? 'var(--red)' : 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                        {isOpen ? <FolderOpen size={12} /> : <Folder size={12} />}
-                      </button>
-                      {editingFolder === folder.id
-                        ? <input autoFocus value={folderEditDraft} onChange={e => setFolderEditDraft(e.target.value)}
-                            onBlur={() => commitRenameFolder(folder.id)}
-                            onKeyDown={e => { if (e.key === 'Enter') commitRenameFolder(folder.id); if (e.key === 'Escape') { setEditingFolder(null) } }}
-                            style={{ flex: 1, minWidth: 0, background: 'var(--surface)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius)', padding: '2px 5px', color: 'var(--text)', fontFamily: 'var(--ff-mono)', fontSize: 11, outline: 'none' }} />
-                        : <button onClick={() => toggleFolderCollapse(folder.id)} style={{ flex: 1, minWidth: 0, textAlign: 'left', fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text)', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '0.03em' }}>
-                            {folder.name}
-                          </button>
-                      }
-                      {editingFolder !== folder.id && (
-                        <div style={{ display: 'flex', gap: 1, flexShrink: 0 }}>
-                          <button onClick={() => handleCreate(folder.id)} title="nova nota nesta pasta"
-                            style={{ color: 'var(--text-dim)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}
-                            onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
-                            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
-                            <Plus size={10} />
-                          </button>
-                          <button onClick={() => { setFolderEditDraft(folder.name); setEditingFolder(folder.id) }} title="renomear"
-                            style={{ color: 'var(--text-dim)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}
-                            onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
-                            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
-                            <Pencil size={9} />
-                          </button>
-                          <button onClick={() => deleteFolder(folder.id)} title="excluir pasta"
-                            style={{ color: 'var(--text-dim)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}
-                            onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
-                            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
-                            <Trash2 size={9} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    {isOpen && fNotes.map(note => (
-                      <button key={note.id} onClick={() => setActiveNoteId(note.id)} style={{
-                        width: '100%', textAlign: 'left', padding: '6px 9px 6px 24px', borderRadius: 'var(--radius)',
-                        background: activeNote?.id === note.id ? 'var(--red-dim)' : 'transparent',
-                        border: activeNote?.id === note.id ? '1px solid var(--border-red)' : '1px solid transparent',
-                        display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2,
-                        transition: 'all var(--fast)', cursor: 'pointer',
-                      }}>
-                        {note.pinned && <Pin size={8} style={{ color: activeNote?.id === note.id ? '#F0EDE8' : 'var(--red)', flexShrink: 0 }} />}
-                        <span style={{ fontSize: 11, color: activeNote?.id === note.id ? '#F0EDE8' : 'var(--text-sub)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {note.title || 'sem título'}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )
-              })}
-
-              {/* Notas sem pasta */}
-              {(unfolderedNotes.length > 0 || folders.length > 0) && (
-                <div style={{ marginTop: folders.length > 0 ? 4 : 0 }}>
-                  {folders.length > 0 && unfolderedNotes.length > 0 && (
-                    <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--text-dim)', padding: '4px 4px 2px', opacity: 0.55 }}>
-                      sem pasta
-                    </div>
-                  )}
-                  {unfolderedNotes.map(note => (
-                    <button key={note.id} onClick={() => setActiveNoteId(note.id)} style={{
-                      width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 'var(--radius)',
-                      background: activeNote?.id === note.id ? 'var(--red-dim)' : 'transparent',
-                      border: activeNote?.id === note.id ? '1px solid var(--border-red)' : '1px solid transparent',
-                      display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2,
-                      transition: 'all var(--fast)', cursor: 'pointer',
-                    }}>
-                      {note.pinned && <Pin size={9} style={{ color: activeNote?.id === note.id ? '#F0EDE8' : 'var(--red)', flexShrink: 0 }} />}
-                      <span style={{ fontSize: 12, color: activeNote?.id === note.id ? '#F0EDE8' : 'var(--text-sub)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {note.title || 'sem título'}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {!loading && notes.length === 0 && (
-                <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: '12px 8px', textAlign: 'center', fontFamily: 'var(--ff-mono)' }}>
-                  nenhuma nota ainda
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Editor */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
-            {activeNote ? (
-              <>
-                {/* Note actions bar */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderBottom: '1px solid var(--border)', flexShrink: 0, flexWrap: 'wrap' }}>
-                  {editingTitle === activeNote.id ? (
-                    <input
-                      autoFocus
-                      defaultValue={activeNote.title}
-                      onBlur={e => { updateNote(activeNote.id, { title: e.target.value }); setEditingTitle(null) }}
-                      onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
-                      style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius)', padding: '4px 8px', color: 'var(--text)', fontSize: 14, fontWeight: 600, outline: 'none', minWidth: 0 }}
-                    />
-                  ) : (
-                    <span onClick={() => setEditingTitle(activeNote.id)} style={{ flex: 1, fontWeight: 600, fontSize: 14, cursor: 'text', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
-                      {activeNote.title || 'sem título'}
-                    </span>
-                  )}
-                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                    <button onClick={() => togglePin(activeNote.id, activeNote.pinned)} title={activeNote.pinned ? 'desafixar' : 'fixar'} style={{ padding: '4px 6px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: activeNote.pinned ? 'var(--red-dim)' : 'var(--surface)', color: activeNote.pinned ? '#F0EDE8' : 'var(--text-muted)', cursor: 'pointer' }}>
-                      {activeNote.pinned ? <PinOff size={11} /> : <Pin size={11} />}
-                    </button>
-                    {/* visibility toggle */}
-                    <button
-                      onClick={() => updateNote(activeNote.id, { visibility: activeNote.visibility === 'private' ? 'org' : 'private' })}
-                      title={activeNote.visibility === 'private' ? 'privado — só você vê' : 'visível para a organização'}
-                      style={{ padding: '4px 6px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: activeNote.visibility === 'private' ? 'var(--red-dim)' : 'var(--surface)', color: activeNote.visibility === 'private' ? 'var(--red)' : 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}
-                    >
-                      {activeNote.visibility === 'private' ? <Lock size={11} /> : <Globe size={11} />}
-                    </button>
-                    {toolBtn('duplicar', <Copy size={11} />, () => handleDuplicate(activeNote), { label: 'duplicar' })}
-                    <button
-                      onClick={() => templateFeedback !== 'saving' && handleSaveAsTemplate(activeNote)}
-                      title="salvar esta nota como template reutilizável"
-                      disabled={templateFeedback === 'saving'}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 4, padding: '4px 7px',
-                        borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.08em',
-                        cursor: templateFeedback === 'saving' ? 'wait' : 'pointer', transition: 'all var(--fast)',
-                        border: templateFeedback === 'saved' ? '1px solid #2a6e3a' : templateFeedback === 'error' ? '1px solid var(--border-red)' : '1px solid var(--border)',
-                        background: templateFeedback === 'saved' ? 'rgba(90,171,110,0.15)' : templateFeedback === 'error' ? 'var(--red-dim)' : 'var(--surface)',
-                        color: templateFeedback === 'saved' ? '#5aab6e' : templateFeedback === 'error' ? 'var(--red)' : 'var(--text-muted)',
-                      }}
-                      onMouseEnter={e => { if (!templateFeedback) { e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.borderColor = 'var(--border-red)' } }}
-                      onMouseLeave={e => { if (!templateFeedback) { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' } }}
-                    >
-                      <LayoutTemplate size={11} />
-                      <span>
-                        {templateFeedback === 'saved' ? '✓ salvo como template!' : templateFeedback === 'saving' ? 'salvando...' : templateFeedback === 'error' ? '✗ erro' : 'template'}
-                      </span>
-                    </button>
-                    {toolBtn('usar template', <FileText size={11} />, () => setShowTemplates(true), { label: 'usar template' })}
-                    {toolBtn('.md', <Download size={11} />, exportMd, { label: '.md' })}
-                    {toolBtn('github', <Send size={11} />, () => setShowPush(true), { label: 'github' })}
-                    {toolBtn('trello', <LayoutList size={11} />, () => setShowTrello(true), { label: 'trello' })}
-                    {toolBtn('excluir', <Trash2 size={11} />, () => { deleteNote(activeNote.id); setActiveNoteId(null) }, { danger: true })}
-                  </div>
-                </div>
-
-                {/* TipTap editor with image support */}
-                <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                  <NoteEditor note={activeNote} onUpdate={handleUpdate} />
-                </div>
-
-                {/* Footer */}
-                <div style={{ padding: '5px 16px', borderTop: '1px solid var(--border)', fontSize: 10, color: 'var(--text-dim)', fontFamily: 'var(--ff-mono)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, gap: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                    <span>›_ salvo automaticamente</span>
-                    {/* quem editou por último */}
-                    {activeNote.editor?.name && (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: 'var(--text-dim)', fontSize: 9 }}>
-                        <User size={9} />
-                        editado por <span style={{ color: 'var(--text-muted)' }}>{activeNote.editor.name}</span>
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                    {/* badge visibilidade */}
-                    <span style={{
-                      display: 'flex', alignItems: 'center', gap: 3,
-                      fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase',
-                      color: activeNote.visibility === 'private' ? 'var(--red)' : 'var(--text-dim)',
-                    }}>
-                      {activeNote.visibility === 'private' ? <Lock size={8} /> : <Globe size={8} />}
-                      {activeNote.visibility === 'private' ? 'privado' : 'organização'}
-                    </span>
-                    <span>{new Date(activeNote.updated_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, color: 'var(--text-muted)' }}>
-                <div style={{ fontSize: 13, fontFamily: 'var(--ff-mono)' }}>selecione ou crie uma nota</div>
-                <button onClick={handleCreate} className="btn btn-primary" style={{ fontSize: 13 }}><Plus size={13} /> nova nota</button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
+  const sharedModals = (
+    <>
       {showPush && <PushModal note={activeNote} group={group} onClose={() => setShowPush(false)} />}
       {showTrello && <TrelloCardModal note={activeNote} group={group} trelloToken={trelloToken} onClose={() => setShowTrello(false)} />}
       {showTemplates && (
@@ -901,6 +650,277 @@ export default function NotesPanel({ group, orgId, onClose }) {
           </div>
         </div>
       )}
+    </>
+  )
+
+  const innerPanel = (
+    <div style={{
+      width: '100%',
+      ...(inline
+        ? { height: '100%', borderRadius: 0, border: 'none', background: 'transparent' }
+        : { maxWidth: 860, height: '88vh', border: '1px solid var(--border-2)', borderRadius: 'var(--radius-xl)', background: 'var(--bg-card)' }
+      ),
+      display: 'flex', flexDirection: 'column', overflow: 'hidden'
+    }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 20px', borderBottom: '1px solid var(--border)', flexShrink: 0, background: 'var(--bg-card)' }}>
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: group?.color || 'var(--red)', flexShrink: 0 }} />
+        <span style={{ fontWeight: 600, fontSize: 14 }}>{group?.name}</span>
+        <span style={{ color: 'var(--text-muted)', fontSize: 12, fontFamily: 'var(--ff-mono)' }}>/ anotações</span>
+        <div style={{ flex: 1 }} />
+        <button onClick={() => setListOpen(v => !v)} title={listOpen ? 'Retrair lista' : 'Expandir lista'} style={{ color: 'var(--text-muted)', padding: 4, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+          {listOpen ? <PanelLeftClose size={15} /> : <PanelLeftOpen size={15} />}
+        </button>
+        {!inline && (
+          <button onClick={onClose} style={{ color: 'var(--text-muted)', padding: 4, cursor: 'pointer' }}><X size={16} /></button>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0, position: 'relative' }}>
+        {/* Sidebar - nota list */}
+        <div style={{ width: listOpen ? 220 : 0, minWidth: listOpen ? 220 : 0, borderRight: listOpen ? '1px solid var(--border)' : 'none', display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden', transition: 'width 0.2s ease, min-width 0.2s ease' }}>
+          <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 5 }}>
+              <button onClick={() => setAddingFolder(true)} disabled={addingFolder} className="btn btn-ghost"
+                style={{ flex: 1, justifyContent: 'center', fontSize: 10, padding: '5px 8px', gap: 4 }}>
+                <FolderPlus size={11} /> pasta
+              </button>
+              <button onClick={() => handleCreate(null)} className="btn btn-primary"
+                style={{ flex: 1, justifyContent: 'center', fontSize: 11, padding: '5px 8px' }}>
+                <Plus size={12} /> nota
+              </button>
+            </div>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
+            {loading && <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: 8, fontFamily: 'var(--ff-mono)' }}>carregando_</div>}
+
+            {addingFolder && (
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center', padding: '4px 4px', marginBottom: 2 }}>
+                <Folder size={11} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
+                <input
+                  autoFocus
+                  value={folderDraft}
+                  onChange={e => setFolderDraft(e.target.value)}
+                  placeholder="nome da pasta..."
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && folderDraft.trim()) handleCreateFolder(folderDraft.trim())
+                    if (e.key === 'Escape') { setAddingFolder(false); setFolderDraft('') }
+                  }}
+                  onBlur={() => { if (folderDraft.trim()) handleCreateFolder(folderDraft.trim()); else { setAddingFolder(false); setFolderDraft('') } }}
+                  style={{ flex: 1, minWidth: 0, background: 'var(--surface)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius)', padding: '3px 7px', color: 'var(--text)', fontFamily: 'var(--ff-mono)', fontSize: 11, outline: 'none' }}
+                />
+              </div>
+            )}
+
+            {folders.map(folder => {
+              const fNotes = folderNotes(folder.id)
+              const isOpen = !collapsedFolders[folder.id]
+              return (
+                <div key={folder.id}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '5px 4px', borderRadius: 'var(--radius)', marginBottom: 1 }}>
+                    <button onClick={() => toggleFolderCollapse(folder.id)} style={{ color: 'var(--text-dim)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                      {isOpen ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                    </button>
+                    <button onClick={() => toggleFolderCollapse(folder.id)} style={{ color: isOpen ? 'var(--red)' : 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                      {isOpen ? <FolderOpen size={12} /> : <Folder size={12} />}
+                    </button>
+                    {editingFolder === folder.id
+                      ? <input autoFocus value={folderEditDraft} onChange={e => setFolderEditDraft(e.target.value)}
+                          onBlur={() => commitRenameFolder(folder.id)}
+                          onKeyDown={e => { if (e.key === 'Enter') commitRenameFolder(folder.id); if (e.key === 'Escape') setEditingFolder(null) }}
+                          style={{ flex: 1, minWidth: 0, background: 'var(--surface)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius)', padding: '2px 5px', color: 'var(--text)', fontFamily: 'var(--ff-mono)', fontSize: 11, outline: 'none' }} />
+                      : <button onClick={() => toggleFolderCollapse(folder.id)} style={{ flex: 1, minWidth: 0, textAlign: 'left', fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text)', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '0.03em' }}>
+                          {folder.name}
+                        </button>
+                    }
+                    {editingFolder !== folder.id && (
+                      <div style={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+                        <button onClick={() => handleCreate(folder.id)} title="nova nota nesta pasta"
+                          style={{ color: 'var(--text-dim)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}
+                          onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
+                          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
+                          <Plus size={10} />
+                        </button>
+                        <button onClick={() => { setFolderEditDraft(folder.name); setEditingFolder(folder.id) }} title="renomear"
+                          style={{ color: 'var(--text-dim)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}
+                          onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
+                          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
+                          <Pencil size={9} />
+                        </button>
+                        <button onClick={() => deleteFolder(folder.id)} title="excluir pasta"
+                          style={{ color: 'var(--text-dim)', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}
+                          onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
+                          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
+                          <Trash2 size={9} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {isOpen && fNotes.map(note => (
+                    <button key={note.id} onClick={() => setActiveNoteId(note.id)} style={{
+                      width: '100%', textAlign: 'left', padding: '6px 9px 6px 24px', borderRadius: 'var(--radius)',
+                      background: activeNote?.id === note.id ? 'var(--red-dim)' : 'transparent',
+                      border: activeNote?.id === note.id ? '1px solid var(--border-red)' : '1px solid transparent',
+                      display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2, transition: 'all var(--fast)', cursor: 'pointer',
+                    }}>
+                      {note.pinned && <Pin size={8} style={{ color: activeNote?.id === note.id ? '#F0EDE8' : 'var(--red)', flexShrink: 0 }} />}
+                      <span style={{ fontSize: 11, color: activeNote?.id === note.id ? '#F0EDE8' : 'var(--text-sub)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {note.title || 'sem título'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )
+            })}
+
+            {(unfolderedNotes.length > 0 || folders.length > 0) && (
+              <div style={{ marginTop: folders.length > 0 ? 4 : 0 }}>
+                {folders.length > 0 && unfolderedNotes.length > 0 && (
+                  <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--text-dim)', padding: '4px 4px 2px', opacity: 0.55 }}>
+                    sem pasta
+                  </div>
+                )}
+                {unfolderedNotes.map(note => (
+                  <button key={note.id} onClick={() => setActiveNoteId(note.id)} style={{
+                    width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 'var(--radius)',
+                    background: activeNote?.id === note.id ? 'var(--red-dim)' : 'transparent',
+                    border: activeNote?.id === note.id ? '1px solid var(--border-red)' : '1px solid transparent',
+                    display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2, transition: 'all var(--fast)', cursor: 'pointer',
+                  }}>
+                    {note.pinned && <Pin size={9} style={{ color: activeNote?.id === note.id ? '#F0EDE8' : 'var(--red)', flexShrink: 0 }} />}
+                    <span style={{ fontSize: 12, color: activeNote?.id === note.id ? '#F0EDE8' : 'var(--text-sub)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {note.title || 'sem título'}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {!loading && notes.length === 0 && (
+              <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: '12px 8px', textAlign: 'center', fontFamily: 'var(--ff-mono)' }}>
+                nenhuma nota ainda
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Botão flutuante expandir lista quando retraída */}
+        {!listOpen && (
+          <button
+            onClick={() => setListOpen(true)}
+            title="Expandir lista"
+            style={{
+              position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)',
+              zIndex: 5, background: 'var(--bg-alt)', border: '1px solid var(--border)',
+              borderLeft: 'none', borderRadius: '0 var(--radius) var(--radius) 0',
+              padding: '10px 5px', cursor: 'pointer', color: 'var(--text-dim)',
+              display: 'flex', alignItems: 'center', transition: 'all var(--fast)',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.borderColor = 'var(--border-red)' }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-dim)'; e.currentTarget.style.borderColor = 'var(--border)' }}
+          >
+            <PanelLeftOpen size={13} />
+          </button>
+        )}
+
+        {/* Editor */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+          {activeNote ? (
+            <>
+              {/* Note actions bar */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderBottom: '1px solid var(--border)', flexShrink: 0, flexWrap: 'wrap' }}>
+                {editingTitle === activeNote.id ? (
+                  <input
+                    autoFocus
+                    defaultValue={activeNote.title}
+                    onBlur={e => { updateNote(activeNote.id, { title: e.target.value }); setEditingTitle(null) }}
+                    onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
+                    style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius)', padding: '4px 8px', color: 'var(--text)', fontSize: 14, fontWeight: 600, outline: 'none', minWidth: 0 }}
+                  />
+                ) : (
+                  <span onClick={() => setEditingTitle(activeNote.id)} style={{ flex: 1, fontWeight: 600, fontSize: 14, cursor: 'text', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                    {activeNote.title || 'sem título'}
+                  </span>
+                )}
+                <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                  <button onClick={() => togglePin(activeNote.id, activeNote.pinned)} title={activeNote.pinned ? 'desafixar' : 'fixar'} style={{ padding: '4px 6px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: activeNote.pinned ? 'var(--red-dim)' : 'var(--surface)', color: activeNote.pinned ? '#F0EDE8' : 'var(--text-muted)', cursor: 'pointer' }}>
+                    {activeNote.pinned ? <PinOff size={11} /> : <Pin size={11} />}
+                  </button>
+                  <button
+                    onClick={() => updateNote(activeNote.id, { visibility: activeNote.visibility === 'private' ? 'org' : 'private' })}
+                    title={activeNote.visibility === 'private' ? 'privado — só você vê' : 'visível para a organização'}
+                    style={{ padding: '4px 6px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: activeNote.visibility === 'private' ? 'var(--red-dim)' : 'var(--surface)', color: activeNote.visibility === 'private' ? 'var(--red)' : 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}
+                  >
+                    {activeNote.visibility === 'private' ? <Lock size={11} /> : <Globe size={11} />}
+                  </button>
+                  {toolBtn('duplicar', <Copy size={11} />, () => handleDuplicate(activeNote), { label: 'duplicar' })}
+                  <button
+                    onClick={() => templateFeedback !== 'saving' && handleSaveAsTemplate(activeNote)}
+                    title="salvar esta nota como template reutilizável"
+                    disabled={templateFeedback === 'saving'}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 4, padding: '4px 7px',
+                      borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.08em',
+                      cursor: templateFeedback === 'saving' ? 'wait' : 'pointer', transition: 'all var(--fast)',
+                      border: templateFeedback === 'saved' ? '1px solid #2a6e3a' : templateFeedback === 'error' ? '1px solid var(--border-red)' : '1px solid var(--border)',
+                      background: templateFeedback === 'saved' ? 'rgba(90,171,110,0.15)' : templateFeedback === 'error' ? 'var(--red-dim)' : 'var(--surface)',
+                      color: templateFeedback === 'saved' ? '#5aab6e' : templateFeedback === 'error' ? 'var(--red)' : 'var(--text-muted)',
+                    }}>
+                    <LayoutTemplate size={11} />
+                    <span>{templateFeedback === 'saved' ? '✓ salvo!' : templateFeedback === 'saving' ? '...' : templateFeedback === 'error' ? '✗ erro' : 'template'}</span>
+                  </button>
+                  {toolBtn('usar template', <FileText size={11} />, () => setShowTemplates(true), { label: 'usar template' })}
+                  {toolBtn('.md', <Download size={11} />, exportMd, { label: '.md' })}
+                  {toolBtn('github', <Send size={11} />, () => setShowPush(true), { label: 'github' })}
+                  {toolBtn('trello', <LayoutList size={11} />, () => setShowTrello(true), { label: 'trello' })}
+                  {toolBtn('excluir', <Trash2 size={11} />, () => { deleteNote(activeNote.id); setActiveNoteId(null) }, { danger: true })}
+                </div>
+              </div>
+
+              <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <NoteEditor note={activeNote} onUpdate={handleUpdate} />
+              </div>
+
+              <div style={{ padding: '5px 16px', borderTop: '1px solid var(--border)', fontSize: 10, color: 'var(--text-dim)', fontFamily: 'var(--ff-mono)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                  <span>›_ salvo automaticamente</span>
+                  {activeNote.editor?.name && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: 'var(--text-dim)', fontSize: 9 }}>
+                      <User size={9} /> editado por <span style={{ color: 'var(--text-muted)' }}>{activeNote.editor.name}</span>
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: activeNote.visibility === 'private' ? 'var(--red)' : 'var(--text-dim)' }}>
+                    {activeNote.visibility === 'private' ? <Lock size={8} /> : <Globe size={8} />}
+                    {activeNote.visibility === 'private' ? 'privado' : 'organização'}
+                  </span>
+                  <span>{new Date(activeNote.updated_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, color: 'var(--text-muted)' }}>
+              <div style={{ fontSize: 13, fontFamily: 'var(--ff-mono)' }}>selecione ou crie uma nota</div>
+              <button onClick={handleCreate} className="btn btn-primary" style={{ fontSize: 13 }}><Plus size={13} /> nova nota</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+
+  if (inline) {
+    return <>{innerPanel}{sharedModals}</>
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 200,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24
+    }} onClick={e => e.target === e.currentTarget && onClose()}>
+      {innerPanel}
+      {sharedModals}
     </div>
   )
 }

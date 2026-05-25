@@ -10,7 +10,7 @@ import { supabase } from '../../lib/supabase'
 import {
   LayoutDashboard, FileText, Settings, LogOut, Plus, ChevronLeft, ChevronRight,
   Sun, Moon, Menu, X, Check, CircleUser, Pencil, FolderKanban, ExternalLink,
-  Users, ChevronDown, ChevronUp, Activity, DoorOpen
+  Users, ChevronDown, ChevronUp, Activity, DoorOpen, ClipboardList
 } from 'lucide-react'
 import OrgModal from './OrgModal'
 import OrgMembersModal from './OrgMembersModal'
@@ -18,7 +18,6 @@ import ProjectModal from '../projects/ProjectModal'
 
 const EXTENSION_URL = 'https://chrome.google.com/webstore/detail/atelier-sh'
 
-// ── SidebarContent declarado FORA do Sidebar para não recriar a cada render ──
 function SidebarContent({
   col, isMobile,
   user, orgs, currentOrgId, currentOrg, role, isAdmin, canCreateOrg,
@@ -36,6 +35,7 @@ function SidebarContent({
   setCollapsed, collapsed,
   signOut,
   leaveOrg,
+  onSelectGroup,
 }) {
   const c = col && !isMobile
   return (
@@ -60,7 +60,7 @@ function SidebarContent({
         )}
       </div>
 
-      {/* ── Org selector ── */}
+      {/* Org selector */}
       <div style={{ padding: c ? '8px 4px' : '8px 10px', borderBottom: '1px solid var(--border)', position: 'relative' }}>
         {c ? (
           <button onClick={() => setShowOrgMenu(v => !v)} title={`org: ${currentOrg?.name || '—'}`}
@@ -98,18 +98,13 @@ function SidebarContent({
                 <Plus size={12} /> nova organização
               </button>
             )}
-            {/* Usuário sem nenhuma org pode criar a primeira */}
             {canCreateOrg && !isAdmin && (
               <button onClick={() => { setEditingOrg(null); setShowOrgModal(true); setShowOrgMenu(false) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer' }}>
                 <Plus size={12} /> nova organização
               </button>
             )}
-            {/* Botão sair da org — só para membros convidados (não-owners) */}
             {currentOrg && role && role !== 'owner' && (
-              <button
-                onClick={() => { leaveOrg(currentOrgId); setShowOrgMenu(false) }}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer' }}
-              >
+              <button onClick={() => { leaveOrg(currentOrgId); setShowOrgMenu(false) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer' }}>
                 <DoorOpen size={12} /> sair da organização
               </button>
             )}
@@ -117,7 +112,7 @@ function SidebarContent({
         )}
       </div>
 
-      {/* ── Seletor de projeto ── */}
+      {/* Seletor de projeto */}
       {projects.length > 0 && (
         <div style={{ padding: c ? '6px 4px' : '8px 10px', borderBottom: '1px solid var(--border)' }}>
           {!c && <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.28em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 5 }}>projeto</div>}
@@ -132,55 +127,39 @@ function SidebarContent({
                 todos os projetos
               </button>
             )}
-
             {projects.map(p => (
               c ? (
-                <button key={p.id} onClick={() => selectProject(p.id)} title={p.name}
-                  style={{ ...navBtn(currentProjectId === p.id), padding: '9px 0' }}>
+                <button key={p.id} onClick={() => selectProject(p.id)} title={p.name} style={{ ...navBtn(currentProjectId === p.id), padding: '9px 0' }}>
                   <span style={{ width: 8, height: 8, borderRadius: p.type === 'individual' ? '50%' : 2, background: currentProjectId === p.id ? 'var(--red)' : 'var(--text-dim)', flexShrink: 0, display: 'block' }} />
                 </button>
               ) : (
                 <div key={p.id}
                   style={{ display: 'flex', alignItems: 'center', borderRadius: 'var(--radius)', background: currentProjectId === p.id ? 'var(--red-dim)' : 'transparent', transition: 'background var(--fast)' }}
-                  onMouseEnter={e => {
-                    if (currentProjectId !== p.id) e.currentTarget.style.background = 'var(--surface)'
-                    const btn = e.currentTarget.querySelector('.proj-edit-btn')
-                    if (btn) btn.style.opacity = '1'
-                  }}
-                  onMouseLeave={e => {
-                    if (currentProjectId !== p.id) e.currentTarget.style.background = 'transparent'
-                    const btn = e.currentTarget.querySelector('.proj-edit-btn')
-                    if (btn) btn.style.opacity = '0'
-                  }}
+                  onMouseEnter={e => { if (currentProjectId !== p.id) e.currentTarget.style.background = 'var(--surface)'; const btn = e.currentTarget.querySelector('.proj-edit-btn'); if (btn) btn.style.opacity = '1' }}
+                  onMouseLeave={e => { if (currentProjectId !== p.id) e.currentTarget.style.background = 'transparent'; const btn = e.currentTarget.querySelector('.proj-edit-btn'); if (btn) btn.style.opacity = '0' }}
                 >
                   <button onClick={() => selectProject(p.id)} style={{ ...navBtn(currentProjectId === p.id), fontSize: 10, padding: '6px 10px', flex: 1, background: 'transparent', border: 'none' }}>
                     <span style={{ width: 6, height: 6, borderRadius: p.type === 'individual' ? '50%' : 2, background: currentProjectId === p.id ? 'var(--red)' : 'var(--text-dim)', flexShrink: 0 }} />
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'left' }}>{p.name}</span>
                   </button>
                   {isAdmin && (
-                    <button
-                      className="proj-edit-btn"
-                      onClick={e => { e.stopPropagation(); setEditingProject(p); setShowProjectModal(true) }}
-                      title="editar projeto"
+                    <button className="proj-edit-btn" onClick={e => { e.stopPropagation(); setEditingProject(p); setShowProjectModal(true) }} title="editar projeto"
                       style={{ opacity: 0, padding: '4px 6px', marginRight: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', transition: 'opacity var(--fast), color var(--fast)', borderRadius: 'var(--radius)', flexShrink: 0 }}
                       onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
-                      onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}
-                    >
+                      onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
                       <Pencil size={10} />
                     </button>
                   )}
                 </div>
               )
             ))}
-
             {isAdmin && !c && (
               <button onClick={() => { setEditingProject(null); setShowProjectModal(true) }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 'var(--radius)', fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--text-dim)', border: '1px dashed var(--border)', background: 'transparent', cursor: 'pointer', marginTop: 2 }}>
                 <Plus size={10} /> novo projeto
               </button>
             )}
             {isAdmin && c && (
-              <button onClick={() => { setEditingProject(null); setShowProjectModal(true) }} title="novo projeto"
-                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '7px 0', borderRadius: 'var(--radius)', color: 'var(--text-dim)', border: '1px dashed var(--border)', background: 'transparent', cursor: 'pointer', marginTop: 2 }}>
+              <button onClick={() => { setEditingProject(null); setShowProjectModal(true) }} title="novo projeto" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '7px 0', borderRadius: 'var(--radius)', color: 'var(--text-dim)', border: '1px dashed var(--border)', background: 'transparent', cursor: 'pointer', marginTop: 2 }}>
                 <Plus size={11} />
               </button>
             )}
@@ -188,12 +167,11 @@ function SidebarContent({
         </div>
       )}
 
-      {/* ── Preview de grupos ── */}
+      {/* Preview de grupos — clicáveis */}
       {currentProjectId && groups.length > 0 && (
         <div style={{ padding: c ? '6px 4px' : '8px 10px', borderBottom: '1px solid var(--border)' }}>
           {!c && (
-            <button
-              onClick={() => setShowGroupsPreview(v => !v)}
+            <button onClick={() => setShowGroupsPreview(v => !v)}
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.28em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: showGroupsPreview ? 5 : 0, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               <span>grupos ({groups.length})</span>
               {showGroupsPreview ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
@@ -208,10 +186,14 @@ function SidebarContent({
                     <span style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor, display: 'block' }} />
                   </div>
                 ) : (
-                  <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '4px 10px', borderRadius: 'var(--radius)' }}>
+                  <button key={g.id}
+                    onClick={() => { if (onSelectGroup) onSelectGroup(g) }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '4px 10px', borderRadius: 'var(--radius)', width: '100%', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'none'}>
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor, flexShrink: 0 }} />
                     <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, letterSpacing: '0.04em' }}>{g.name}</span>
-                  </div>
+                  </button>
                 )
               })}
               {groups.length > 8 && !c && (
@@ -224,12 +206,13 @@ function SidebarContent({
         </div>
       )}
 
-      {/* ── Nav principal ── */}
+      {/* Nav principal */}
       <nav style={{ flex: 1, padding: c ? '10px 6px' : '10px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {[
-          { icon: LayoutDashboard, label: 'projetos',  path: '/' },
-          { icon: FileText,        label: 'anotações', path: '/notes' },
-          { icon: Activity,        label: 'atividade', path: '/activity' },
+          { icon: LayoutDashboard, label: 'projetos',   path: '/' },
+          { icon: FileText,        label: 'anotações',  path: '/notes' },
+          { icon: Activity,        label: 'atividade',  path: '/activity' },
+          { icon: ClipboardList,   label: 'avaliações', path: '/avaliacoes' },
         ].map(({ icon: Icon, label, path }) => (
           <button key={path} onClick={() => navTo(path)} title={c ? label : ''} style={navBtn(isActive(path))}>
             <Icon size={14} style={{ flexShrink: 0 }} />
@@ -252,7 +235,7 @@ function SidebarContent({
         </a>
       </nav>
 
-      {/* ── Rodapé ── */}
+      {/* Rodapé */}
       <div style={{ padding: c ? '8px 6px' : '8px 8px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {[
           { icon: CircleUser, label: 'perfil',        path: '/profile' },
@@ -282,8 +265,7 @@ function SidebarContent({
   )
 }
 
-// ── Sidebar principal ────────────────────────────────────────────────────────
-export default function Sidebar({ currentOrgId, setCurrentOrgId, currentProjectId, setCurrentProjectId, collapsed, setCollapsed }) {
+export default function Sidebar({ currentOrgId, setCurrentOrgId, currentProjectId, setCurrentProjectId, collapsed, setCollapsed, onSelectGroup }) {
   const { user, signOut }                         = useAuth()
   const { orgs, createOrg, updateOrg, deleteOrg } = useOrgs()
   const { theme, toggleTheme }                    = useTheme()
@@ -295,18 +277,12 @@ export default function Sidebar({ currentOrgId, setCurrentOrgId, currentProjectI
   const location  = useLocation()
   const isDark    = !theme.endsWith('-light')
 
-  // Pode criar nova org: admin da org atual OU usuário sem nenhuma org ainda
   const canCreateOrg = orgs.length === 0
 
-  // Sair de uma org onde foi convidado (não é owner)
   async function leaveOrg(orgId) {
     const confirmed = window.confirm('Tem certeza que deseja sair desta organização?')
     if (!confirmed) return
-    const { error } = await supabase
-      .from('org_members')
-      .delete()
-      .eq('org_id', orgId)
-      .eq('user_id', user.id)
+    const { error } = await supabase.from('org_members').delete().eq('org_id', orgId).eq('user_id', user.id)
     if (!error) {
       const remaining = orgs.filter(o => o.id !== orgId)
       if (remaining.length) setCurrentOrgId(remaining[0].id)
@@ -362,7 +338,6 @@ export default function Sidebar({ currentOrgId, setCurrentOrgId, currentProjectI
     cursor: 'pointer',
   })
 
-  // props compartilhadas entre desktop e mobile
   const contentProps = {
     user, orgs, currentOrgId, currentOrg, role, isAdmin, canCreateOrg,
     projects, currentProjectId, groups,
@@ -377,6 +352,7 @@ export default function Sidebar({ currentOrgId, setCurrentOrgId, currentProjectI
     setCollapsed, collapsed,
     signOut,
     leaveOrg,
+    onSelectGroup,
   }
 
   return (
