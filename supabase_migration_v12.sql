@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS avaliacoes_grupo (
   criterio_id  text NOT NULL,
   nota         numeric(5,2) NOT NULL DEFAULT 0 CHECK (nota >= 0),
   nota_max     numeric(5,2) NOT NULL CHECK (nota_max > 0),
+  nivel        text, -- id do NIVEIS_AVALIACAO (completo, faltou_pouco, etc)
+  atraso       text, -- id do PENALIZACOES_ATRASO (sem_atraso, atraso_1, etc)
   observacao   text,
   created_at   timestamptz DEFAULT now(),
   updated_at   timestamptz DEFAULT now(),

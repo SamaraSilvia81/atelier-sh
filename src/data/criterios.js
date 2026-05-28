@@ -1,3 +1,21 @@
+// ── Níveis de avaliação ───────────────────────────────────────
+export const NIVEIS_AVALIACAO = [
+  { id: 'completo',      label: 'Fez certo e completo',      pct: 1.00, cor: '#5aab6e', emoji: '✅' },
+  { id: 'faltou_pouco',  label: 'Fez, faltou coisas',        pct: 0.70, cor: '#7F77DD', emoji: '🟡' },
+  { id: 'faltou_muito',  label: 'Fez, faltou muita coisa',   pct: 0.40, cor: '#c8922a', emoji: '🟠' },
+  { id: 'errado',        label: 'Fez errado, mas fez',        pct: 0.20, cor: '#e06060', emoji: '🔴' },
+  { id: 'nao_fez',       label: 'Não fez',                   pct: 0.00, cor: '#888',    emoji: '⬛' },
+]
+
+// ── Penalização por atraso ────────────────────────────────────
+export const PENALIZACOES_ATRASO = [
+  { id: 'sem_atraso',     label: 'Sem atraso',       dias: 0,    desconto: 0.00 },
+  { id: 'atraso_1',       label: 'Até 1 dia',        dias: 1,    desconto: 0.10 },
+  { id: 'atraso_2_3',     label: '2–3 dias',         dias: 3,    desconto: 0.20 },
+  { id: 'atraso_mais3',   label: 'Mais de 3 dias',   dias: 999,  desconto: 0.30 },
+  { id: 'nao_entregou',   label: 'Não entregou',     dias: -1,   desconto: 1.00 }, // zera
+]
+
 // ── Critérios de avaliação de grupo: DT, DCU, PI ─────────────
 export const DISCIPLINAS = [
   {
@@ -11,8 +29,8 @@ export const DISCIPLINAS = [
           { id: 'pesquisa-desk', nome: 'Pesquisa Desk', max: 0.5, arquivos: ['imersao-pesquisa-desk_A.pdf'], itens: ['Dados secundários relevantes e atuais sobre o ODS escolhido','Fontes confiáveis: ONU, IBGE, artigos acadêmicos ou jornalísticos','Contextualiza o problema com base factual','Conexão clara entre os dados e o problema'] },
           { id: 'matriz-alinhamento', nome: 'Matriz de Alinhamento', max: 0.5, arquivos: ['imersao-matriz-alinhamento_A.pdf'], itens: ['Preenchida com perguntas reais do grupo sobre o problema','Reflete o que o grupo sabe e precisa descobrir','Serviu de base para planejar a pesquisa primária'] },
           { id: 'matriz-csd', nome: 'Matriz CSD', max: 0.5, arquivos: ['imersao-matriz-csd_A.pdf'], itens: ['Os três quadrantes preenchidos: Certezas, Suposições, Dúvidas','Conteúdo específico do projeto — não genérico','Revela pensamento crítico','Coerência entre a CSD e o que foi pesquisado'] },
-          { id: 'pesquisa-primaria', nome: 'Pesquisa Primária', max: 1.5, zeraSem: 'Sem pesquisa primária este critério zera integralmente.', arquivos: ['imersao-formulario_A.pdf','imersao-roteiro-entrevista_A.pdf'], itens: ['FORMULÁRIO — perguntas coerentes, mín. 5 respondentes, dados sintetizados','ENTREVISTA — roteiro aberto, transcrição fiel e organizada','OBSERVAÇÃO / SHADOWING — planejamento e registro organizado'] },
-          { id: 'relatorio-imersao', nome: 'Relatório de Imersão', max: 0.5, arquivos: ['imersao-relatorio_A.pdf'], itens: ['Estrutura formal: introdução, resumo, metodologia, destaques, referências','Sintetiza achados da pesquisa primária e secundária','Há interpretação e conexão com o problema','Os achados alimentam a construção da persona'] },
+          { id: 'pesquisa-primaria', nome: 'Pesquisa Primária', max: 1.0, zeraSem: 'Sem pesquisa primária este critério zera integralmente.', arquivos: ['imersao-formulario_A.pdf','imersao-roteiro-entrevista_A.pdf'], itens: ['FORMULÁRIO — perguntas coerentes, mín. 5 respondentes, dados sintetizados','ENTREVISTA — roteiro aberto, transcrição fiel e organizada','OBSERVAÇÃO / SHADOWING — planejamento e registro organizado'] },
+          { id: 'relatorio-imersao', nome: 'Relatório de Imersão', max: 1.0, arquivos: ['imersao-relatorio_A.pdf'], itens: ['Estrutura formal: introdução, resumo, metodologia, destaques, referências','Sintetiza achados da pesquisa primária e secundária','Há interpretação e conexão com o problema','Os achados alimentam a construção da persona'] },
         ],
       },
       {
