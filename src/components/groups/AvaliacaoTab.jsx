@@ -767,7 +767,7 @@ export default function AvaliacaoTab({ group }) {
           {DISCIPLINAS.map(d => {
             const t = totalDisciplina(d.id)
             return (
-              <div key={d.id} style={{ width: 155, flexShrink: 0, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: `1px solid ${d.cor}40`, background: `${d.cor}0d` }}>
+             <div key={d.id} style={{ width: 155, flexShrink: 0, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: `1px solid ${d.cor}40`, background: `${d.cor}0d` }}>
                 <div style={{ fontSize: 9, letterSpacing: '0.18em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 4 }}>{d.id.toUpperCase()} — {d.nome.split(' ')[0]}</div>
                 <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 22, color: d.cor, lineHeight: 1 }}>{t.toFixed(2).replace('.', ',')}</div>
                 <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>/ {d.total} pts</div>
@@ -873,7 +873,7 @@ export default function AvaliacaoTab({ group }) {
             {/* Tabs de disciplina — scroll horizontal */}
             <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
               {DISCIPLINAS.map(d => (
-                <button key={d.id} type="button" onClick={() => setDiscAtiva(d.id)} style={{ flexShrink: 0, padding: '5px 14px', fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', borderRadius: 'var(--radius)', background: d.id === discAtiva ? d.corBg : 'transparent', color: d.id === discAtiva ? d.cor : 'var(--text-dim)', border: `1px solid ${d.id === discAtiva ? d.corBorder : 'var(--border)'}`, whiteSpace: 'nowrap' }}>
+               <button key={d.id} type="button" onClick={() => setDiscAtiva(d.id)} style={{ flexShrink: 0, padding: '5px 14px', fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', borderRadius: 'var(--radius)', background: d.id === discAtiva ? d.corBg : 'transparent', color: d.id === discAtiva ? d.cor : 'var(--text-dim)', border: `1px solid ${d.id === discAtiva ? d.corBorder : 'var(--border)'}`, whiteSpace: 'nowrap' }}>
                   {d.id.toUpperCase()}
                 </button>
               ))}
