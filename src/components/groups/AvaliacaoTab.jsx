@@ -5,6 +5,7 @@ import { useAvaliacao }            from '../../hooks/useAvaliacao'
 import { useAvaliacaoIndividual,
          FATORES, CRITERIOS_COMPORTAMENTAIS } from '../../hooks/useAvaliacaoIndividual'
 import { useAvaliacaoCrud }        from '../../hooks/useAvaliacaoCrud'
+import { useAvaliacaoConfig }      from '../../hooks/useAvaliacaoConfig'
 import { useNotes }                from '../../hooks/useNotes'
 import { DISCIPLINAS, NIVEIS_AVALIACAO, PENALIZACOES_ATRASO } from '../../data/criterios'
 import NoteEditor                  from '../notes/NoteEditor'
@@ -664,38 +665,33 @@ export default function AvaliacaoTab({ group }) {
   const avGrupo = useAvaliacao(group?.id, group?.org_id)
   const avInd   = useAvaliacaoIndividual(group?.id, group?.org_id)
   const crud    = useAvaliacaoCrud(group?.id, group?.org_id)
+  const config  = useAvaliacaoConfig(group?.id, group?.org_id)
 
   const { notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, loading, saving, salvarNotaGrupo } = avGrupo
+
+  // Config persistida no banco via useAvaliacaoConfig
+  const {
+    niveisCustom, setNiveisCustom,
+    fatoresCustom, setFatoresCustom,
+    baseOverrides, setBaseOverrides,
+    itemOverrides, setItemOverrides,
+    faseNomeEdit,  setFaseNomeEdit,
+    etapas,        setEtapas,
+  } = config
 
   const [modo,          setModo]          = useState('grupo')
   const [discAtiva,     setDiscAtiva]     = useState('dt')
   const [fasesAbertas,  setFasesAbertas]  = useState({})
   const [editMode,      setEditMode]      = useState(false)
   const [regrasAbertas, setRegrasAbertas] = useState(false)
-  const [etapas,        setEtapas]        = useState({})
   const [addingFase,    setAddingFase]    = useState(false)
   const [novaFaseNome,  setNovaFaseNome]  = useState('')
   const [addingCrit,    setAddingCrit]    = useState(null)
   const [novaCrNome,    setNovaCrNome]    = useState('')
   const [novaCrMax,     setNovaCrMax]     = useState('1')
-
-  // Overrides locais (sessão) para critérios base e itens
-  const [baseOverrides, setBaseOverrides] = useState({}) // { [discId-criterioId]: { nome, max } }
-  const [itemOverrides, setItemOverrides] = useState({}) // { [discId-criterioId]: string[] }
-  // Edição de nome de fase (local)
-  const [faseNomeEdit, setFaseNomeEdit] = useState({}) // { [faseNome]: string }
-  const [editandoFase, setEditandoFase] = useState(null)
-  // Níveis e fatores editáveis por sessão
-  const [niveisCustom,  setNiveisCustom]  = useState(() => NIVEIS_AVALIACAO.map(n => ({
-    ...n,
-    // display = label curto para os botões; label = descrição completa para edição
-    display: { completo: 'Completo', faltou_pouco: 'Faltou pouco', faltou_muito: 'Faltou muito', errado: 'Errado', nao_fez: 'Não fez' }[n.id] || n.label,
-  })))
-  const [fatoresCustom, setFatoresCustom] = useState(() =>
-    Object.entries(FATORES).map(([id, f]) => ({ id, ...f }))
-  )
-  const [editandoNivel,  setEditandoNivel]  = useState(null) // id do nivel sendo editado
-  const [editandoFator,  setEditandoFator]  = useState(null) // id do fator sendo editado
+  const [editandoFase,  setEditandoFase]  = useState(null)
+  const [editandoNivel, setEditandoNivel] = useState(null)
+  const [editandoFator, setEditandoFator] = useState(null)
 
   const timers = useRef({})
 
