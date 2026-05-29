@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { NIVEIS_AVALIACAO } from '../data/criterios'
 import { FATORES } from './useAvaliacaoIndividual'
@@ -17,25 +17,27 @@ const NIVEIS_DEFAULT = NIVEIS_AVALIACAO.map(n => ({
 const FATORES_DEFAULT = Object.entries(FATORES).map(([id, f]) => ({ id, ...f }))
 
 export function useAvaliacaoConfig(groupId, orgId) {
-  const [loading, setSaving_]  = useState(false)
-  const [saving,  setSaving]   = useState(false)
-  const [erro,    setErro]     = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [saving,  setSaving]  = useState(false)
+  const [erro,    setErro]    = useState(null)
 
-  // ── Estado persistido ─────────────────────────────────────
-  const [niveisCustom,  setNiveisCustom_]  = useState(NIVEIS_DEFAULT)
-  const [fatoresCustom, setFatoresCustom_] = useState(FATORES_DEFAULT)
-  const [baseOverrides, setBaseOverrides_] = useState({})
-  const [itemOverrides, setItemOverrides_] = useState({})
-  const [faseNomeEdit,  setFaseNomeEdit_]  = useState({})
-  const [etapas,        setEtapas_]        = useState({})
+  const [niveisCustom,  setNiveisCustom]  = useState(NIVEIS_DEFAULT)
+  const [fatoresCustom, setFatoresCustom] = useState(FATORES_DEFAULT)
+  const [baseOverrides, setBaseOverrides] = useState({})
+  const [itemOverrides, setItemOverrides] = useState({})
+  const [faseNomeEdit,  setFaseNomeEdit]  = useState({})
+  const [etapas,        setEtapas]        = useState({})
 
+  // Ref para o debounce — não causa re-render
   const debounceRef = useRef(null)
-  const configIdRef = useRef(null)  // uuid da row salva no banco
+  // Ref com o estado atual para o persistir ter sempre o valor mais recente
+  const stateRef = useRef({})
+  stateRef.current = { niveisCustom, fatoresCustom, baseOverrides, itemOverrides, faseNomeEdit, etapas }
 
   // ── Carregar do banco ─────────────────────────────────────
   const carregar = useCallback(async () => {
     if (!groupId) return
-    setSaving_(true)
+    setLoading(true)
     setErro(null)
     try {
       const { data, error } = await supabase
@@ -47,13 +49,12 @@ export function useAvaliacaoConfig(groupId, orgId) {
       if (error) throw error
 
       if (data) {
-        configIdRef.current = data.id
-        if (data.niveis_custom)  setNiveisCustom_(data.niveis_custom)
-        if (data.fatores_custom) setFatoresCustom_(data.fatores_custom)
-        if (data.base_overrides) setBaseOverrides_(data.base_overrides)
-        if (data.item_overrides) setItemOverrides_(data.item_overrides)
-        if (data.fase_nome_edit) setFaseNomeEdit_(data.fase_nome_edit)
-        if (data.etapas)         setEtapas_(data.etapas)
+        if (data.niveis_custom  && data.niveis_custom.length)  setNiveisCustom(data.niveis_custom)
+        if (data.fatores_custom && data.fatores_custom.length) setFatoresCustom(data.fatores_custom)
+        if (data.base_overrides) setBaseOverrides(data.base_overrides)
+        if (data.item_overrides) setItemOverrides(data.item_overrides)
+        if (data.fase_nome_edit) setFaseNomeEdit(data.fase_nome_edit)
+        if (data.etapas)         setEtapas(data.etapas)
       }
     } catch (e) {
       const msg = e?.message || JSON.stringify(e)
@@ -64,91 +65,114 @@ export function useAvaliacaoConfig(groupId, orgId) {
         setErro(`Erro ao carregar config: ${msg}`)
       }
     } finally {
-      setSaving_(false)
+      setLoading(false)
     }
   }, [groupId])
 
   useEffect(() => { carregar() }, [carregar])
 
-  // ── Persistir no banco (debounced) ────────────────────────
-  const persistir = useCallback(async (patch) => {
+  // ── Persistir — sempre lê do ref, nunca cria closure com estado ──
+  const persistir = useCallback((patch) => {
     if (!groupId || !orgId) return
-    setSaving(true)
-    setErro(null)
-    try {
-      const payload = { org_id: orgId, group_id: groupId, ...patch }
-      const { error } = await supabase
-        .from('avaliacoes_config')
-        .upsert(payload, { onConflict: 'group_id' })
-      if (error) throw error
-    } catch (e) {
-      const msg = e?.message || JSON.stringify(e)
-      console.error('[useAvaliacaoConfig] salvar erro:', msg)
-      setErro(`Erro ao salvar config: ${msg}`)
-    } finally {
-      setSaving(false)
-    }
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(async () => {
+      setSaving(true)
+      setErro(null)
+      try {
+        const payload = {
+          org_id: orgId,
+          group_id: groupId,
+          ...stateRef.current,   // estado completo e atualizado
+          ...patch,              // override com o que acabou de mudar
+          // normalizar nomes de campos para o banco
+          niveis_custom:  (patch.niveisCustom  ?? stateRef.current.niveisCustom),
+          fatores_custom: (patch.fatoresCustom ?? stateRef.current.fatoresCustom),
+          base_overrides: (patch.baseOverrides ?? stateRef.current.baseOverrides),
+          item_overrides: (patch.itemOverrides ?? stateRef.current.itemOverrides),
+          fase_nome_edit: (patch.faseNomeEdit  ?? stateRef.current.faseNomeEdit),
+          etapas:         (patch.etapas        ?? stateRef.current.etapas),
+        }
+        // Remover chaves camelCase — o banco usa snake_case
+        delete payload.niveisCustom
+        delete payload.fatoresCustom
+        delete payload.baseOverrides
+        delete payload.itemOverrides
+        delete payload.faseNomeEdit
+
+        const { error } = await supabase
+          .from('avaliacoes_config')
+          .upsert(payload, { onConflict: 'group_id' })
+
+        if (error) throw error
+      } catch (e) {
+        const msg = e?.message || JSON.stringify(e)
+        console.error('[useAvaliacaoConfig] salvar erro:', msg)
+        setErro(`Erro ao salvar config: ${msg}`)
+      } finally {
+        setSaving(false)
+      }
+    }, 500)
   }, [groupId, orgId])
 
-  // Debounce genérico — evita flood ao arrastar sliders ou digitar
-  function debouncedSave(patch, ms = 600) {
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => persistir(patch), ms)
-  }
+  // ── Setters que atualizam estado E disparam persistência ──
+  // Usam funções estáveis — não dependem do estado atual no closure
 
-  // ── Setters que atualizam estado E persistem ──────────────
-  const setNiveisCustom = useCallback((val) => {
-    const next = typeof val === 'function' ? val(niveisCustom) : val
-    setNiveisCustom_(next)
-    debouncedSave({ niveis_custom: next })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [niveisCustom, persistir])
+  const updateNiveisCustom = useCallback((val) => {
+    setNiveisCustom(prev => {
+      const next = typeof val === 'function' ? val(prev) : val
+      persistir({ niveisCustom: next })
+      return next
+    })
+  }, [persistir])
 
-  const setFatoresCustom = useCallback((val) => {
-    const next = typeof val === 'function' ? val(fatoresCustom) : val
-    setFatoresCustom_(next)
-    debouncedSave({ fatores_custom: next })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fatoresCustom, persistir])
+  const updateFatoresCustom = useCallback((val) => {
+    setFatoresCustom(prev => {
+      const next = typeof val === 'function' ? val(prev) : val
+      persistir({ fatoresCustom: next })
+      return next
+    })
+  }, [persistir])
 
-  const setBaseOverrides = useCallback((val) => {
-    const next = typeof val === 'function' ? val(baseOverrides) : val
-    setBaseOverrides_(next)
-    debouncedSave({ base_overrides: next })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseOverrides, persistir])
+  const updateBaseOverrides = useCallback((val) => {
+    setBaseOverrides(prev => {
+      const next = typeof val === 'function' ? val(prev) : val
+      persistir({ baseOverrides: next })
+      return next
+    })
+  }, [persistir])
 
-  const setItemOverrides = useCallback((val) => {
-    const next = typeof val === 'function' ? val(itemOverrides) : val
-    setItemOverrides_(next)
-    debouncedSave({ item_overrides: next })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemOverrides, persistir])
+  const updateItemOverrides = useCallback((val) => {
+    setItemOverrides(prev => {
+      const next = typeof val === 'function' ? val(prev) : val
+      persistir({ itemOverrides: next })
+      return next
+    })
+  }, [persistir])
 
-  const setFaseNomeEdit = useCallback((val) => {
-    const next = typeof val === 'function' ? val(faseNomeEdit) : val
-    setFaseNomeEdit_(next)
-    debouncedSave({ fase_nome_edit: next })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [faseNomeEdit, persistir])
+  const updateFaseNomeEdit = useCallback((val) => {
+    setFaseNomeEdit(prev => {
+      const next = typeof val === 'function' ? val(prev) : val
+      persistir({ faseNomeEdit: next })
+      return next
+    })
+  }, [persistir])
 
-  const setEtapas = useCallback((val) => {
-    const next = typeof val === 'function' ? val(etapas) : val
-    setEtapas_(next)
-    debouncedSave({ etapas: next }, 300)  // checkboxes respondem mais rápido
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [etapas, persistir])
+  const updateEtapas = useCallback((val) => {
+    setEtapas(prev => {
+      const next = typeof val === 'function' ? val(prev) : val
+      persistir({ etapas: next })
+      return next
+    })
+  }, [persistir])
 
   return {
     loading, saving, erro,
-    // estado
-    niveisCustom, fatoresCustom,
-    baseOverrides, itemOverrides,
-    faseNomeEdit, etapas,
-    // setters persistentes
-    setNiveisCustom, setFatoresCustom,
-    setBaseOverrides, setItemOverrides,
-    setFaseNomeEdit, setEtapas,
+    niveisCustom,  setNiveisCustom:  updateNiveisCustom,
+    fatoresCustom, setFatoresCustom: updateFatoresCustom,
+    baseOverrides, setBaseOverrides: updateBaseOverrides,
+    itemOverrides, setItemOverrides: updateItemOverrides,
+    faseNomeEdit,  setFaseNomeEdit:  updateFaseNomeEdit,
+    etapas,        setEtapas:        updateEtapas,
     recarregar: carregar,
   }
 }
