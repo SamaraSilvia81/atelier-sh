@@ -304,8 +304,12 @@
 /* ═══════════════════════════════════════════════════════════════════
    BASE
 ═══════════════════════════════════════════════════════════════════ */
-html, body, #root {
+html {
   height: 100%;
+}
+
+body, #root {
+  min-height: 100%;
   background: var(--bg);
   color: var(--text);
   font-family: var(--ff-body);
@@ -313,6 +317,11 @@ html, body, #root {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   transition: background var(--mid), color var(--mid);
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
 }
 
 body::before {
