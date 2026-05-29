@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
-import { NIVEIS_AVALIACAO } from './useAvaliacaoIndividual'
+import { NIVEIS_AVALIACAO } from '../data/criterios'
 import { FATORES } from './useAvaliacaoIndividual'
 
 const NIVEIS_DEFAULT = NIVEIS_AVALIACAO.map(n => ({
