@@ -162,7 +162,7 @@ export default function GrupoPagina({ org, trelloToken, isAdmin }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
 
       {/* Barra de status no topo */}
       <div style={{ height: 3, background: barBg, flexShrink: 0 }} />
