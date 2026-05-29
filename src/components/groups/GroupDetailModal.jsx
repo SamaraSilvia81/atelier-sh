@@ -117,7 +117,7 @@ export default function GroupDetailModal({ group, trelloToken, onClose, onEdit, 
         <div style={{ height: 3, background: barBg, flexShrink: 0 }} />
 
         {/* Header */}
-        <div style={{ padding: '20px 28px 0', flexShrink: 0, minWidth: 0 }}>
+        <div style={{ padding: '20px 28px 0', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
@@ -180,10 +180,10 @@ export default function GroupDetailModal({ group, trelloToken, onClose, onEdit, 
           </div>
 
           {/* Tabs */}
-          <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', overflowX: 'auto', margin: '0 -28px', padding: '0 28px' }}>
+          <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
             {tabs.map(t => (
               <button key={t} onClick={() => { setTab(t); sounds.play('tab') }} style={{
-                flexShrink: 0, padding: '8px 18px',
+                flexShrink: 0, padding: '8px 16px',
                 fontFamily: 'var(--ff-mono)', fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase',
                 color: tab === t ? 'var(--red)' : 'var(--text-dim)',
                 borderBottom: tab === t ? '2px solid var(--red)' : '2px solid transparent',
@@ -194,11 +194,7 @@ export default function GroupDetailModal({ group, trelloToken, onClose, onEdit, 
         </div>
 
         {/* Tab body */}
-        <div style={{
-          flex: 1, minHeight: 0, minWidth: 0,
-          overflowY: tab === 'avaliacao' ? 'hidden' : 'auto',
-          padding: tab === 'avaliacao' ? '0' : '20px 28px',
-        }}>
+        <div style={{ flex: 1, minHeight: 0, minWidth: 0, overflowY: 'auto', padding: '20px 28px' }}>
 
           {/* ── GITHUB ── */}
           {tab === 'github' && (
@@ -581,15 +577,14 @@ export default function GroupDetailModal({ group, trelloToken, onClose, onEdit, 
               </div>
             )
           })()}
+        </div>
+      </div>
 
           {tab === 'avaliacao' && (
-            <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ margin: '-20px -28px', height: 'calc(100% + 40px)', display: 'flex', flexDirection: 'column' }}>
               <AvaliacaoTab group={group} />
             </div>
           )}
-
-        </div>
-      </div>
 
       <style>{`
         @keyframes slideInRight {

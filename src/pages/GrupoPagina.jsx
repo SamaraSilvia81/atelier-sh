@@ -236,12 +236,12 @@ export default function GrupoPagina({ org, trelloToken, isAdmin }) {
         <div style={{ display: 'flex', borderBottom: '1px solid transparent', overflowX: 'auto', marginBottom: -1 }}>
           {tabs.map(t => (
             <button key={t} type="button" onClick={() => setTab(t)} style={{
-              flex: 1, minWidth: 80, padding: '10px 0',
+              flexShrink: 0, padding: '10px 20px',
               fontFamily: 'var(--ff-mono)', fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase',
               color: tab === t ? 'var(--red)' : 'var(--text-dim)',
               background: 'none', border: 'none',
               borderBottom: tab === t ? '2px solid var(--red)' : '2px solid transparent',
-              cursor: 'pointer',
+              cursor: 'pointer', whiteSpace: 'nowrap',
             }}>{t}</button>
           ))}
         </div>
@@ -469,7 +469,7 @@ export default function GrupoPagina({ org, trelloToken, isAdmin }) {
 
         {/* ── AVALIAÇÃO ───────────────────────────────────────── */}
         {tab === 'avaliacao' && (
-          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
             <AvaliacaoTab group={group} />
           </div>
         )}

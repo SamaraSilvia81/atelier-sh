@@ -763,7 +763,7 @@ export default function AvaliacaoTab({ group }) {
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
         {/* ── Totais — scroll horizontal em telas pequenas */}
-        <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4, minWidth: 0 }}>
+        <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
           {DISCIPLINAS.map(d => {
             const t = totalDisciplina(d.id)
             return (
@@ -871,7 +871,7 @@ export default function AvaliacaoTab({ group }) {
               </div>
             )}
             {/* Tabs de disciplina — scroll horizontal */}
-            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2, minWidth: 0 }}>
+            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
               {DISCIPLINAS.map(d => (
                 <button key={d.id} type="button" onClick={() => setDiscAtiva(d.id)} style={{ flexShrink: 0, padding: '5px 14px', fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', borderRadius: 'var(--radius)', background: d.id === discAtiva ? d.corBg : 'transparent', color: d.id === discAtiva ? d.cor : 'var(--text-dim)', border: `1px solid ${d.id === discAtiva ? d.corBorder : 'var(--border)'}`, whiteSpace: 'nowrap' }}>
                   {d.id.toUpperCase()}
