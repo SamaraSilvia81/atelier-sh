@@ -162,7 +162,7 @@ export default function GrupoPagina({ org, trelloToken, isAdmin }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
 
       {/* Barra de status no topo */}
       <div style={{ height: 3, background: barBg, flexShrink: 0 }} />
@@ -248,11 +248,7 @@ export default function GrupoPagina({ org, trelloToken, isAdmin }) {
       </div>
 
       {/* ── Conteúdo da tab ─────────────────────────────────── */}
-      <div style={{
-        flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column',
-        overflowY: (tab === 'avaliacao' || tab === 'anotacoes') ? 'hidden' : 'auto',
-        padding: (tab === 'avaliacao' || tab === 'anotacoes') ? 0 : '24px 32px',
-      }}>
+      <div style={{ padding: '24px 32px' }}>
 
         {/* ── GITHUB ─────────────────────────────────────────── */}
         {tab === 'github' && (
@@ -469,9 +465,7 @@ export default function GrupoPagina({ org, trelloToken, isAdmin }) {
 
         {/* ── AVALIAÇÃO ───────────────────────────────────────── */}
         {tab === 'avaliacao' && (
-          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-            <AvaliacaoTab group={group} />
-          </div>
+          <AvaliacaoTab group={group} />
         )}
 
         {/* ── FIGMA ───────────────────────────────────────────── */}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import { useOrgs }    from './hooks/useOrgs'
@@ -59,8 +59,6 @@ function AppShell() {
   const [trelloToken]      = useState(() => localStorage.getItem('atelier_trello_token') || '')
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('atelier_sidebar') === 'collapsed')
   const navigate = useNavigate()
-  const location = useLocation()
-  const isGrupoRoute = location.pathname.startsWith('/grupo/')
   const [sidebarSelectedGroupId, setSidebarSelectedGroupId] = useState(null)
   const [splashDone, setSplashDone] = useState(() => sessionStorage.getItem('atelier_splash_done') === '1')
 
@@ -131,11 +129,7 @@ function AppShell() {
       />
       <main style={{
         marginLeft: sideW, flex: 1, transition: 'margin-left var(--mid) var(--ease)',
-        minWidth: 0,
-        ...(isGrupoRoute
-          ? { height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }
-          : { minHeight: '100vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }
-        ),
+        minWidth: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column',
       }}>
         <Routes>
           <Route path="/onboarding" element={<Onboarding />} />
