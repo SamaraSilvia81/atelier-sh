@@ -27,12 +27,12 @@ export function useAvaliacaoConfig(groupId, orgId) {
   const [itemOverrides, setItemOverrides] = useState({})
   const [faseNomeEdit,  setFaseNomeEdit]  = useState({})
   const [etapas,        setEtapas]        = useState({})
+  // { "nome da fase": { prazo: "2025-06-01", avaliado_em: "2025-06-05", feedback_em: "2025-06-06" } }
+  const [faseDatas,     setFaseDatas]     = useState({})
 
-  // Ref para o debounce — não causa re-render
   const debounceRef = useRef(null)
-  // Ref com o estado atual para o persistir ter sempre o valor mais recente
   const stateRef = useRef({})
-  stateRef.current = { niveisCustom, fatoresCustom, baseOverrides, itemOverrides, faseNomeEdit, etapas }
+  stateRef.current = { niveisCustom, fatoresCustom, baseOverrides, itemOverrides, faseNomeEdit, etapas, faseDatas }
 
   // ── Carregar do banco ─────────────────────────────────────
   const carregar = useCallback(async () => {
@@ -55,6 +55,7 @@ export function useAvaliacaoConfig(groupId, orgId) {
         if (data.item_overrides) setItemOverrides(data.item_overrides)
         if (data.fase_nome_edit) setFaseNomeEdit(data.fase_nome_edit)
         if (data.etapas)         setEtapas(data.etapas)
+        if (data.fase_datas)     setFaseDatas(data.fase_datas)
       }
     } catch (e) {
       const msg = e?.message || JSON.stringify(e)
@@ -71,7 +72,7 @@ export function useAvaliacaoConfig(groupId, orgId) {
 
   useEffect(() => { carregar() }, [carregar])
 
-  // ── Persistir — sempre lê do ref, nunca cria closure com estado ──
+  // ── Persistir com debounce, sempre lendo do ref ───────────
   const persistir = useCallback((patch) => {
     if (!groupId || !orgId) return
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -79,30 +80,21 @@ export function useAvaliacaoConfig(groupId, orgId) {
       setSaving(true)
       setErro(null)
       try {
+        const s = stateRef.current
         const payload = {
           org_id: orgId,
           group_id: groupId,
-          ...stateRef.current,   // estado completo e atualizado
-          ...patch,              // override com o que acabou de mudar
-          // normalizar nomes de campos para o banco
-          niveis_custom:  (patch.niveisCustom  ?? stateRef.current.niveisCustom),
-          fatores_custom: (patch.fatoresCustom ?? stateRef.current.fatoresCustom),
-          base_overrides: (patch.baseOverrides ?? stateRef.current.baseOverrides),
-          item_overrides: (patch.itemOverrides ?? stateRef.current.itemOverrides),
-          fase_nome_edit: (patch.faseNomeEdit  ?? stateRef.current.faseNomeEdit),
-          etapas:         (patch.etapas        ?? stateRef.current.etapas),
+          niveis_custom:  patch.niveisCustom  ?? s.niveisCustom,
+          fatores_custom: patch.fatoresCustom ?? s.fatoresCustom,
+          base_overrides: patch.baseOverrides ?? s.baseOverrides,
+          item_overrides: patch.itemOverrides ?? s.itemOverrides,
+          fase_nome_edit: patch.faseNomeEdit  ?? s.faseNomeEdit,
+          etapas:         patch.etapas        ?? s.etapas,
+          fase_datas:     patch.faseDatas     ?? s.faseDatas,
         }
-        // Remover chaves camelCase — o banco usa snake_case
-        delete payload.niveisCustom
-        delete payload.fatoresCustom
-        delete payload.baseOverrides
-        delete payload.itemOverrides
-        delete payload.faseNomeEdit
-
         const { error } = await supabase
           .from('avaliacoes_config')
           .upsert(payload, { onConflict: 'group_id' })
-
         if (error) throw error
       } catch (e) {
         const msg = e?.message || JSON.stringify(e)
@@ -114,65 +106,40 @@ export function useAvaliacaoConfig(groupId, orgId) {
     }, 500)
   }, [groupId, orgId])
 
-  // ── Setters que atualizam estado E disparam persistência ──
-  // Usam funções estáveis — não dependem do estado atual no closure
+  // ── Setter factory — evita repetição ─────────────────────
+  function makeSetter(localSet, patchKey) {
+    return useCallback((val) => {
+      localSet(prev => {
+        const next = typeof val === 'function' ? val(prev) : val
+        persistir({ [patchKey]: next })
+        return next
+      })
+    }, [persistir])
+  }
 
-  const updateNiveisCustom = useCallback((val) => {
-    setNiveisCustom(prev => {
-      const next = typeof val === 'function' ? val(prev) : val
-      persistir({ niveisCustom: next })
-      return next
-    })
-  }, [persistir])
-
-  const updateFatoresCustom = useCallback((val) => {
-    setFatoresCustom(prev => {
-      const next = typeof val === 'function' ? val(prev) : val
-      persistir({ fatoresCustom: next })
-      return next
-    })
-  }, [persistir])
-
-  const updateBaseOverrides = useCallback((val) => {
-    setBaseOverrides(prev => {
-      const next = typeof val === 'function' ? val(prev) : val
-      persistir({ baseOverrides: next })
-      return next
-    })
-  }, [persistir])
-
-  const updateItemOverrides = useCallback((val) => {
-    setItemOverrides(prev => {
-      const next = typeof val === 'function' ? val(prev) : val
-      persistir({ itemOverrides: next })
-      return next
-    })
-  }, [persistir])
-
-  const updateFaseNomeEdit = useCallback((val) => {
-    setFaseNomeEdit(prev => {
-      const next = typeof val === 'function' ? val(prev) : val
-      persistir({ faseNomeEdit: next })
-      return next
-    })
-  }, [persistir])
-
-  const updateEtapas = useCallback((val) => {
-    setEtapas(prev => {
-      const next = typeof val === 'function' ? val(prev) : val
-      persistir({ etapas: next })
+  // ── Setter especial para datas de fase ───────────────────
+  // updateFaseDatas(faseNome, campo, valor)
+  // campo: 'prazo' | 'avaliado_em' | 'feedback_em'
+  const updateFaseDatas = useCallback((faseNome, campo, valor) => {
+    setFaseDatas(prev => {
+      const next = {
+        ...prev,
+        [faseNome]: { ...(prev[faseNome] || {}), [campo]: valor || null }
+      }
+      persistir({ faseDatas: next })
       return next
     })
   }, [persistir])
 
   return {
     loading, saving, erro,
-    niveisCustom,  setNiveisCustom:  updateNiveisCustom,
-    fatoresCustom, setFatoresCustom: updateFatoresCustom,
-    baseOverrides, setBaseOverrides: updateBaseOverrides,
-    itemOverrides, setItemOverrides: updateItemOverrides,
-    faseNomeEdit,  setFaseNomeEdit:  updateFaseNomeEdit,
-    etapas,        setEtapas:        updateEtapas,
+    niveisCustom,  setNiveisCustom:  makeSetter(setNiveisCustom,  'niveisCustom'),
+    fatoresCustom, setFatoresCustom: makeSetter(setFatoresCustom, 'fatoresCustom'),
+    baseOverrides, setBaseOverrides: makeSetter(setBaseOverrides, 'baseOverrides'),
+    itemOverrides, setItemOverrides: makeSetter(setItemOverrides, 'itemOverrides'),
+    faseNomeEdit,  setFaseNomeEdit:  makeSetter(setFaseNomeEdit,  'faseNomeEdit'),
+    etapas,        setEtapas:        makeSetter(setEtapas,        'etapas'),
+    faseDatas, updateFaseDatas,
     recarregar: carregar,
   }
 }

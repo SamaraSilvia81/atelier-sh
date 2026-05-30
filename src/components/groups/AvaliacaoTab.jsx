@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { ChevronDown, ChevronRight, AlertTriangle, FileText, X,
-  Plus, Trash2, Pencil, Check, User, Users, Info } from 'lucide-react'
+  Plus, Trash2, Pencil, Check, User, Users, Info, Calendar } from 'lucide-react'
 import { useAvaliacao }            from '../../hooks/useAvaliacao'
 import { useAvaliacaoIndividual,
          FATORES, CRITERIOS_COMPORTAMENTAIS } from '../../hooks/useAvaliacaoIndividual'
@@ -163,8 +163,11 @@ function CriterioRow({
   const atrasoInfo = PENALIZACOES_ATRASO.find(a => a.id === atrasoLocal)
 
   function salvarNivel(novoNivel, novoAtraso) {
-    const n = calcNota(cr.max, novoNivel, novoAtraso)
-    onSave(discId, faseNome, cr.id, cr.max, n, undefined, novoNivel, novoAtraso)
+    // Se desmarcou o nível, zera o atraso também
+    const atrasoFinal = novoNivel === null ? 'sem_atraso' : novoAtraso
+    if (novoNivel === null) setAtrasoLocal('sem_atraso')
+    const n = calcNota(cr.max, novoNivel, atrasoFinal)
+    onSave(discId, faseNome, cr.id, cr.max, n, undefined, novoNivel, atrasoFinal)
   }
 
   function confirmarEdicao() {
@@ -270,7 +273,7 @@ function CriterioRow({
       {/* Seletor de nível */}
       <div style={{ paddingLeft: 22, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
         {niveisAtivos.map(n => (
-          <button key={n.id} type="button" onClick={() => { setNivelLocal(n.id); salvarNivel(n.id, atrasoLocal) }}
+          <button key={n.id} type="button" onClick={() => { const novo = nivelLocal === n.id ? null : n.id; setNivelLocal(novo); salvarNivel(novo, atrasoLocal) }}
             title={n.label}
             style={{ padding: '3px 8px', borderRadius: 'var(--radius)', ...mono, fontSize: 10, cursor: 'pointer', background: nivelLocal === n.id ? `${n.cor}22` : 'var(--surface)', color: nivelLocal === n.id ? n.cor : 'var(--text-dim)', border: `1px solid ${nivelLocal === n.id ? n.cor : 'var(--border)'}`, transition: 'all 0.12s' }}>
             {n.display || n.label}
@@ -677,6 +680,7 @@ export default function AvaliacaoTab({ group }) {
     itemOverrides, setItemOverrides,
     faseNomeEdit,  setFaseNomeEdit,
     etapas,        setEtapas,
+    faseDatas, updateFaseDatas,
   } = config
 
   const [modo,          setModo]          = useState('grupo')
@@ -939,6 +943,51 @@ export default function AvaliacaoTab({ group }) {
                   {aberta && fase.obs && (
                     <div style={{ padding: '6px 14px', background: `${disc.cor}0a`, borderTop: '1px solid var(--border)', fontSize: 10, color: disc.cor, lineHeight: 1.5 }}>◈ {fase.obs}</div>
                   )}
+
+                  {/* ── Datas da fase ── */}
+                  {aberta && (() => {
+                    const datas = faseDatas[fase.nome] || {}
+                    const temAlguma = datas.prazo || datas.avaliado_em || datas.feedback_em
+                    const campos = [
+                      { key: 'prazo',       label: 'Prazo',     title: 'prazo da atividade' },
+                      { key: 'avaliado_em', label: 'Avaliado',  title: 'data da avaliação' },
+                      { key: 'feedback_em', label: 'Feedback',  title: 'data do feedback aos alunos' },
+                    ]
+                    return (
+                      <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <Calendar size={11} style={{ color: 'var(--text-dim)', flexShrink: 0 }} />
+                        {campos.map(({ key, label, title }) => (
+                          <label key={key} title={title} style={{ display: 'flex', alignItems: 'center', gap: 5, ...mono, fontSize: 10, color: datas[key] ? 'var(--text-sub)' : 'var(--text-dim)', cursor: 'pointer' }}>
+                            <span style={{ letterSpacing: '0.1em', minWidth: 54 }}>{label}</span>
+                            <input
+                              type="date"
+                              value={datas[key] || ''}
+                              onChange={e => updateFaseDatas(fase.nome, key, e.target.value)}
+                              style={{
+                                ...mono, fontSize: 10,
+                                background: datas[key] ? 'var(--bg-card)' : 'transparent',
+                                border: `1px solid ${datas[key] ? 'var(--border)' : 'var(--border)'}`,
+                                borderRadius: 'var(--radius)',
+                                padding: '2px 6px',
+                                color: datas[key] ? 'var(--text-muted)' : 'var(--text-dim)',
+                                colorScheme: 'dark',
+                                cursor: 'pointer',
+                                outline: 'none',
+                              }}
+                            />
+                            {datas[key] && (
+                              <button type="button" onClick={() => updateFaseDatas(fase.nome, key, null)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', display: 'flex', padding: 0 }}
+                                onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
+                                onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
+                                <X size={10} />
+                              </button>
+                            )}
+                          </label>
+                        ))}
+                      </div>
+                    )
+                  })()}
 
                   {aberta && criteriosFase.map(cr => (
                     <CriterioRow key={cr.id}
