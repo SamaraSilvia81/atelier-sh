@@ -79,6 +79,28 @@ function PainelRegras({ aberto, onToggle }) {
               ))}
             </div>
           </div>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ ...mono, fontSize: 9, letterSpacing: '0.25em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 8 }}>// contribuição individual</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {[
+                { label: '✦ Liderou',          desc: 'Coordenou e entregou',          pct: 100, cor: '#5aab6e' },
+                { label: '✓ Participou',        desc: 'Contribuiu ativamente',         pct: 100, cor: '#7F77DD' },
+                { label: '△ Participou pouco',  desc: 'Envolvimento limitado',         pct: 70,  cor: '#c8922a' },
+                { label: '◇ Só fez sua parte',  desc: 'Mínimo, sem engajamento',       pct: 40,  cor: '#e06060' },
+                { label: '✗ Não participou',    desc: 'Sem contribuição',              pct: 0,   cor: '#c83232' },
+              ].map(f => (
+                <div key={f.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: f.cor, display: 'inline-block', flexShrink: 0 }} />
+                  <span style={{ flex: 1, ...mono, fontSize: 11, color: 'var(--text-muted)' }}>{f.label}</span>
+                  <span style={{ ...mono, fontSize: 10, color: 'var(--text-dim)' }}>{f.desc}</span>
+                  <span style={{ ...mono, fontSize: 11, color: f.cor, fontWeight: 600, minWidth: 32, textAlign: 'right' }}>{f.pct}%</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ ...mono, fontSize: 9, color: 'var(--text-dim)', marginTop: 8, lineHeight: 1.5, opacity: 0.7 }}>
+              aplicado sobre a nota do grupo por fase
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -3,9 +3,10 @@ import { supabase } from '../lib/supabase'
 
 // Fatores de contribuição e seus multiplicadores
 export const FATORES = {
-  liderou:          { label: '✦ Liderou',           mult: 1.10, cor: '#5aab6e' },
+  liderou:          { label: '✦ Liderou',           mult: 1.00, cor: '#5aab6e' },
   participou:       { label: '✓ Participou',         mult: 1.00, cor: '#7F77DD' },
-  participou_pouco: { label: '△ Participou pouco',   mult: 0.60, cor: '#c8922a' },
+  participou_pouco: { label: '△ Participou pouco',   mult: 0.70, cor: '#c8922a' },
+  so_fez_parte:     { label: '◇ Só fez sua parte',   mult: 0.40, cor: '#e06060' },
   nao_participou:   { label: '✗ Não participou',     mult: 0.00, cor: '#c83232' },
 }
 
@@ -59,8 +60,7 @@ export function useAvaliacaoIndividual(groupId, orgId) {
     const fator = getFator(memberId, disciplina, fase)
     if (!fator) return null
     const mult = FATORES[fator]?.mult ?? 0
-    // liderou pode ultrapassar levemente a nota do grupo
-    return Math.min(notaGrupoFase * mult, notaGrupoFase * 1.10)
+    return parseFloat((notaGrupoFase * mult).toFixed(2))
   }
 
   const getComportamental = (memberId, criterioId) => {
