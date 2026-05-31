@@ -1,159 +1,80 @@
-import { useState, useEffect } from 'react'
-import { X, FileText, Loader, Download, CheckCircle, AlertTriangle, Sparkles } from 'lucide-react'
+import { useState } from 'react'
+import { X, FileText, Download, CheckCircle, AlertTriangle, Plus, Trash2 } from 'lucide-react'
 import { DISCIPLINAS, NIVEIS_AVALIACAO, PENALIZACOES_ATRASO } from '../../data/criterios'
 import { useAvaliacao } from '../../hooks/useAvaliacao'
 import { useAvaliacaoCrud } from '../../hooks/useAvaliacaoCrud'
 import { useNotes } from '../../hooks/useNotes'
-import { supabase } from '../../lib/supabase'
 
 const mono = { fontFamily: 'var(--ff-mono)' }
 
-// ── Monta os dados de avaliação consolidados ──────────────────
-function coletarDadosAvaliacao(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, crud, notes) {
+// ── Coleta dados de avaliação ─────────────────────────────────
+function coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, crud, notes) {
   const parseMaybeJson = (val, fallback = []) => {
     if (Array.isArray(val)) return val
     try { return JSON.parse(val) } catch { return fallback }
   }
-  const members = parseMaybeJson(group?.members)
-
   const disciplinas = DISCIPLINAS.map(disc => {
     const fases = crud.getFasesDisciplina(disc.id).map(fase => {
       const criterios = crud.getCriteriosFase(disc.id, fase.nome).map(cr => {
-        const nivel = nivelGrupo(disc.id, cr.id)
+        const nivel     = nivelGrupo(disc.id, cr.id)
         const nivelInfo = NIVEIS_AVALIACAO.find(n => n.id === nivel)
-        const atraso = atrasoGrupo(disc.id, cr.id)
+        const atraso    = atrasoGrupo(disc.id, cr.id)
         const atrasoInfo = PENALIZACOES_ATRASO.find(a => a.id === atraso)
         const nota = notaGrupo(disc.id, cr.id) ?? 0
-        // Busca anotação vinculada
         const notaVinculada = notes.find(n => n.title === `Avaliação: ${cr.nome}`)
         const comentario = notaVinculada?.content
           ? notaVinculada.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
           : ''
-        return { id: cr.id, nome: cr.nome, max: cr.max, nota, nivel, nivelLabel: nivelInfo?.label || '—', atraso, atrasoLabel: atrasoInfo?.label || '—', comentario }
+        return { id: cr.id, nome: cr.nome, max: cr.max, nota, nivelLabel: nivelInfo?.label || '—', atrasoLabel: atrasoInfo?.label || '—', comentario }
       })
-      const totalFase = criterios.reduce((a, c) => a + c.nota, 0)
-      const maxFase = criterios.reduce((a, c) => a + c.max, 0)
-      return { nome: fase.nome, criterios, totalFase, maxFase }
+      return {
+        nome: fase.nome,
+        criterios,
+        totalFase: criterios.reduce((a, c) => a + c.nota, 0),
+        maxFase:   criterios.reduce((a, c) => a + c.max, 0),
+      }
     })
-    const total = totalDisciplina(disc.id)
-    return { id: disc.id, nome: disc.nome, total, max: disc.total, fases }
+    return { id: disc.id, nome: disc.nome, total: totalDisciplina(disc.id), max: disc.total, fases }
   })
-
-  return { group, members, disciplinas, totalGeral: disciplinas.reduce((a, d) => a + d.total, 0) }
+  return { group, disciplinas, totalGeral: disciplinas.reduce((a, d) => a + d.total, 0) }
 }
 
-// ── Gera o .tex via Claude API ────────────────────────────────
-async function gerarTexComClaude(dados, turma, dataEntrega) {
-  const { group, members, disciplinas, totalGeral } = dados
-
-  // Resumo estruturado para o Claude
-  const resumo = disciplinas.map(d => {
-    return `## ${d.nome} (${d.total.toFixed(2)} / ${d.max} pts)\n` +
-      d.fases.map(f =>
-        `### ${f.nome} (${f.totalFase.toFixed(2)} / ${f.maxFase} pts)\n` +
-        f.criterios.map(c =>
-          `- ${c.nome}: ${c.nota.toFixed(2)}/${c.max} [${c.nivelLabel}]${c.atraso !== 'sem_atraso' ? ` ⚠ ${c.atrasoLabel}` : ''}${c.comentario ? `\n  Anotação: "${c.comentario.substring(0, 200)}"` : ''}`
-        ).join('\n')
-      ).join('\n')
-  }).join('\n\n')
-
-  const prompt = `Você é uma professora de Design Thinking e Projeto Integrador do ensino técnico brasileiro (ETE Cícero Dias, Recife). 
-Redija um feedback oficial de avaliação para o grupo "${group.name}" com base nos dados abaixo.
-
-DADOS DA AVALIAÇÃO:
-${resumo}
-
-NOTA FINAL: ${totalGeral.toFixed(2)} / 30 pts
-
-INSTRUÇÕES:
-- Escreva em português brasileiro, tom profissional mas acessível a alunos do ensino médio técnico
-- Para cada disciplina (DT, DCU, PI), escreva 2-3 frases de comentário geral
-- Destaque 3 pontos fortes do grupo (frases curtas, diretas)
-- Destaque 3 pontos a desenvolver (frases curtas, construtivas)
-- Escreva um encaminhamento final de 2-3 frases sobre os próximos passos
-- NÃO repita os números da avaliação — foque na qualidade do trabalho
-- Responda APENAS em JSON válido, sem markdown, sem explicações extras
-
-Formato exato:
-{
-  "comentario_dt": "...",
-  "comentario_dcu": "...",
-  "comentario_pi": "...",
-  "pontos_fortes": ["...", "...", "..."],
-  "a_desenvolver": ["...", "...", "..."],
-  "encaminhamento": "..."
-}`
-
-  const res = await fetch('/api/claude', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-  })
-
-  if (!res.ok) {
-    const errText = await res.text()
-    throw new Error(`Erro ${res.status}: ${errText}`)
-  }
-
-  const data = await res.json()
-  if (data?.error) throw new Error(data.error)
-
-  const text = data?.content?.find(b => b.type === 'text')?.text || ''
-  const clean = text.replace(/```json|```/g, '').trim()
-  return JSON.parse(clean)
-}
-
-// ── Escapa texto para LaTeX ───────────────────────────────────
+// ── Escape LaTeX ──────────────────────────────────────────────
 function esc(str = '') {
   return String(str)
     .replace(/\\/g, '\\textbackslash{}')
-    .replace(/&/g, '\\&')
-    .replace(/%/g, '\\%')
-    .replace(/\$/g, '\\$')
-    .replace(/#/g, '\\#')
-    .replace(/_/g, '\\_')
-    .replace(/\{/g, '\\{')
-    .replace(/\}/g, '\\}')
-    .replace(/~/g, '\\textasciitilde{}')
+    .replace(/&/g, '\\&').replace(/%/g, '\\%').replace(/\$/g, '\\$')
+    .replace(/#/g, '\\#').replace(/_/g, '\\_').replace(/\{/g, '\\{')
+    .replace(/\}/g, '\\}').replace(/~/g, '\\textasciitilde{}')
     .replace(/\^/g, '\\textasciicircum{}')
-    .replace(/</g, '\\textless{}')
-    .replace(/>/g, '\\textgreater{}')
+    .replace(/</g, '\\textless{}').replace(/>/g, '\\textgreater{}')
 }
 
-// ── Monta o .tex completo ─────────────────────────────────────
-function montarTex(dados, feedback, turma, dataEntrega) {
+// ── Monta o .tex ──────────────────────────────────────────────
+function montarTex(dados, fb, turma, dataEntrega) {
   const { group, disciplinas, totalGeral } = dados
   const notaFmt = n => String(n.toFixed(2)).replace('.', ',')
-
-  const chipColor = (nota, max) => {
-    const pct = max > 0 ? nota / max : 0
-    if (pct >= 0.8) return 'chipfull'
-    if (pct >= 0.5) return 'chippartial'
-    return 'chiplow'
+  const chip = (nota, max) => {
+    const p = max > 0 ? nota / max : 0
+    return p >= 0.8 ? 'chipfull' : p >= 0.5 ? 'chippartial' : 'chiplow'
   }
 
   const rubricaRows = disciplinas.flatMap(d =>
     d.fases.flatMap(f =>
       f.criterios.map(c => `
   \\rowcolor{bg}
-  {\\semibold\\small ${esc(c.nome)}} & \\small\\color{textmid}${esc(d.id.toUpperCase())} — ${esc(f.nome.split('—')[0].trim())} & {\\${chipColor(c.nota, c.max)} ${notaFmt(c.nota)} / ${notaFmt(c.max)}} \\\\
+  {\\semibold\\small ${esc(c.nome)}} & \\small\\color{textmid}${esc(d.id.toUpperCase())} — ${esc(f.nome.split('—')[0].trim())} & {\\${chip(c.nota, c.max)} ${notaFmt(c.nota)} / ${notaFmt(c.max)}} \\\\
   \\arrayrulecolor{bordercolor}\\hline`)
     )
   ).join('')
 
-  const pontosFortes = (feedback.pontos_fortes || []).map(p => `    \\item ${esc(p)}`).join('\n')
-  const aDesenvolver = (feedback.a_desenvolver || []).map(p => `    \\item ${esc(p)}`).join('\n')
+  const pontosFortes = (fb.pontos_fortes || []).map(p => `    \\item ${esc(p)}`).join('\n')
+  const aDesenvolver = (fb.a_desenvolver || []).map(p => `    \\item ${esc(p)}`).join('\n')
 
   const discComentarios = [
-    { id: 'dt',  label: 'Design Thinking',            texto: feedback.comentario_dt },
-    { id: 'dcu', label: 'Design Centrado no Usuário', texto: feedback.comentario_dcu },
-    { id: 'pi',  label: 'Projeto Integrador',          texto: feedback.comentario_pi },
+    { id: 'dt',  label: 'Design Thinking',            texto: fb.comentario_dt },
+    { id: 'dcu', label: 'Design Centrado no Usuário', texto: fb.comentario_dcu },
+    { id: 'pi',  label: 'Projeto Integrador',          texto: fb.comentario_pi },
   ].filter(d => d.texto).map(d => `
 \\vspace{8pt}
 \\begin{tcolorbox}[enhanced,colback=bg,colframe=bordercolor,leftrule=3pt,rightrule=0.4pt,toprule=0.4pt,bottomrule=0.4pt,arc=0pt,left=12pt,right=12pt,top=10pt,bottom=10pt,borderline west={3pt}{0pt}{crimson}]
@@ -166,8 +87,6 @@ function montarTex(dados, feedback, turma, dataEntrega) {
 % Compilar com XeLaTeX no Overleaf
 
 \\documentclass[12pt, a4paper]{article}
-
-% ── Pacotes ──────────────────────────────────────────────
 \\usepackage[a4paper, top=0cm, bottom=0cm, left=0cm, right=0cm]{geometry}
 \\usepackage{fontspec}
 \\usepackage{xcolor}
@@ -182,15 +101,12 @@ function montarTex(dados, feedback, turma, dataEntrega) {
 \\usepackage{setspace}
 \\usepackage{parskip}
 \\usepackage{microtype}
-\\usepackage{fancyhdr}
 \\usepackage{hyperref}
 \\hypersetup{hidelinks}
 
-% ── Fontes ───────────────────────────────────────────────
 \\setmainfont{Source Sans Pro}[UprightFont={* Light},BoldFont={* Bold},ItalicFont={* Light Italic}]
 \\newfontfamily\\semibold{Source Sans Pro}[UprightFont={* Regular},BoldFont={* SemiBold}]
 
-% ── Paleta Delicatte ─────────────────────────────────────
 \\definecolor{crimson}{HTML}{860120}
 \\definecolor{blush}{HTML}{C4506A}
 \\definecolor{blushdim}{HTML}{fdeef2}
@@ -205,7 +121,6 @@ function montarTex(dados, feedback, turma, dataEntrega) {
 \\definecolor{bg}{HTML}{fffbef}
 \\definecolor{white}{HTML}{ffffff}
 
-% ── Chips de pontuação ───────────────────────────────────
 \\newcommand{\\chipfull}[1]{\\colorbox{sagedim}{\\color{sage}\\semibold\\small\\strut\\ #1\\ }}
 \\newcommand{\\chippartial}[1]{\\colorbox{blushdim}{\\color{blush}\\semibold\\small\\strut\\ #1\\ }}
 \\newcommand{\\chiplow}[1]{\\colorbox{blushdim}{\\color{crimson}\\semibold\\small\\strut\\ #1\\ }}
@@ -216,9 +131,6 @@ function montarTex(dados, feedback, turma, dataEntrega) {
 
 \\begin{document}
 
-% ════════════════════════════════
-% CAPA
-% ════════════════════════════════
 \\newgeometry{margin=0pt}
 \\begin{tikzpicture}[remember picture,overlay]
   \\fill[crimson] (current page.south west) rectangle (current page.north east);
@@ -242,7 +154,7 @@ function montarTex(dados, feedback, turma, dataEntrega) {
 
   \\node[anchor=north west,xshift=1.6cm,yshift=-14cm] at (current page.north west){%
     \\begin{minipage}{11cm}
-      {\\color{white}\\small\\setstretch{1.55} ${esc(feedback.encaminhamento || 'Avaliação gerada automaticamente pelo sistema Atelier.sh.')}}
+      {\\color{white}\\small\\setstretch{1.55} ${esc(fb.encaminhamento || '')}}
     \\end{minipage}};
 
   \\draw[white,opacity=0.2,line width=0.6pt]
@@ -277,9 +189,6 @@ function montarTex(dados, feedback, turma, dataEntrega) {
 \\newpage
 \\restoregeometry
 
-% ════════════════════════════════
-% PÁGINA 2 — RUBRICA
-% ════════════════════════════════
 \\newgeometry{top=1cm,bottom=2cm,left=1.6cm,right=1.6cm}
 
 \\vspace*{20pt}
@@ -289,7 +198,7 @@ function montarTex(dados, feedback, turma, dataEntrega) {
 \\vspace{10pt}
 
 \\renewcommand{\\arraystretch}{1.5}
-\\begin{tabularx}{\\linewidth}{>{{\\semibold\\color{ink}}}p{5cm} X >{\\centering\\arraybackslash}p{3cm}}
+\\begin{tabularx}{\\linewidth}{>{\\semibold\\color{ink}}p{5cm} X >{\\centering\\arraybackslash}p{3cm}}
   \\rowcolor{ink}
   \\color{white}\\semibold\\tiny\\MakeUppercase{Critério} &
   \\color{white}\\semibold\\tiny\\MakeUppercase{Disciplina / Fase} &
@@ -345,30 +254,14 @@ ${aDesenvolver}
 `
 }
 
-// ── Compila via latex.online ──────────────────────────────────
+// ── Compila via latex.ytotech ─────────────────────────────────
 async function compilarPDF(texContent) {
-  const formData = new FormData()
-  const texBlob = new Blob([texContent], { type: 'text/plain' })
-  formData.append('file', texBlob, 'devolutiva.tex')
-
   const res = await fetch('https://latex.ytotech.com/builds/sync', {
     method: 'POST',
-    headers: { 'Accept': 'application/json' },
-    body: JSON.stringify({
-      compiler: 'xelatex',
-      resources: [{ main: true, content: texContent }],
-    }),
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({ compiler: 'xelatex', resources: [{ main: true, content: texContent }] }),
   })
-
-  // Tenta latex.ytotech primeiro, fallback para latexonline.cc
-  if (!res.ok) {
-    const encodedTex = encodeURIComponent(texContent)
-    const url = `https://latexonline.cc/compile?text=${encodedTex}&command=xelatex`
-    const res2 = await fetch(url)
-    if (!res2.ok) throw new Error('Falha na compilação LaTeX')
-    return await res2.blob()
-  }
-
+  if (!res.ok) throw new Error('Compilação falhou')
   const data = await res.json()
   if (data.pdf) {
     const binary = atob(data.pdf)
@@ -376,7 +269,7 @@ async function compilarPDF(texContent) {
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
     return new Blob([bytes], { type: 'application/pdf' })
   }
-  throw new Error(data.error || 'Compilação falhou')
+  throw new Error(data.error || 'Sem PDF na resposta')
 }
 
 // ════════════════════════════════════════════════════════
@@ -384,41 +277,49 @@ async function compilarPDF(texContent) {
 // ════════════════════════════════════════════════════════
 export default function DevolutivaModal({ group, onClose }) {
   const avaliacao = useAvaliacao(group?.id, group?.org_id)
-  const crud = useAvaliacaoCrud(group?.id, group?.org_id)
+  const crud      = useAvaliacaoCrud(group?.id, group?.org_id)
   const { notes } = useNotes(group?.id, group?.org_id)
 
-  const [turma, setTurma] = useState('Turma A · 2026.1')
-  const [dataEntrega, setDataEntrega] = useState('22 de maio de 2026')
-  const [etapa, setEtapa] = useState('idle') // idle | coletando | gerando | compilando | pronto | erro
-  const [erro, setErro] = useState('')
-  const [texContent, setTexContent] = useState('')
-  const [pdfBlob, setPdfBlob] = useState(null)
+  const [turma,        setTurma]        = useState('Turma A · 2026.1')
+  const [dataEntrega,  setDataEntrega]  = useState('22 de maio de 2026')
+  const [etapa,        setEtapa]        = useState('idle') // idle | compilando | pronto | erro
+  const [erro,         setErro]         = useState('')
+  const [texContent,   setTexContent]   = useState('')
+  const [pdfBlob,      setPdfBlob]      = useState(null)
+
+  // Feedback manual — professor preenche
+  const [fb, setFb] = useState({
+    comentario_dt:  '',
+    comentario_dcu: '',
+    comentario_pi:  '',
+    pontos_fortes:  ['', '', ''],
+    a_desenvolver:  ['', '', ''],
+    encaminhamento: '',
+  })
 
   const { notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, loading } = avaliacao
 
-  async function gerarDevolutiva() {
+  const setLista = (campo, idx, val) =>
+    setFb(prev => ({ ...prev, [campo]: prev[campo].map((v, i) => i === idx ? val : v) }))
+  const addItem = campo =>
+    setFb(prev => ({ ...prev, [campo]: [...prev[campo], ''] }))
+  const removeItem = (campo, idx) =>
+    setFb(prev => ({ ...prev, [campo]: prev[campo].filter((_, i) => i !== idx) }))
+
+  async function gerar() {
     try {
       setErro('')
-      setEtapa('coletando')
-
-      const dados = coletarDadosAvaliacao(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, crud, notes)
-
-      setEtapa('gerando')
-      const feedback = await gerarTexComClaude(dados, turma, dataEntrega)
-
       setEtapa('compilando')
-      const tex = montarTex(dados, feedback, turma, dataEntrega)
+      const dados = coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, crud, notes)
+      const tex   = montarTex(dados, fb, turma, dataEntrega)
       setTexContent(tex)
-
       try {
         const blob = await compilarPDF(tex)
         setPdfBlob(blob)
-        setEtapa('pronto')
       } catch {
-        // Compilação online falhou — oferece download do .tex
         setPdfBlob(null)
-        setEtapa('pronto')
       }
+      setEtapa('pronto')
     } catch (e) {
       setErro(e.message || 'Erro desconhecido')
       setEtapa('erro')
@@ -440,108 +341,158 @@ export default function DevolutivaModal({ group, onClose }) {
     a.click()
   }
 
-  const etapaLabel = {
-    coletando:  'Coletando dados de avaliação...',
-    gerando:    'Claude está redigindo o feedback...',
-    compilando: 'Compilando o PDF via LaTeX...',
-  }
-
   const inp = {
-    width: '100%', padding: '8px 10px',
+    width: '100%', padding: '7px 10px',
     background: 'var(--surface)', border: '1px solid var(--border)',
-    color: 'var(--text)', ...mono, fontSize: 12,
+    color: 'var(--text)', ...mono, fontSize: 11,
     borderRadius: 'var(--radius)', outline: 'none', boxSizing: 'border-box',
+    resize: 'none',
   }
+  const label = (txt) => (
+    <div style={{ ...mono, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--text-dim)', marginBottom: 4 }}>{txt}</div>
+  )
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'var(--overlay)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
       onClick={e => e.target === e.currentTarget && onClose()}>
 
-      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius-md)', width: '100%', maxWidth: 520, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius-md)', width: '100%', maxWidth: 580, maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
         {/* Header */}
-        <div style={{ height: 3, background: 'linear-gradient(90deg, var(--red), var(--red-glow))' }} />
-        <div style={{ padding: '18px 24px 0', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div style={{ height: 3, background: 'linear-gradient(90deg, var(--red), var(--red-glow))', flexShrink: 0 }} />
+        <div style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
           <div>
-            <div style={{ ...mono, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--text-dim)', marginBottom: 4 }}>Gerar Devolutiva PDF</div>
-            <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 20, color: 'var(--text)', letterSpacing: '0.04em' }}>{group.name}</div>
+            <div style={{ ...mono, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--text-dim)', marginBottom: 2 }}>Devolutiva PDF</div>
+            <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 18, color: 'var(--text)' }}>{group.name}</div>
           </div>
           <button onClick={onClose} style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><X size={16} /></button>
         </div>
 
-        <div style={{ padding: '20px 24px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* Scroll body */}
+        <div style={{ overflowY: 'auto', padding: '20px 24px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-          {/* Config */}
           {etapa === 'idle' && (
             <>
-              <div style={{ ...mono, fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.6, padding: '10px 12px', background: 'var(--surface)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-                O sistema vai coletar todas as notas e anotações preenchidas, pedir ao Claude para redigir o feedback, montar o <strong style={{ color: 'var(--text-muted)' }}>.tex</strong> e compilar o PDF automaticamente.
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div>
-                  <label style={{ ...mono, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--text-dim)', display: 'block', marginBottom: 5 }}>Turma</label>
+              {/* Config básica */}
+              <div style={{ display: 'flex', gap: 10 }}>
+                <div style={{ flex: 1 }}>
+                  {label('Turma')}
                   <input value={turma} onChange={e => setTurma(e.target.value)} style={inp} />
                 </div>
-                <div>
-                  <label style={{ ...mono, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--text-dim)', display: 'block', marginBottom: 5 }}>Data de Entrega</label>
+                <div style={{ flex: 1 }}>
+                  {label('Data de Entrega')}
                   <input value={dataEntrega} onChange={e => setDataEntrega(e.target.value)} style={inp} />
                 </div>
               </div>
 
-              {loading && (
-                <div style={{ ...mono, fontSize: 11, color: 'var(--text-dim)' }}>carregando avaliações_</div>
-              )}
+              {/* Comentários por disciplina */}
+              {[
+                { key: 'comentario_dt',  label: 'Comentário — Design Thinking' },
+                { key: 'comentario_dcu', label: 'Comentário — Design Centrado no Usuário' },
+                { key: 'comentario_pi',  label: 'Comentário — Projeto Integrador' },
+                { key: 'encaminhamento', label: 'Encaminhamento final (aparece na capa)' },
+              ].map(({ key, label: lbl }) => (
+                <div key={key}>
+                  {label(lbl)}
+                  <textarea rows={2} value={fb[key]} placeholder="opcional..."
+                    onChange={e => setFb(prev => ({ ...prev, [key]: e.target.value }))}
+                    style={inp} />
+                </div>
+              ))}
 
-              <button onClick={gerarDevolutiva} disabled={loading}
+              {/* Pontos fortes */}
+              <div>
+                {label('Pontos Fortes')}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {fb.pontos_fortes.map((v, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <input value={v} placeholder={`Ponto forte ${i + 1}...`}
+                        onChange={e => setLista('pontos_fortes', i, e.target.value)}
+                        style={{ ...inp, flex: 1 }} />
+                      {fb.pontos_fortes.length > 1 && (
+                        <button onClick={() => removeItem('pontos_fortes', i)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', display: 'flex', padding: 2 }}
+                          onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
+                          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
+                          <Trash2 size={12} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button onClick={() => addItem('pontos_fortes')}
+                    style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 'var(--radius)', border: '1px dashed var(--border)', background: 'transparent', color: 'var(--text-dim)', ...mono, fontSize: 9, cursor: 'pointer' }}>
+                    <Plus size={10} /> adicionar
+                  </button>
+                </div>
+              </div>
+
+              {/* A desenvolver */}
+              <div>
+                {label('A Desenvolver')}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {fb.a_desenvolver.map((v, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <input value={v} placeholder={`Ponto a desenvolver ${i + 1}...`}
+                        onChange={e => setLista('a_desenvolver', i, e.target.value)}
+                        style={{ ...inp, flex: 1 }} />
+                      {fb.a_desenvolver.length > 1 && (
+                        <button onClick={() => removeItem('a_desenvolver', i)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', display: 'flex', padding: 2 }}
+                          onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
+                          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
+                          <Trash2 size={12} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button onClick={() => addItem('a_desenvolver')}
+                    style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 'var(--radius)', border: '1px dashed var(--border)', background: 'transparent', color: 'var(--text-dim)', ...mono, fontSize: 9, cursor: 'pointer' }}>
+                    <Plus size={10} /> adicionar
+                  </button>
+                </div>
+              </div>
+
+              {loading && <div style={{ ...mono, fontSize: 10, color: 'var(--text-dim)' }}>carregando avaliações_</div>}
+
+              <button onClick={gerar} disabled={loading}
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 20px', background: 'var(--red)', border: 'none', borderRadius: 'var(--radius)', color: '#fff', ...mono, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', opacity: loading ? 0.5 : 1 }}>
-                <Sparkles size={14} /> Gerar Devolutiva
+                <FileText size={14} /> Gerar Devolutiva
               </button>
             </>
           )}
 
-          {/* Loading */}
-          {['coletando', 'gerando', 'compilando'].includes(etapa) && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, padding: '24px 0' }}>
-              <div style={{ position: 'relative', width: 48, height: 48 }}>
+          {/* Compilando */}
+          {etapa === 'compilando' && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '24px 0' }}>
+              <div style={{ position: 'relative', width: 40, height: 40 }}>
                 <div style={{ position: 'absolute', inset: 0, border: '2px solid var(--border)', borderRadius: '50%' }} />
                 <div style={{ position: 'absolute', inset: 0, border: '2px solid var(--red)', borderRadius: '50%', borderRightColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
               </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ ...mono, fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>{etapaLabel[etapa]}</div>
-                <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-                  {['coletando', 'gerando', 'compilando'].map((e, i) => (
-                    <div key={e} style={{ width: 6, height: 6, borderRadius: '50%', background: ['coletando', 'gerando', 'compilando'].indexOf(etapa) >= i ? 'var(--red)' : 'var(--border)' }} />
-                  ))}
-                </div>
-              </div>
+              <div style={{ ...mono, fontSize: 11, color: 'var(--text-muted)' }}>Montando e compilando PDF...</div>
             </div>
           )}
 
           {/* Pronto */}
           {etapa === 'pronto' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(90,171,110,0.08)', border: '1px solid rgba(90,171,110,0.3)', borderRadius: 'var(--radius)' }}>
-                <CheckCircle size={16} style={{ color: '#5aab6e', flexShrink: 0 }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'rgba(90,171,110,0.08)', border: '1px solid rgba(90,171,110,0.3)', borderRadius: 'var(--radius)' }}>
+                <CheckCircle size={15} style={{ color: '#5aab6e', flexShrink: 0 }} />
                 <div style={{ ...mono, fontSize: 11, color: '#5aab6e' }}>
-                  {pdfBlob ? 'PDF gerado com sucesso!' : 'Feedback gerado! Compile o .tex no Overleaf.'}
+                  {pdfBlob ? 'PDF gerado com sucesso!' : '.tex gerado — compile no Overleaf (overleaf.com)'}
                 </div>
               </div>
-
               {pdfBlob && (
                 <button onClick={downloadPdf}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 20px', background: 'var(--red)', border: 'none', borderRadius: 'var(--radius)', color: '#fff', ...mono, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
-                  <Download size={14} /> Baixar PDF
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '11px 20px', background: 'var(--red)', border: 'none', borderRadius: 'var(--radius)', color: '#fff', ...mono, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                  <Download size={13} /> Baixar PDF
                 </button>
               )}
-
               <button onClick={downloadTex}
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 20px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-muted)', ...mono, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
-                <FileText size={14} /> Baixar .tex (Overleaf)
+                <FileText size={13} /> Baixar .tex (Overleaf)
               </button>
-
               <button onClick={() => { setEtapa('idle'); setPdfBlob(null); setTexContent('') }}
-                style={{ ...mono, fontSize: 10, color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'center', letterSpacing: '0.1em' }}>
+                style={{ ...mono, fontSize: 10, color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'center' }}>
                 gerar novamente
               </button>
             </div>
@@ -549,9 +500,9 @@ export default function DevolutivaModal({ group, onClose }) {
 
           {/* Erro */}
           {etapa === 'erro' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', background: 'var(--red-dim)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius)' }}>
-                <AlertTriangle size={15} style={{ color: 'var(--red)', flexShrink: 0, marginTop: 1 }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', background: 'var(--red-dim)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius)' }}>
+                <AlertTriangle size={14} style={{ color: 'var(--red)', flexShrink: 0, marginTop: 1 }} />
                 <div style={{ ...mono, fontSize: 11, color: 'var(--red)', lineHeight: 1.5 }}>{erro}</div>
               </div>
               <button onClick={() => setEtapa('idle')}
