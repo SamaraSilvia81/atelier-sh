@@ -39,7 +39,18 @@ export default function GroupModal({ group, trelloToken, trelloWorkspaceId, onCl
   const [stage,      setStage]      = useState(group?.stage || '')
 
   useEffect(() => {
-    if (trelloToken) fetchBoards(trelloToken).then(setBoards)
+    if (!trelloToken) return
+    fetchBoards(trelloToken).then(allBoards => {
+      setBoards(allBoards)
+      // Auto-corrige: se o salvo é um nome em vez de ID hex, resolve e atualiza
+      if (trelloBoardId && !/^[a-f0-9]{24}$/i.test(trelloBoardId)) {
+        const match = allBoards.find(b => b.name === trelloBoardId)
+        if (match) {
+          setTrelloBoardId(match.id)
+          setTrelloBoardName(match.name)
+        }
+      }
+    })
   }, [trelloToken])
 
   const [editingMemberId, setEditingMemberId] = useState(null)

@@ -89,7 +89,12 @@ export default function GrupoPagina({ org, trelloToken, isAdmin }) {
 
   // ── Trello ────────────────────────────────────────────────────
   useEffect(() => {
-    if (tab !== 'trello' || !group?.trello_board_id || !trelloToken || trelloLists.length > 0) return
+    // Reseta listas quando muda de grupo para forçar re-fetch
+    setTrelloLists([])
+  }, [group?.id])
+
+  useEffect(() => {
+    if (tab !== 'trello' || !group?.trello_board_id || !trelloToken) return
     let cancelled = false
     async function run() {
       setLoadingTab(l => ({ ...l, tr: true }))
@@ -109,7 +114,7 @@ export default function GrupoPagina({ org, trelloToken, isAdmin }) {
     }
     run()
     return () => { cancelled = true }
-  }, [tab, group?.trello_board_id, trelloToken])
+  }, [tab, group?.id, group?.trello_board_id, trelloToken])
 
   // ── Figma ─────────────────────────────────────────────────────
   useEffect(() => {
