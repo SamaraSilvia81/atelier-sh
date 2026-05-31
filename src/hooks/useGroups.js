@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from './useAuth'
+import { logActivity } from './useActivityLog'
 
 export function useGroups(orgId, projectId = null) {
+  const { user } = useAuth()
   const [groups,  setGroups]  = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -30,20 +33,30 @@ export function useGroups(orgId, projectId = null) {
       .from('groups')
       .insert({ ...payload, org_id: orgId, project_id: projectId || payload.project_id })
       .select().single()
-    if (!error) setGroups(prev => [...prev, data])
+    if (!error) {
+      setGroups(prev => [...prev, data])
+      await logActivity(orgId, user?.id, 'created', 'group', data.id, data.name)
+    }
     return { data, error }
   }
 
   async function updateGroup(id, payload) {
     const { data, error } = await supabase
       .from('groups').update(payload).eq('id', id).select().single()
-    if (!error) setGroups(prev => prev.map(g => g.id === id ? data : g))
+    if (!error) {
+      setGroups(prev => prev.map(g => g.id === id ? data : g))
+      await logActivity(orgId, user?.id, 'updated', 'group', id, data.name, { fields: Object.keys(payload) })
+    }
     return { data, error }
   }
 
   async function deleteGroup(id) {
+    const target = groups.find(g => g.id === id)
     const { error } = await supabase.from('groups').delete().eq('id', id)
-    if (!error) setGroups(prev => prev.filter(g => g.id !== id))
+    if (!error) {
+      setGroups(prev => prev.filter(g => g.id !== id))
+      await logActivity(orgId, user?.id, 'deleted', 'group', id, target?.name)
+    }
     return { error }
   }
 
