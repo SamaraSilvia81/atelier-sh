@@ -4,6 +4,7 @@ import { DISCIPLINAS, NIVEIS_AVALIACAO, PENALIZACOES_ATRASO } from '../../data/c
 import { useAvaliacao } from '../../hooks/useAvaliacao'
 import { useAvaliacaoCrud } from '../../hooks/useAvaliacaoCrud'
 import { useNotes } from '../../hooks/useNotes'
+import { supabase } from '../../lib/supabase'
 
 const mono = { fontFamily: 'var(--ff-mono)' }
 
@@ -83,19 +84,18 @@ Formato exato:
   "encaminhamento": "..."
 }`
 
-  const res = await fetch('/api/claude', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  const { data, error: fnError } = await supabase.functions.invoke('claude-proxy', {
+    body: {
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }],
-    }),
+    },
   })
 
-  if (!res.ok) throw new Error(`API error: ${res.status}`)
-  const data = await res.json()
-  const text = data.content?.find(b => b.type === 'text')?.text || ''
+  if (fnError) throw new Error(fnError.message || 'Erro na Edge Function')
+  if (data?.error) throw new Error(data.error)
+
+  const text = data?.content?.find(b => b.type === 'text')?.text || ''
   const clean = text.replace(/```json|```/g, '').trim()
   return JSON.parse(clean)
 }
