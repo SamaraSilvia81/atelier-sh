@@ -58,7 +58,7 @@ export function useAvaliacaoIndividual(groupId, orgId) {
   // ── Leitura ────────────────────────────────────────────────
   const getFator = (memberId, disciplina, fase) => {
     const r = contribuicoes.find(
-      c => c.member_id === memberId && c.disciplina === disciplina && c.fase === fase
+      c => String(c.member_id) === String(memberId) && c.disciplina === disciplina && c.fase === fase
     )
     return r?.fator || null
   }
@@ -71,10 +71,10 @@ export function useAvaliacaoIndividual(groupId, orgId) {
   }
 
   const getComportamental = (memberId, criterioId) => {
-    return comportamentais.find(c => c.member_id === memberId && c.criterio === criterioId)?.registro || ''
+    return comportamentais.find(c => String(c.member_id) === String(memberId) && c.criterio === criterioId)?.registro || ''
   }
 
-  const getExtras = (memberId) => extras.filter(e => e.member_id === memberId)
+  const getExtras = (memberId) => extras.filter(e => String(e.member_id) === String(memberId))
 
   const getTotalIndividual = (memberId, disciplinas, notasGrupo) => {
     let total = 0
@@ -103,12 +103,12 @@ export function useAvaliacaoIndividual(groupId, orgId) {
     // UPDATE OTIMÍSTICO — atualiza UI imediatamente, sem esperar o Supabase
     const updated = {
       org_id: orgId, group_id: groupId,
-      member_id: memberId, disciplina, fase,
+      member_id: String(memberId), disciplina, fase,
       fator, nota_calculada: notaCalculada
     }
     setContribuicoes(prev => {
       const idx = prev.findIndex(
-        c => c.member_id === memberId && c.disciplina === disciplina && c.fase === fase
+        c => String(c.member_id) === String(memberId) && c.disciplina === disciplina && c.fase === fase
       )
       if (idx >= 0) {
         const next = [...prev]
