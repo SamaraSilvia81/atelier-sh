@@ -84,15 +84,30 @@ Formato exato:
   "encaminhamento": "..."
 }`
 
-  const { data, error: fnError } = await supabase.functions.invoke('claude-proxy', {
-    body: {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+  const fnUrl = `${supabaseUrl}/functions/v1/claude-proxy`
+
+  const res = await fetch(fnUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${supabaseKey}`,
+      'apikey': supabaseKey,
+    },
+    body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }],
-    },
+    }),
   })
 
-  if (fnError) throw new Error(fnError.message || 'Erro na Edge Function')
+  if (!res.ok) {
+    const errText = await res.text()
+    throw new Error(`Edge Function error ${res.status}: ${errText}`)
+  }
+
+  const data = await res.json()
   if (data?.error) throw new Error(data.error)
 
   const text = data?.content?.find(b => b.type === 'text')?.text || ''

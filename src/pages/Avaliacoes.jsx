@@ -4,7 +4,8 @@ import { ChevronDown, Users, User } from 'lucide-react'
 import AvaliacaoTab from '../components/groups/AvaliacaoTab'
 
 export default function Avaliacoes({ org, projectId }) {
-  const { groups, loading } = useGroups(org?.id, projectId)
+  const orgId = org?.id
+  const { groups, loading } = useGroups(orgId, projectId)
   const [grupoId, setGrupoId] = useState(null)
   const [dropdownOpen, setDropdownOpen] = useState(false)
 
@@ -77,7 +78,7 @@ export default function Avaliacoes({ org, projectId }) {
           </div>
         ) : (
           <div style={{ flex: 1, overflow: 'auto' }}>
-            <AvaliacaoTab key={grupo.id} group={grupo} orgId={grupo.org_id || org?.id} />
+            <AvaliacaoTab key={grupo.id} group={grupo} orgId={grupo.org_id || orgId} />
           </div>
         )}
       </div>

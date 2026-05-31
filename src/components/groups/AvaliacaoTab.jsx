@@ -683,6 +683,13 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
 // ─── AvaliacaoTab principal ───────────────────────────────────
 export default function AvaliacaoTab({ group, orgId: orgIdProp }) {
   const resolvedOrgId = orgIdProp || group?.org_id
+
+  // DEBUG TEMPORÁRIO — remover após confirmar o problema
+  if (!resolvedOrgId) {
+    console.error('[AvaliacaoTab] orgId AUSENTE', { group_id: group?.id, org_id: group?.org_id, orgIdProp })
+  } else {
+    console.log('[AvaliacaoTab] orgId OK:', resolvedOrgId, '| group:', group?.id)
+  }
   const parseMaybeJson = (val, fallback = []) => {
     if (Array.isArray(val)) return val
     try { return JSON.parse(val) } catch { return fallback }
