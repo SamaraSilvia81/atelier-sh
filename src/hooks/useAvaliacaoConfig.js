@@ -123,10 +123,34 @@ export function useAvaliacaoConfig(groupId, orgId) {
           item_overrides: patch.itemOverrides ?? s.itemOverrides,
           fase_nome_edit: patch.faseNomeEdit  ?? s.faseNomeEdit,
         }
-        const { error } = await supabase
+
+        // upsert com group_id = NULL não funciona com onConflict normal
+        // porque NULL != NULL no PostgreSQL — fazemos select + insert/update manual
+        const { data: existing } = await supabase
           .from('avaliacoes_config')
-          .upsert(payload, { onConflict: 'org_id,group_id' })
+          .select('id')
+          .eq('org_id', orgId)
+          .is('group_id', null)
+          .maybeSingle()
+
+        let error
+        if (existing?.id) {
+          // UPDATE no registro existente
+          const { error: e } = await supabase
+            .from('avaliacoes_config')
+            .update(payload)
+            .eq('id', existing.id)
+          error = e
+        } else {
+          // INSERT novo registro
+          const { error: e } = await supabase
+            .from('avaliacoes_config')
+            .insert(payload)
+          error = e
+        }
+
         if (error) throw error
+        console.log('[persistirOrg] salvo OK')
       } catch (e) {
         const msg = e?.message || JSON.stringify(e)
         console.error('[useAvaliacaoConfig] salvar org erro:', msg)
