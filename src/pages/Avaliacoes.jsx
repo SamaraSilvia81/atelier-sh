@@ -68,7 +68,7 @@ export default function Avaliacoes({ org, projectId }) {
       </div>
 
       {/* Conteúdo */}
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
+      <div style={{ flex: 1, overflow: 'auto', display: 'flex' }}>
         {!grupoId ? (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, fontFamily: 'var(--ff-mono)' }}>
             <div style={{ fontSize: 32, color: 'var(--text-dim)', opacity: 0.3 }}>◈</div>
@@ -76,7 +76,7 @@ export default function Avaliacoes({ org, projectId }) {
             <div style={{ fontSize: 10, color: 'var(--text-dim)', opacity: 0.6 }}>use o seletor acima para escolher o grupo</div>
           </div>
         ) : (
-          <div style={{ flex: 1, overflow: 'hidden' }}>
+          <div style={{ flex: 1, overflow: 'auto' }}>
             <AvaliacaoTab group={grupo} />
           </div>
         )}
