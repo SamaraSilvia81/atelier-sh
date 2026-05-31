@@ -12,4 +12,20 @@ export default defineConfig({
     // que o Vercel ativa automaticamente.
     minify: false,
   },
+  server: {
+    proxy: {
+      '/api/claude': {
+        target: 'https://api.anthropic.com',
+        changeOrigin: true,
+        rewrite: () => '/v1/messages',
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            const key = process.env.ANTHROPIC_API_KEY || ''
+            proxyReq.setHeader('x-api-key', key)
+            proxyReq.setHeader('anthropic-version', '2023-06-01')
+          })
+        },
+      },
+    },
+  },
 })

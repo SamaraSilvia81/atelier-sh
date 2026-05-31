@@ -956,7 +956,8 @@ export default function AvaliacaoTab({ group }) {
                     const datas = faseDatas[fase.nome] || {}
                     const temAlguma = datas.prazo || datas.avaliado_em || datas.feedback_em
                     const campos = [
-                      { key: 'prazo',       label: 'Prazo',     title: 'prazo da atividade' },
+                      { key: 'inicio',      label: 'Início',    title: 'data de início da atividade' },
+                      { key: 'fim',         label: 'Fim',       title: 'data de entrega / prazo final' },
                       { key: 'avaliado_em', label: 'Avaliado',  title: 'data da avaliação' },
                       { key: 'feedback_em', label: 'Feedback',  title: 'data do feedback aos alunos' },
                     ]
