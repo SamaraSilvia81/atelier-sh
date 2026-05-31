@@ -50,7 +50,12 @@ export function useAvaliacaoConfig(groupId, orgId) {
 
       if (data) {
         if (data.niveis_custom  && data.niveis_custom.length)  setNiveisCustom(data.niveis_custom)
-        if (data.fatores_custom && data.fatores_custom.length) setFatoresCustom(data.fatores_custom)
+        if (data.fatores_custom && data.fatores_custom.length) {
+          // Merge: preserva fatores salvos mas adiciona novos que não existam
+          const saved = Object.fromEntries(data.fatores_custom.map(f => [f.id, f]))
+          const merged = Object.entries(FATORES).map(([id, f]) => saved[id] ? saved[id] : { id, ...f })
+          setFatoresCustom(merged)
+        }
         if (data.base_overrides) setBaseOverrides(data.base_overrides)
         if (data.item_overrides) setItemOverrides(data.item_overrides)
         if (data.fase_nome_edit) setFaseNomeEdit(data.fase_nome_edit)

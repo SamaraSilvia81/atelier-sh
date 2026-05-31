@@ -543,7 +543,7 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
                           return (
                             <button key={key} type="button"
                               onClick={() => {
-                                const notaCalculada = Math.min(notaFase * f.mult, notaFase * 1.10)
+                                const notaCalculada = parseFloat((notaFase * f.mult).toFixed(2))
                                 salvarFator(membroAtivo, disc.id, fase.nome, key, notaCalculada)
                               }}
                               style={{

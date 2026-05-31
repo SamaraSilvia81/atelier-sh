@@ -466,7 +466,7 @@ export default function GrupoPagina({ org, trelloToken, isAdmin }) {
 
         {/* ── AVALIAÇÃO ───────────────────────────────────────── */}
         {tab === 'avaliacao' && (
-          <AvaliacaoTab group={group} />
+          <AvaliacaoTab group={{ ...group, org_id: group.org_id || org?.id }} />
         )}
 
         {/* ── FIGMA ───────────────────────────────────────────── */}
