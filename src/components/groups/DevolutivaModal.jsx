@@ -282,7 +282,7 @@ export default function DevolutivaModal({ group, orgId: orgIdProp, org, onClose 
         path,
         content: tex,
         message: `devolutiva: ${group.name} — imersão ${new Date().toLocaleDateString('pt-BR')}`,
-        groupToken: group.github_token,
+        groupToken: undefined, // usa sempre o token global das configurações
       })
 
       if (result.error) throw new Error(result.error)
