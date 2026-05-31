@@ -86,9 +86,8 @@ Formato exato:
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
   const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-  const fnUrl = `${supabaseUrl}/functions/v1/claude-proxy`
 
-  const res = await fetch(fnUrl, {
+  const res = await fetch(`${supabaseUrl}/functions/v1/claude-proxy-atelier`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -104,7 +103,7 @@ Formato exato:
 
   if (!res.ok) {
     const errText = await res.text()
-    throw new Error(`Edge Function error ${res.status}: ${errText}`)
+    throw new Error(`Erro ${res.status}: ${errText}`)
   }
 
   const data = await res.json()
