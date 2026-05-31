@@ -77,7 +77,7 @@ export default function Avaliacoes({ org, projectId }) {
           </div>
         ) : (
           <div style={{ flex: 1, overflow: 'auto' }}>
-            <AvaliacaoTab group={grupo} />
+            <AvaliacaoTab key={grupo.id} group={{ ...grupo, org_id: grupo.org_id || org?.id }} />
           </div>
         )}
       </div>

@@ -88,7 +88,8 @@ export function useAvaliacaoIndividual(groupId, orgId) {
   // ── Escrita com update otimístico ──────────────────────────
   const salvarFator = useCallback(async (memberId, disciplina, fase, fator, notaCalculada) => {
     if (!groupId || !orgId) {
-      console.warn('[useAvaliacaoIndividual] salvarFator: groupId ou orgId ausente', { groupId, orgId })
+      console.error('[useAvaliacaoIndividual] salvarFator: groupId ou orgId ausente', { groupId, orgId })
+      setErro('⚠ Não foi possível salvar — org_id ausente. Recarregue a página.')
       return
     }
 
