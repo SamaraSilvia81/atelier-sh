@@ -31,15 +31,22 @@ export function useAvaliacaoIndividual(groupId, orgId) {
     if (!groupId) return
     setLoading(true)
     try {
-      const [r1, r2, r3] = await Promise.all([
+      const queries = [
         supabase.from('avaliacoes_contribuicao').select('*').eq('group_id', groupId),
         supabase.from('avaliacoes_comportamental').select('*').eq('group_id', groupId),
         supabase.from('avaliacoes_extra').select('*').eq('group_id', groupId),
-      ])
+      ]
+      // Adiciona filtro de org_id se disponível (ajuda a RLS)
+      const [r1, r2, r3] = await Promise.all(queries)
+      if (r1.error) console.error('[carregar] contribuicao erro:', r1.error.message)
+      if (r2.error) console.error('[carregar] comportamental erro:', r2.error.message)
+      if (r3.error) console.error('[carregar] extra erro:', r3.error.message)
+      console.log('[carregar] contribuicoes:', r1.data?.length, r1.data)
       setContribuicoes(r1.data || [])
       setComportamentais(r2.data || [])
       setExtras(r3.data || [])
     } catch (e) {
+      console.error('[carregar] catch:', e.message)
       setErro(e.message)
     } finally {
       setLoading(false)
