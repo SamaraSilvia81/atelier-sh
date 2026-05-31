@@ -8,7 +8,7 @@ function getToken() {
 function auth(token) { return `key=${KEY}&token=${token || getToken()}` }
 
 export function getTrelloAuthUrl() {
-  return `https://trello.com/1/authorize?expiration=never&scope=read,write&response_type=token&key=${KEY}&name=Atelier.sh&return_url=${encodeURIComponent(window.location.origin)}`
+  return `https://trello.com/1/authorize?expiration=never&scope=read,write,account&response_type=token&key=${KEY}&name=Atelier.sh&return_url=${encodeURIComponent(window.location.origin)}`
 }
 
 export async function fetchWorkspaces(token) {
@@ -21,13 +21,12 @@ export async function fetchWorkspaces(token) {
 
 export async function fetchBoards(token, workspaceId) {
   try {
-    // Busca TODOS os boards acessíveis (incluindo compartilhados de outros workspaces)
-    // e filtra por workspace apenas se especificado
+    // filter=all inclui boards onde você é convidada (guest) de outros workspaces
     const res = await fetch(
-      `${BASE}/members/me/boards?${auth(token)}&fields=id,name,url,dateLastActivity,closed,idOrganization&filter=open&memberships=all`
+      `${BASE}/members/me/boards?${auth(token)}&fields=id,name,url,dateLastActivity,closed,idOrganization&filter=all&memberships=all`
     )
     if (!res.ok) return []
-    const all = await res.json()
+    const all = (await res.json()).filter(b => !b.closed)
     if (workspaceId) return all.filter(b => b.idOrganization === workspaceId)
     return all
   } catch { return [] }
