@@ -134,12 +134,24 @@ export default function GroupModal({ group, trelloToken, trelloWorkspaceId, onCl
             </div>
             <div className="field">
               <label style={lbl}>board do trello</label>
-              {boards.length > 0 ? (
-                <select value={trelloBoardId} onChange={e => { const b = boards.find(b=>b.id===e.target.value); setTrelloBoardId(e.target.value); setTrelloBoardName(b?.name||'') }} style={{ ...inp, appearance:'none' }}>
-                  <option value="">— sem board —</option>
-                  {boards.map(b => <option key={b.id} value={b.id}>{b.name}{b.idOrganization ? '' : ' (pessoal)'}</option>)}
-                </select>
-              ) : (
+              {boards.length > 0 ? (() => {
+                // Resolve: se o salvo é um nome em vez de ID, encontra o ID correto
+                const isHexId = /^[a-f0-9]{24}$/i.test(trelloBoardId)
+                const resolvedId = isHexId
+                  ? trelloBoardId
+                  : (boards.find(b => b.name === trelloBoardId)?.id || trelloBoardId)
+                // Auto-corrige o estado se necessário
+                if (resolvedId !== trelloBoardId && resolvedId.length === 24) {
+                  const b = boards.find(b => b.id === resolvedId)
+                  setTimeout(() => { setTrelloBoardId(resolvedId); setTrelloBoardName(b?.name || '') }, 0)
+                }
+                return (
+                  <select value={resolvedId} onChange={e => { const b = boards.find(b=>b.id===e.target.value); setTrelloBoardId(e.target.value); setTrelloBoardName(b?.name||'') }} style={{ ...inp, appearance:'none' }}>
+                    <option value="">— sem board —</option>
+                    {boards.map(b => <option key={b.id} value={b.id}>{b.name}{!b.idOrganization ? ' (pessoal)' : ''}</option>)}
+                  </select>
+                )
+              })() : (
                 <input value={trelloBoardId} onChange={e => setTrelloBoardId(e.target.value)} placeholder="configure o token Trello nas configurações" style={inp} />
               )}
             </div>

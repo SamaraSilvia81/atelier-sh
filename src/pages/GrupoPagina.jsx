@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { fetchRepoInfo, fetchAtas, fetchAllCommits, fetchIssues, timeAgo } from '../lib/github'
-import { fetchBoardLists } from '../lib/trello'
+import { fetchBoardLists, fetchBoards } from '../lib/trello'
 import { fetchFigmaFile } from '../lib/figma'
 import {
   ChevronLeft, Pencil, FileText, GitBranch,
@@ -94,7 +94,15 @@ export default function GrupoPagina({ org, trelloToken, isAdmin }) {
     async function run() {
       setLoadingTab(l => ({ ...l, tr: true }))
       try {
-        const data = await fetchBoardLists(trelloToken, group.trello_board_id)
+        let boardId = group.trello_board_id
+        // Se o salvo parece um nome (não tem 24 chars hex), resolve pelo nome
+        const isHexId = /^[a-f0-9]{24}$/i.test(boardId)
+        if (!isHexId) {
+          const allBoards = await fetchBoards(trelloToken)
+          const match = allBoards.find(b => b.name === boardId || b.id === boardId)
+          if (match) boardId = match.id
+        }
+        const data = await fetchBoardLists(trelloToken, boardId)
         if (!cancelled) setTrelloLists(data)
       } catch { /* ignore */ }
       finally { if (!cancelled) setLoadingTab(l => ({ ...l, tr: false })) }
