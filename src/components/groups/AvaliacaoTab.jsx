@@ -166,7 +166,7 @@ function CriterioRow({
     // Se desmarcou o nível, zera o atraso também
     const atrasoFinal = novoNivel === null ? 'sem_atraso' : novoAtraso
     if (novoNivel === null) setAtrasoLocal('sem_atraso')
-    const n = calcNota(cr.max, novoNivel, atrasoFinal)
+    const n = novoNivel === null ? 0 : calcNota(cr.max, novoNivel, atrasoFinal)
     onSave(discId, faseNome, cr.id, cr.max, n, undefined, novoNivel, atrasoFinal)
   }
 
