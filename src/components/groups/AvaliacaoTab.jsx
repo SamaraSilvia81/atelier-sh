@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { ChevronDown, ChevronRight, AlertTriangle, FileText, X,
-  Plus, Trash2, Pencil, Check, User, Users, Info, Calendar } from 'lucide-react'
+  Plus, Trash2, Pencil, Check, User, Users, Info, Calendar, Download } from 'lucide-react'
 import { useAvaliacao }            from '../../hooks/useAvaliacao'
 import { useAvaliacaoIndividual,
          FATORES, CRITERIOS_COMPORTAMENTAIS } from '../../hooks/useAvaliacaoIndividual'
@@ -9,6 +9,7 @@ import { useAvaliacaoConfig }      from '../../hooks/useAvaliacaoConfig'
 import { useNotes }                from '../../hooks/useNotes'
 import { DISCIPLINAS, NIVEIS_AVALIACAO, PENALIZACOES_ATRASO } from '../../data/criterios'
 import NoteEditor                  from '../notes/NoteEditor'
+import DevolutivaModal             from './DevolutivaModal'
 
 // ─── Helpers ─────────────────────────────────────────────────
 const pct = (v, m) => m > 0 ? Math.min(100, (v / m) * 100) : 0
@@ -687,6 +688,7 @@ export default function AvaliacaoTab({ group }) {
   const [discAtiva,     setDiscAtiva]     = useState('dt')
   const [fasesAbertas,  setFasesAbertas]  = useState({})
   const [editMode,      setEditMode]      = useState(false)
+  const [showDevolutiva, setShowDevolutiva] = useState(false)
   const [regrasAbertas, setRegrasAbertas] = useState(false)
   const [addingFase,    setAddingFase]    = useState(false)
   const [novaFaseNome,  setNovaFaseNome]  = useState('')
@@ -759,6 +761,7 @@ export default function AvaliacaoTab({ group }) {
   const fasesAtivas = crud.getFasesDisciplina(discAtiva)
 
   return (
+    <>
     <div style={{ ...mono }}>
       <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
@@ -811,6 +814,10 @@ export default function AvaliacaoTab({ group }) {
           </div>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             {saving && <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>›_ salvando...</span>}
+            <button type="button" onClick={() => setShowDevolutiva(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-dim)', fontSize: 10, cursor: 'pointer' }}>
+              <Download size={11} /> devolutiva PDF
+            </button>
             <button type="button" onClick={() => setEditMode(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 'var(--radius)', border: `1px solid ${editMode ? 'var(--border-red)' : 'var(--border)'}`, background: editMode ? 'var(--red-dim)' : 'var(--surface)', color: editMode ? 'var(--red)' : 'var(--text-dim)', fontSize: 10, cursor: 'pointer' }}>
               <Pencil size={11} /> {editMode ? 'sair da edição' : 'editar critérios'}
             </button>
@@ -1080,5 +1087,10 @@ export default function AvaliacaoTab({ group }) {
         <div style={{ height: 20 }} />
       </div>
     </div>
+
+    {showDevolutiva && (
+      <DevolutivaModal group={group} onClose={() => setShowDevolutiva(false)} />
+    )}
+    </>
   )
 }
