@@ -683,11 +683,6 @@ export default function NotesPanel({ group, orgId, onClose, inline = false, hide
         <div style={{ width: listOpen ? 220 : 0, minWidth: listOpen ? 220 : 0, borderRight: listOpen ? '1px solid var(--border)' : 'none', display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden', transition: 'width 0.2s ease, min-width 0.2s ease' }}>
           <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div style={{ display: 'flex', gap: 5 }}>
-              {hideHeader && (
-                <button onClick={() => setListOpen(v => !v)} title={listOpen ? 'Retrair lista' : 'Expandir lista'} style={{ color: 'var(--text-muted)', padding: '5px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-                  <PanelLeftClose size={13} />
-                </button>
-              )}
               <button onClick={() => setAddingFolder(true)} disabled={addingFolder} className="btn btn-ghost"
                 style={{ flex: 1, justifyContent: 'center', fontSize: 10, padding: '5px 8px', gap: 4 }}>
                 <FolderPlus size={11} /> pasta
@@ -811,25 +806,6 @@ export default function NotesPanel({ group, orgId, onClose, inline = false, hide
           </div>
         </div>
 
-        {/* Botão flutuante expandir lista quando retraída */}
-        {!listOpen && (
-          <button
-            onClick={() => setListOpen(true)}
-            title="Expandir lista"
-            style={{
-              position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)',
-              zIndex: 5, background: 'var(--bg-alt)', border: '1px solid var(--border)',
-              borderLeft: 'none', borderRadius: '0 var(--radius) var(--radius) 0',
-              padding: '10px 5px', cursor: 'pointer', color: 'var(--text-dim)',
-              display: 'flex', alignItems: 'center', transition: 'all var(--fast)',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.borderColor = 'var(--border-red)' }}
-            onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-dim)'; e.currentTarget.style.borderColor = 'var(--border)' }}
-          >
-            <PanelLeftOpen size={13} />
-          </button>
-        )}
-
         {/* Editor */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
           {activeNote ? (
@@ -850,6 +826,9 @@ export default function NotesPanel({ group, orgId, onClose, inline = false, hide
                   </span>
                 )}
                 <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                  <button onClick={() => setListOpen(v => !v)} title={listOpen ? 'retrair lista' : 'expandir lista'} style={{ padding: '4px 6px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                    {listOpen ? <PanelLeftClose size={11} /> : <PanelLeftOpen size={11} />}
+                  </button>
                   <button onClick={() => togglePin(activeNote.id, activeNote.pinned)} title={activeNote.pinned ? 'desafixar' : 'fixar'} style={{ padding: '4px 6px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: activeNote.pinned ? 'var(--red-dim)' : 'var(--surface)', color: activeNote.pinned ? '#F0EDE8' : 'var(--text-muted)', cursor: 'pointer' }}>
                     {activeNote.pinned ? <PinOff size={11} /> : <Pin size={11} />}
                   </button>
@@ -907,9 +886,18 @@ export default function NotesPanel({ group, orgId, onClose, inline = false, hide
               </div>
             </>
           ) : (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, color: 'var(--text-muted)' }}>
-              <div style={{ fontSize: 13, fontFamily: 'var(--ff-mono)' }}>selecione ou crie uma nota</div>
-              <button onClick={handleCreate} className="btn btn-primary" style={{ fontSize: 13 }}><Plus size={13} /> nova nota</button>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              {!listOpen && (
+                <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)', display: 'flex' }}>
+                  <button onClick={() => setListOpen(true)} title="expandir lista" style={{ padding: '4px 6px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                    <PanelLeftOpen size={11} />
+                  </button>
+                </div>
+              )}
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, color: 'var(--text-muted)' }}>
+                <div style={{ fontSize: 13, fontFamily: 'var(--ff-mono)' }}>selecione ou crie uma nota</div>
+                <button onClick={handleCreate} className="btn btn-primary" style={{ fontSize: 13 }}><Plus size={13} /> nova nota</button>
+              </div>
             </div>
           )}
         </div>
