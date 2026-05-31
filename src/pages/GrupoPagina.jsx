@@ -12,6 +12,7 @@ import {
 import GroupModal  from '../components/groups/GroupModal'
 import NotesPanel  from '../components/notes/NotesPanel'
 import AvaliacaoTab from '../components/groups/AvaliacaoTab'
+import TrelloKanban from '../components/groups/TrelloKanban'
 
 export default function GrupoPagina({ org, trelloToken, isAdmin }) {
   const { id }   = useParams()
@@ -410,25 +411,11 @@ export default function GrupoPagina({ org, trelloToken, isAdmin }) {
                 ))}
 
                 {trelloView === 'kanban' && (
-                  <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8 }}>
-                    {trelloLists.map(list => (
-                      <div key={list.id} style={{ minWidth: 220, flexShrink: 0, background: 'var(--surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', padding: '10px 10px 12px' }}>
-                        <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.2em', color: 'var(--red)', textTransform: 'uppercase', marginBottom: 10, display: 'flex', justifyContent: 'space-between' }}>
-                          <span>{list.name}</span>
-                          <span style={{ color: 'var(--text-dim)', background: 'var(--bg-card)', borderRadius: 10, padding: '1px 6px', border: '1px solid var(--border)' }}>{list.cards?.length || 0}</span>
-                        </div>
-                        {list.cards?.map(card => (
-                          <a key={card.id} href={card.url} target="_blank" rel="noopener noreferrer"
-                            style={{ display: 'block', padding: '8px 10px', marginBottom: 6, background: 'var(--bg-card)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-muted)', textDecoration: 'none', lineHeight: 1.4 }}>
-                            {card.name}
-                          </a>
-                        ))}
-                        {(list.cards?.length || 0) === 0 && (
-                          <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, color: 'var(--text-dim)', padding: '6px 4px', textAlign: 'center' }}>— vazio —</div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                  <TrelloKanban
+                    lists={trelloLists}
+                    token={trelloToken}
+                    boardId={group.trello_board_id}
+                  />
                 )}
               </>
             )}
