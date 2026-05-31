@@ -6,33 +6,25 @@ import { FATORES } from './useAvaliacaoIndividual'
 const NIVEIS_DEFAULT = NIVEIS_AVALIACAO.map(n => ({
   ...n,
   display: {
-    completo: 'Completo',
-    faltou_pouco: 'Faltou pouco',
-    faltou_muito: 'Faltou muito',
-    errado: 'Errado',
-    nao_fez: 'Não fez',
+    completo:             'Completo',
+    completo_ressalvas:   'Completo c/ ressalvas',
+    faltou_pouco:         'Faltou pouco',
+    faltou_pouco_erros:   'Faltou pouco c/ erros',
+    faltou_muito:         'Faltou muito',
+    faltou_muito_erros:   'Faltou muito e errou',
+    errado:               'Errado',
+    nao_fez:              'Não fez',
   }[n.id] || n.label,
 }))
 
 const FATORES_DEFAULT = Object.entries(FATORES).map(([id, f]) => ({ id, ...f }))
 
 // ─────────────────────────────────────────────────────────────
-// Separação clara de escopo:
+// ESCOPO ORG  (group_id = null) — template global da org
+//   niveis_custom, fatores_custom, base_overrides, item_overrides, fase_nome_edit
 //
-//  ESCOPO ORG  (group_id = null) — template global da org
-//    • niveis_custom    → aparência dos botões de avaliação
-//    • fatores_custom   → fatores de contribuição individual
-//    • base_overrides   → rename/max de critérios base
-//    • item_overrides   → checklists editados
-//    • fase_nome_edit   → rename de fases
-//
-//  ESCOPO GRUPO (group_id = <uuid>) — dados únicos por grupo
-//    • etapas           → checkboxes marcados (progresso)
-//    • fase_datas       → datas de cada fase
-//
-// Ao carregar: busca org-template + grupo.
-// Ao salvar itens/base/niveis/fatores → persiste no org-template.
-// Ao salvar etapas/datas → persiste no grupo.
+// ESCOPO GRUPO (group_id = <uuid>) — dados únicos por grupo
+//   etapas, fase_datas
 // ─────────────────────────────────────────────────────────────
 
 export function useAvaliacaoConfig(groupId, orgId) {
@@ -40,26 +32,26 @@ export function useAvaliacaoConfig(groupId, orgId) {
   const [saving,  setSaving]  = useState(false)
   const [erro,    setErro]    = useState(null)
 
-  const [niveisCustom,  setNiveisCustom]  = useState(NIVEIS_DEFAULT)
-  const [fatoresCustom, setFatoresCustom] = useState(FATORES_DEFAULT)
-  const [baseOverrides, setBaseOverrides] = useState({})
-  const [itemOverrides, setItemOverrides] = useState({})
-  const [faseNomeEdit,  setFaseNomeEdit]  = useState({})
-  const [etapas,        setEtapas]        = useState({})
-  const [faseDatas,     setFaseDatas]     = useState({})
+  const [niveisCustom,  setNiveisCustomRaw]  = useState(NIVEIS_DEFAULT)
+  const [fatoresCustom, setFatoresCustomRaw] = useState(FATORES_DEFAULT)
+  const [baseOverrides, setBaseOverridesRaw] = useState({})
+  const [itemOverrides, setItemOverridesRaw] = useState({})
+  const [faseNomeEdit,  setFaseNomeEditRaw]  = useState({})
+  const [etapas,        setEtapasRaw]        = useState({})
+  const [faseDatas,     setFaseDatasRaw]     = useState({})
 
-  const debounceOrgRef   = useRef(null)
-  const debounceGrpRef   = useRef(null)
+  const debounceOrgRef = useRef(null)
+  const debounceGrpRef = useRef(null)
   const stateRef = useRef({})
   stateRef.current = { niveisCustom, fatoresCustom, baseOverrides, itemOverrides, faseNomeEdit, etapas, faseDatas }
 
-  // ── Carregar: org-template + grupo ───────────────────────
+  // ── Carregar ──────────────────────────────────────────────
   const carregar = useCallback(async () => {
     if (!orgId) return
     setLoading(true)
     setErro(null)
     try {
-      // 1. Template global da org (group_id IS NULL)
+      // 1. Template global da org
       const { data: orgData, error: orgErr } = await supabase
         .from('avaliacoes_config')
         .select('*')
@@ -70,15 +62,15 @@ export function useAvaliacaoConfig(groupId, orgId) {
       if (orgErr) throw orgErr
 
       if (orgData) {
-        if (orgData.niveis_custom  && orgData.niveis_custom.length)  setNiveisCustom(orgData.niveis_custom)
-        if (orgData.fatores_custom && orgData.fatores_custom.length) {
+        if (orgData.niveis_custom?.length)  setNiveisCustomRaw(orgData.niveis_custom)
+        if (orgData.fatores_custom?.length) {
           const saved  = Object.fromEntries(orgData.fatores_custom.map(f => [f.id, f]))
           const merged = Object.entries(FATORES).map(([id, f]) => saved[id] ? saved[id] : { id, ...f })
-          setFatoresCustom(merged)
+          setFatoresCustomRaw(merged)
         }
-        if (orgData.base_overrides) setBaseOverrides(orgData.base_overrides)
-        if (orgData.item_overrides) setItemOverrides(orgData.item_overrides)
-        if (orgData.fase_nome_edit) setFaseNomeEdit(orgData.fase_nome_edit)
+        if (orgData.base_overrides) setBaseOverridesRaw(orgData.base_overrides)
+        if (orgData.item_overrides) setItemOverridesRaw(orgData.item_overrides)
+        if (orgData.fase_nome_edit) setFaseNomeEditRaw(orgData.fase_nome_edit)
       }
 
       // 2. Config específica do grupo (etapas + datas)
@@ -86,14 +78,15 @@ export function useAvaliacaoConfig(groupId, orgId) {
         const { data: grpData, error: grpErr } = await supabase
           .from('avaliacoes_config')
           .select('etapas, fase_datas')
+          .eq('org_id', orgId)
           .eq('group_id', groupId)
           .maybeSingle()
 
         if (grpErr) throw grpErr
 
         if (grpData) {
-          if (grpData.etapas)     setEtapas(grpData.etapas)
-          if (grpData.fase_datas) setFaseDatas(grpData.fase_datas)
+          if (grpData.etapas)     setEtapasRaw(grpData.etapas || {})
+          if (grpData.fase_datas) setFaseDatasRaw(grpData.fase_datas || {})
         }
       }
     } catch (e) {
@@ -111,7 +104,7 @@ export function useAvaliacaoConfig(groupId, orgId) {
 
   useEffect(() => { carregar() }, [carregar])
 
-  // ── Persistir template da org (itens, nomes, níveis, fatores) ─
+  // ── Persistir template da org ─────────────────────────────
   const persistirOrg = useCallback((patch) => {
     if (!orgId) return
     if (debounceOrgRef.current) clearTimeout(debounceOrgRef.current)
@@ -122,7 +115,7 @@ export function useAvaliacaoConfig(groupId, orgId) {
         const s = stateRef.current
         const payload = {
           org_id:         orgId,
-          group_id:       null,   // ← null = template da org
+          group_id:       null,
           niveis_custom:  patch.niveisCustom  ?? s.niveisCustom,
           fatores_custom: patch.fatoresCustom ?? s.fatoresCustom,
           base_overrides: patch.baseOverrides ?? s.baseOverrides,
@@ -143,7 +136,7 @@ export function useAvaliacaoConfig(groupId, orgId) {
     }, 500)
   }, [orgId])
 
-  // ── Persistir config do grupo (etapas + datas) ───────────
+  // ── Persistir config do grupo ─────────────────────────────
   const persistirGrupo = useCallback((patch) => {
     if (!groupId || !orgId) return
     if (debounceGrpRef.current) clearTimeout(debounceGrpRef.current)
@@ -154,8 +147,8 @@ export function useAvaliacaoConfig(groupId, orgId) {
         const payload = {
           org_id:     orgId,
           group_id:   groupId,
-          etapas:     patch.etapas     ?? s.etapas,
-          fase_datas: patch.faseDatas  ?? s.faseDatas,
+          etapas:     patch.etapas    ?? s.etapas,
+          fase_datas: patch.faseDatas ?? s.faseDatas,
         }
         const { error } = await supabase
           .from('avaliacoes_config')
@@ -169,22 +162,59 @@ export function useAvaliacaoConfig(groupId, orgId) {
     }, 500)
   }, [groupId, orgId])
 
-  // ── Setter factory ────────────────────────────────────────
-  // scope: 'org' | 'grupo'
-  function makeSetter(localSet, patchKey, scope = 'org') {
-    return useCallback((val) => {
-      localSet(prev => {
-        const next = typeof val === 'function' ? val(prev) : val
-        if (scope === 'org')   persistirOrg({ [patchKey]: next })
-        else                   persistirGrupo({ [patchKey]: next })
-        return next
-      })
-    }, [scope === 'org' ? persistirOrg : persistirGrupo])
-  }
+  // ── Setters com persistência — SEM useCallback dentro de função ──
+  // Escopo ORG
+  const setNiveisCustom = useCallback((val) => {
+    setNiveisCustomRaw(prev => {
+      const next = typeof val === 'function' ? val(prev) : val
+      persistirOrg({ niveisCustom: next })
+      return next
+    })
+  }, [persistirOrg])
 
-  // ── Setter especial para datas ────────────────────────────
+  const setFatoresCustom = useCallback((val) => {
+    setFatoresCustomRaw(prev => {
+      const next = typeof val === 'function' ? val(prev) : val
+      persistirOrg({ fatoresCustom: next })
+      return next
+    })
+  }, [persistirOrg])
+
+  const setBaseOverrides = useCallback((val) => {
+    setBaseOverridesRaw(prev => {
+      const next = typeof val === 'function' ? val(prev) : val
+      persistirOrg({ baseOverrides: next })
+      return next
+    })
+  }, [persistirOrg])
+
+  const setItemOverrides = useCallback((val) => {
+    setItemOverridesRaw(prev => {
+      const next = typeof val === 'function' ? val(prev) : val
+      persistirOrg({ itemOverrides: next })
+      return next
+    })
+  }, [persistirOrg])
+
+  const setFaseNomeEdit = useCallback((val) => {
+    setFaseNomeEditRaw(prev => {
+      const next = typeof val === 'function' ? val(prev) : val
+      persistirOrg({ faseNomeEdit: next })
+      return next
+    })
+  }, [persistirOrg])
+
+  // Escopo GRUPO
+  const setEtapas = useCallback((val) => {
+    setEtapasRaw(prev => {
+      const next = typeof val === 'function' ? val(prev) : val
+      persistirGrupo({ etapas: next })
+      return next
+    })
+  }, [persistirGrupo])
+
   const updateFaseDatas = useCallback((faseNome, campo, valor) => {
-    setFaseDatas(prev => {
+    setFaseDatasRaw(prev => {
       const next = {
         ...prev,
         [faseNome]: { ...(prev[faseNome] || {}), [campo]: valor || null }
@@ -197,13 +227,13 @@ export function useAvaliacaoConfig(groupId, orgId) {
   return {
     loading, saving, erro,
     // Escopo org — globais para todos os grupos
-    niveisCustom,  setNiveisCustom:  makeSetter(setNiveisCustom,  'niveisCustom',  'org'),
-    fatoresCustom, setFatoresCustom: makeSetter(setFatoresCustom, 'fatoresCustom', 'org'),
-    baseOverrides, setBaseOverrides: makeSetter(setBaseOverrides, 'baseOverrides', 'org'),
-    itemOverrides, setItemOverrides: makeSetter(setItemOverrides, 'itemOverrides', 'org'),
-    faseNomeEdit,  setFaseNomeEdit:  makeSetter(setFaseNomeEdit,  'faseNomeEdit',  'org'),
+    niveisCustom,  setNiveisCustom,
+    fatoresCustom, setFatoresCustom,
+    baseOverrides, setBaseOverrides,
+    itemOverrides, setItemOverrides,
+    faseNomeEdit,  setFaseNomeEdit,
     // Escopo grupo — únicos por grupo
-    etapas,        setEtapas:        makeSetter(setEtapas,        'etapas',        'grupo'),
+    etapas,        setEtapas,
     faseDatas, updateFaseDatas,
     recarregar: carregar,
   }

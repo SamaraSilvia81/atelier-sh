@@ -22,9 +22,19 @@ function coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina
         const atrasoInfo = PENALIZACOES_ATRASO.find(a => a.id === atraso)
         const nota = notaGrupo(disc.id, cr.id) ?? 0
         const notaVinculada = notes.find(n => n.title === `Avaliação: ${cr.nome}`)
-        const comentario = notaVinculada?.content
-          ? notaVinculada.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
-          : ''
+        // Extrai texto da nota vinculada (editor rico → texto puro)
+        let comentario = ''
+        if (notaVinculada?.content) {
+          const tmp = notaVinculada.content
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<\/p>/gi, '\n')
+            .replace(/<\/li>/gi, '\n')
+            .replace(/<[^>]*>/g, '')
+            .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+            .replace(/&nbsp;/g, ' ').replace(/&quot;/g, '"')
+            .replace(/\n{3,}/g, '\n\n').trim()
+          comentario = tmp
+        }
         return { id: cr.id, nome: cr.nome, max: cr.max, nota, nivelLabel: nivelInfo?.label || '—', atrasoLabel: atrasoInfo?.label || '—', comentario }
       })
       return {
@@ -61,10 +71,16 @@ function montarTex(dados, fb, turma, dataEntrega) {
 
   const rubricaRows = disciplinas.flatMap(d =>
     d.fases.flatMap(f =>
-      f.criterios.map(c => `
+      f.criterios.map(c => {
+        const comentarioCriterio = c.comentario
+          ? `
+  \\multicolumn{3}{p{\\linewidth}}{\\small\\color{textmid}\\setstretch{1.45}${esc(c.comentario)}} \\\\`
+          : ''
+        return `
   \\rowcolor{bg}
-  {\\semibold\\small ${esc(c.nome)}} & \\small\\color{textmid}${esc(d.id.toUpperCase())} — ${esc(f.nome.split('—')[0].trim())} & {\\${chip(c.nota, c.max)} ${notaFmt(c.nota)} / ${notaFmt(c.max)}} \\\\
-  \\arrayrulecolor{bordercolor}\\hline`)
+  {\\semibold\\small ${esc(c.nome)}} & \\small\\color{textmid}${esc(d.id.toUpperCase())} — ${esc(f.nome.split('—')[0].trim())} & {\\${chip(c.nota, c.max)} ${notaFmt(c.nota)} / ${notaFmt(c.max)}} \\\\${comentarioCriterio}
+  \\arrayrulecolor{bordercolor}\\hline`
+      })
     )
   ).join('')
 
@@ -275,10 +291,11 @@ async function compilarPDF(texContent) {
 // ════════════════════════════════════════════════════════
 // COMPONENTE PRINCIPAL
 // ════════════════════════════════════════════════════════
-export default function DevolutivaModal({ group, onClose }) {
-  const avaliacao = useAvaliacao(group?.id, group?.org_id)
-  const crud      = useAvaliacaoCrud(group?.id, group?.org_id)
-  const { notes } = useNotes(group?.id, group?.org_id)
+export default function DevolutivaModal({ group, orgId: orgIdProp, onClose }) {
+  const resolvedOrgId = orgIdProp || group?.org_id
+  const avaliacao = useAvaliacao(group?.id, resolvedOrgId)
+  const crud      = useAvaliacaoCrud(group?.id, resolvedOrgId)
+  const { notes } = useNotes(group?.id, resolvedOrgId)
 
   const [turma,        setTurma]        = useState('Turma A · 2026.1')
   const [dataEntrega,  setDataEntrega]  = useState('22 de maio de 2026')

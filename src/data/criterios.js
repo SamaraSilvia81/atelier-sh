@@ -1,10 +1,24 @@
 // ── Níveis de avaliação ───────────────────────────────────────
+// Progressão: completude × qualidade — do melhor cenário ao pior.
+// Lógica: você olha o checklist → decide o nível → nível gera a nota.
+// O checklist é apoio pedagógico, não cálculo automático.
 export const NIVEIS_AVALIACAO = [
-  { id: 'completo',      label: 'Fez certo e completo',      pct: 1.00, cor: '#5aab6e', emoji: '✅' },
-  { id: 'faltou_pouco',  label: 'Fez, faltou coisas',        pct: 0.70, cor: '#7F77DD', emoji: '🟡' },
-  { id: 'faltou_muito',  label: 'Fez, faltou muita coisa',   pct: 0.40, cor: '#c8922a', emoji: '🟠' },
-  { id: 'errado',        label: 'Fez errado, mas fez',        pct: 0.20, cor: '#e06060', emoji: '🔴' },
-  { id: 'nao_fez',       label: 'Não fez',                   pct: 0.00, cor: '#888',    emoji: '⬛' },
+  { id: 'completo',              label: 'Completo',                  pct: 1.00, cor: '#5aab6e', emoji: '✅',
+    desc: 'Fez tudo e fez certo. Critério plenamente atendido.' },
+  { id: 'completo_ressalvas',    label: 'Completo c/ ressalvas',     pct: 0.85, cor: '#7F77DD', emoji: '🔵',
+    desc: 'Fez tudo, mas algo ficou incorreto ou impreciso. Esforço total, qualidade com falha.' },
+  { id: 'faltou_pouco',         label: 'Faltou pouco',              pct: 0.75, cor: '#4CA3C7', emoji: '🟦',
+    desc: 'Fez bastante e acertou o que fez. Faltaram partes, mas o que entregou presta.' },
+  { id: 'faltou_pouco_erros',   label: 'Faltou pouco c/ erros',     pct: 0.60, cor: '#78A86A', emoji: '🟡',
+    desc: 'Fez bastante, mas errou partes relevantes. Metade do caminho com qualidade irregular.' },
+  { id: 'faltou_muito',         label: 'Faltou muito',              pct: 0.40, cor: '#c8922a', emoji: '🟠',
+    desc: 'Fez pouco, mas o que fez está correto. Entrega incompleta, execução ok.' },
+  { id: 'faltou_muito_erros',   label: 'Faltou muito e errou',      pct: 0.25, cor: '#e06060', emoji: '🔶',
+    desc: 'Fez pouco e ainda errou. Esforço baixo, qualidade baixa.' },
+  { id: 'errado',               label: 'Errado',                    pct: 0.10, cor: '#b03030', emoji: '🔴',
+    desc: 'Tentou, mas a abordagem foi incorreta por completo. Reconhece a tentativa.' },
+  { id: 'nao_fez',              label: 'Não fez',                   pct: 0.00, cor: '#888',    emoji: '⬛',
+    desc: 'Critério não entregue.' },
 ]
 
 // ── Penalização por atraso ────────────────────────────────────
@@ -13,7 +27,7 @@ export const PENALIZACOES_ATRASO = [
   { id: 'atraso_1',       label: 'Até 1 dia',        dias: 1,    desconto: 0.10 },
   { id: 'atraso_2_3',     label: '2–3 dias',         dias: 3,    desconto: 0.20 },
   { id: 'atraso_mais3',   label: 'Mais de 3 dias',   dias: 999,  desconto: 0.30 },
-  { id: 'nao_entregou',   label: 'Não entregou',     dias: -1,   desconto: 1.00 }, // zera
+  { id: 'nao_entregou',   label: 'Não entregou',     dias: -1,   desconto: 1.00 },
 ]
 
 // ── Critérios de avaliação de grupo: DT, DCU, PI ─────────────
@@ -138,7 +152,7 @@ export const DISCIPLINAS = [
   },
 ]
 
-// ── Critérios individuais ────────────────────────────────────
+// ── Critérios individuais ─────────────────────────────────────
 export const CRITERIOS_INDIVIDUAIS = [
   { id: 'proatividade',           nome: 'Proatividade',              max: 10, descricao: 'Age antes de ser cobrado. Antecipa problemas e toma iniciativa sem esperar instrução.' },
   { id: 'resolucao-problemas',    nome: 'Resolução de Problemas',    max: 10, descricao: 'Consegue identificar o problema com clareza e propor ou buscar soluções de forma estruturada.' },

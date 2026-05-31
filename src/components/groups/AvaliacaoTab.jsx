@@ -381,11 +381,31 @@ function CriterioRow({
               )
             })}
 
-            {itensAtivos.length > 0 && (
-              <div style={{ ...mono, fontSize: 9, color: 'var(--text-dim)', padding: '2px 4px' }}>
-                {itensAtivos.filter((_, i) => etapas[`${discId}-${cr.id}-item-${i}`]).length} / {itensAtivos.length} etapas concluídas
-              </div>
-            )}
+            {itensAtivos.length > 0 && (() => {
+              const marcados = itensAtivos.filter((_, i) => etapas[`${discId}-${cr.id}-item-${i}`]).length
+              const total = itensAtivos.length
+              const ratio = marcados / total
+              // Sugestão de nível baseada na proporção — você decide o nível final
+              const sugestao = ratio >= 1.0 ? { label: 'Completo', cor: '#5aab6e' }
+                : ratio >= 0.85 ? { label: 'Quase completo', cor: '#7F77DD' }
+                : ratio >= 0.65 ? { label: 'Faltou pouco', cor: '#4CA3C7' }
+                : ratio >= 0.45 ? { label: 'Faltou bastante', cor: '#c8922a' }
+                : ratio >= 0.20 ? { label: 'Faltou muito', cor: '#e06060' }
+                : { label: 'Não fez / Errado', cor: '#888' }
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 4px' }}>
+                  <span style={{ ...mono, fontSize: 9, color: 'var(--text-dim)' }}>
+                    {marcados} / {total} checks
+                  </span>
+                  <div style={{ flex: 1, height: 3, borderRadius: 2, background: 'var(--border)', overflow: 'hidden', maxWidth: 80 }}>
+                    <div style={{ height: '100%', width: `${ratio * 100}%`, background: sugestao.cor, transition: 'width 0.2s' }} />
+                  </div>
+                  <span style={{ ...mono, fontSize: 8, color: sugestao.cor, opacity: 0.8 }}>
+                    → sugere: {sugestao.label}
+                  </span>
+                </div>
+              )
+            })()}
 
             {/* Adicionar item em editMode */}
             {editMode && (
@@ -1035,7 +1055,7 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp }) {
                       onRemoveCustom={crud.removerCriterio}
                       onEditCustom={(dbId, changes) => crud.editarCriterio(dbId, changes)}
                       onEditBase={handleEditBase}
-                      groupId={group?.id} orgId={group?.org_id}
+                      groupId={group?.id} orgId={resolvedOrgId}
                       itensOverride={itemOverrides[`${discAtiva}-${cr.id}`] ?? null}
                       onSetItens={handleSetItens}
                       etapas={etapas} setEtapas={setEtapas}
@@ -1120,7 +1140,7 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp }) {
     </div>
 
     {showDevolutiva && (
-      <DevolutivaModal group={group} onClose={() => setShowDevolutiva(false)} />
+      <DevolutivaModal group={group} orgId={resolvedOrgId} onClose={() => setShowDevolutiva(false)} />
     )}
     </>
   )
