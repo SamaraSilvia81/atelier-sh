@@ -176,8 +176,14 @@ export default function Notes({ org }) {
     <div className="page-wrap" style={{ height: '100vh', overflow: 'hidden' }}>
 
       {/* ── Header ── */}
-      <header style={{ borderBottom: '1px solid var(--border)', padding: '14px 32px', background: 'var(--header-bg)', backdropFilter: 'blur(12px)', flexShrink: 0 }}>
-        <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, letterSpacing: '0.2em', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>
+      <header style={{ borderBottom: '1px solid var(--border)', padding: '10px 32px', background: 'var(--header-bg)', backdropFilter: 'blur(12px)', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+        {!sidebarOpen && (
+          <button onClick={() => setSidebarOpen(true)} title="expandir sidebar"
+            style={{ padding: '4px 6px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', marginRight: 12, flexShrink: 0 }}>
+            <PanelLeftOpen size={11} />
+          </button>
+        )}
+        <div style={{ flex: 1, fontFamily: 'var(--ff-mono)', fontSize: 11, letterSpacing: '0.2em', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>
           atelier.sh
           <span style={{ color: 'var(--border-bright)', margin: '0 10px' }}>·</span>
           <span style={{ color: 'var(--text-sub)' }}>{org?.name || 'sem org'}</span>
@@ -292,12 +298,6 @@ export default function Notes({ org }) {
             <>
               {/* barra de título + ações */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-card)', flexShrink: 0, flexWrap: 'wrap' }}>
-                {!sidebarOpen && (
-                  <button onClick={() => setSidebarOpen(true)} title="expandir sidebar"
-                    style={{ padding: '4px 6px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                    <PanelLeftOpen size={11} />
-                  </button>
-                )}
                 {editingTitle === activeNote.id ? (
                   <input autoFocus defaultValue={activeNote.title}
                     onBlur={e => { updateNote(activeNote.id, { title: e.target.value }); setEditingTitle(null) }}
@@ -388,16 +388,7 @@ export default function Notes({ org }) {
               </div>
             </>
           ) : (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-              {!sidebarOpen && (
-                <div style={{ padding: '9px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-card)', flexShrink: 0 }}>
-                  <button onClick={() => setSidebarOpen(true)} title="expandir sidebar"
-                    style={{ padding: '4px 6px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                    <PanelLeftOpen size={11} />
-                  </button>
-                </div>
-              )}
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
                 <FileText size={36} style={{ color: 'var(--text-dim)', opacity: 0.25 }} />
                 <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 22, letterSpacing: '0.08em', color: 'var(--text-dim)' }}>SELECIONE UMA NOTA</div>
                 <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.15em' }}>ou crie uma nova ao lado</div>
@@ -406,7 +397,6 @@ export default function Notes({ org }) {
                     <Plus size={12} /> nova anotação
                   </button>
                 )}
-              </div>
             </div>
           )}
         </div>
