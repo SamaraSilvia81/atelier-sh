@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, FileText, Download, CheckCircle, AlertTriangle, Plus, Trash2 } from 'lucide-react'
+import { X, FileText, Download, CheckCircle, AlertTriangle, Plus, Trash2, Loader, Sparkles } from 'lucide-react'
 import { DISCIPLINAS, NIVEIS_AVALIACAO, PENALIZACOES_ATRASO } from '../../data/criterios'
 import { useAvaliacao } from '../../hooks/useAvaliacao'
 import { useAvaliacaoCrud } from '../../hooks/useAvaliacaoCrud'
@@ -314,7 +314,76 @@ export default function DevolutivaModal({ group, orgId: orgIdProp, onClose }) {
     encaminhamento: '',
   })
 
-  const { notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, loading } = avaliacao
+  const [gerandoIA, setGerandoIA] = useState(false)
+
+  async function gerarComClaude() {
+    try {
+      setGerandoIA(true)
+      setErro('')
+      const dados = coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, crud, notes)
+
+      const resumo = dados.disciplinas.map(d =>
+        `## ${d.nome} (${d.total.toFixed(2)} / ${d.max} pts)\n` +
+        d.fases.map(f =>
+          `### ${f.nome} (${f.totalFase.toFixed(2)} / ${f.maxFase} pts)\n` +
+          f.criterios.map(c =>
+            `- ${c.nome}: ${c.nota.toFixed(2)}/${c.max} [${c.nivelLabel}]${c.comentario ? `\n  Anotação: "${c.comentario.substring(0, 150)}"` : ''}`
+          ).join('\n')
+        ).join('\n')
+      ).join('\n\n')
+
+      const prompt = `Você é professora de Design Thinking e Projeto Integrador do ensino técnico brasileiro (ETE Cícero Dias, Recife).
+Redija feedback oficial para o grupo "${group.name}" com base nos dados:
+
+${resumo}
+
+NOTA FINAL: ${dados.totalGeral.toFixed(2)} / 30 pts
+
+Responda APENAS em JSON válido sem markdown:
+{
+  "comentario_dt": "2-3 frases sobre Design Thinking",
+  "comentario_dcu": "2-3 frases sobre DCU",
+  "comentario_pi": "2-3 frases sobre Projeto Integrador",
+  "pontos_fortes": ["frase curta", "frase curta", "frase curta"],
+  "a_desenvolver": ["frase curta", "frase curta", "frase curta"],
+  "encaminhamento": "2-3 frases sobre próximos passos"
+}`
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+      const res = await fetch(`${supabaseUrl}/functions/v1/claude-proxy-atelier`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseKey}`,
+          'apikey': supabaseKey,
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      })
+
+      if (!res.ok) throw new Error(`Erro ${res.status}`)
+      const data = await res.json()
+      const text = data?.content?.find(b => b.type === 'text')?.text || ''
+      const generated = JSON.parse(text.replace(/```json|```/g, '').trim())
+      setFb({
+        comentario_dt:  generated.comentario_dt  || '',
+        comentario_dcu: generated.comentario_dcu || '',
+        comentario_pi:  generated.comentario_pi  || '',
+        pontos_fortes:  generated.pontos_fortes  || ['', '', ''],
+        a_desenvolver:  generated.a_desenvolver  || ['', '', ''],
+        encaminhamento: generated.encaminhamento || '',
+      })
+    } catch (e) {
+      setErro(`Erro ao gerar com Claude: ${e.message}`)
+    } finally {
+      setGerandoIA(false)
+    }
+  }
 
   const setLista = (campo, idx, val) =>
     setFb(prev => ({ ...prev, [campo]: prev[campo].map((v, i) => i === idx ? val : v) }))
@@ -390,6 +459,16 @@ export default function DevolutivaModal({ group, orgId: orgIdProp, onClose }) {
 
           {etapa === 'idle' && (
             <>
+              {/* Botão gerar com Claude */}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button onClick={gerarComClaude} disabled={gerandoIA || loading}
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 16px', background: gerandoIA ? 'var(--surface)' : 'var(--red)', border: `1px solid ${gerandoIA ? 'var(--border)' : 'var(--red)'}`, borderRadius: 'var(--radius)', color: gerandoIA ? 'var(--text-dim)' : '#fff', ...mono, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: gerandoIA ? 'default' : 'pointer' }}>
+                  {gerandoIA ? <><Loader size={13} style={{ animation: 'spin 0.8s linear infinite' }} /> gerando com Claude...</> : <><Sparkles size={13} /> Preencher automaticamente com Claude</>}
+                </button>
+              </div>
+              {erro && <div style={{ ...mono, fontSize: 11, color: 'var(--red)', padding: '8px 12px', background: 'var(--red-dim)', borderRadius: 'var(--radius)', border: '1px solid var(--border-red)' }}>⚠ {erro}</div>}
+              <div style={{ ...mono, fontSize: 9, color: 'var(--text-dim)', textAlign: 'center', letterSpacing: '0.1em' }}>— ou preencha manualmente abaixo —</div>
+
               {/* Config básica */}
               <div style={{ display: 'flex', gap: 10 }}>
                 <div style={{ flex: 1 }}>
