@@ -126,30 +126,36 @@ export function useAvaliacaoConfig(groupId, orgId) {
 
         // upsert com group_id = NULL não funciona com onConflict normal
         // porque NULL != NULL no PostgreSQL — fazemos select + insert/update manual
-        const { data: existing } = await supabase
+        const { data: existing, error: selErr } = await supabase
           .from('avaliacoes_config')
           .select('id')
           .eq('org_id', orgId)
           .is('group_id', null)
           .maybeSingle()
 
+        console.log('[persistirOrg] existing:', existing, 'selErr:', selErr)
+        console.log('[persistirOrg] payload:', JSON.stringify(payload).slice(0, 200))
+
         let error
         if (existing?.id) {
-          // UPDATE no registro existente
+          console.log('[persistirOrg] fazendo UPDATE no id:', existing.id)
           const { error: e } = await supabase
             .from('avaliacoes_config')
             .update(payload)
             .eq('id', existing.id)
           error = e
         } else {
-          // INSERT novo registro
+          console.log('[persistirOrg] fazendo INSERT')
           const { error: e } = await supabase
             .from('avaliacoes_config')
             .insert(payload)
           error = e
         }
 
-        if (error) throw error
+        if (error) {
+          console.error('[persistirOrg] erro:', error.message, error.code, error.details)
+          throw error
+        }
         console.log('[persistirOrg] salvo OK')
       } catch (e) {
         const msg = e?.message || JSON.stringify(e)
