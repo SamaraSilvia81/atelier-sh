@@ -169,3 +169,7 @@
   padding: 10px 14px;
   border-top: 1px solid var(--border);
 }
+/* ── Strike / Link ─────────────────────────────────────────────────── */
+.ProseMirror s { color: var(--text-dim); text-decoration: line-through; }
+.ProseMirror a { color: var(--red); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.ProseMirror a:hover { opacity: 0.8; }

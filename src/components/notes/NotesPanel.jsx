@@ -7,6 +7,9 @@ import { Table } from '@tiptap/extension-table'
 import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
+import Link from '@tiptap/extension-link'
+import TaskList from '@tiptap/extension-task-list'
+import TaskItem from '@tiptap/extension-task-item'
 
 // Extensão de imagem com resize via width/height
 const ResizableImage = TiptapImage.extend({
@@ -24,9 +27,10 @@ import { pushFileToRepo } from '../../lib/github'
 import { createTrelloCard, fetchBoardLists } from '../../lib/trello'
 import {
   X, Plus, Pin, PinOff, Trash2, Bold, Italic, List, ListOrdered,
-  Heading2, Code, Download, Send, LayoutList, ImageIcon, CheckCircle2, AlertCircle,
+  Heading1, Heading2, Heading3, Code, Code2, Download, Send, LayoutList, ImageIcon, CheckCircle2, AlertCircle,
   Globe, Lock, User, FolderPlus, Folder, FolderOpen, ChevronRight, ChevronDown, PanelLeftClose, PanelLeftOpen,
-  Pencil, Upload, Copy, LayoutTemplate, FileText, Table2
+  Pencil, Upload, Copy, LayoutTemplate, FileText, Table2, Quote, Strikethrough, Minus, Link as LinkIcon,
+  CheckSquare, Undo2, Redo2
 } from 'lucide-react'
 import { useSounds } from '../../hooks/useSounds'
 import { useNoteTemplates } from '../../hooks/useNoteTemplates'
@@ -412,6 +416,9 @@ function NoteEditor({ note, onUpdate }) {
       TableRow,
       TableHeader,
       TableCell,
+      Link.configure({ openOnClick: false, HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' } }),
+      TaskList,
+      TaskItem.configure({ nested: true }),
     ],
     content: note.content || '',
     onUpdate: ({ editor }) => {
@@ -456,24 +463,97 @@ function NoteEditor({ note, onUpdate }) {
     }
   }, [note.id])
 
+  const Sep = () => <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 3px', flexShrink: 0 }} />
+
+  // modal de link
+  const [showLinkModal, setShowLinkModal] = useState(false)
+  const [linkUrl, setLinkUrl] = useState('')
+
+  function applyLink() {
+    if (!linkUrl.trim()) { editor.chain().focus().unsetLink().run(); setShowLinkModal(false); return }
+    const url = linkUrl.startsWith('http') ? linkUrl : `https://${linkUrl}`
+    editor.chain().focus().setLink({ href: url }).run()
+    setShowLinkModal(false)
+    setLinkUrl('')
+  }
+
   if (!editor) return null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', gap: 2, padding: '7px 12px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', flexShrink: 0, background: 'var(--bg-alt)', alignItems: 'center' }}>
-        <ToolbarBtn action={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="negrito" icon={<Bold size={12} />} />
-        <ToolbarBtn action={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} title="itálico" icon={<Italic size={12} />} />
-        <ToolbarBtn action={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} title="título" icon={<Heading2 size={12} />} />
+      {/* ── Toolbar ── */}
+      <div style={{ display: 'flex', gap: 1, padding: '5px 10px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', flexShrink: 0, background: 'var(--bg-alt)', alignItems: 'center' }}>
+
+        {/* Undo / Redo */}
+        <ToolbarBtn action={() => editor.chain().focus().undo().run()} active={false} title="desfazer (ctrl+z)" icon={<Undo2 size={12} />} />
+        <ToolbarBtn action={() => editor.chain().focus().redo().run()} active={false} title="refazer (ctrl+y)" icon={<Redo2 size={12} />} />
+        <Sep />
+
+        {/* Títulos H1 H2 H3 */}
+        <ToolbarBtn action={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} title="título 1" icon={<Heading1 size={12} />} />
+        <ToolbarBtn action={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} title="título 2" icon={<Heading2 size={12} />} />
+        <ToolbarBtn action={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })} title="título 3" icon={<Heading3 size={12} />} />
+        <Sep />
+
+        {/* Formatação inline */}
+        <ToolbarBtn action={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="negrito (ctrl+b)" icon={<Bold size={12} />} />
+        <ToolbarBtn action={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} title="itálico (ctrl+i)" icon={<Italic size={12} />} />
+        <ToolbarBtn action={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive('strike')} title="riscado" icon={<Strikethrough size={12} />} />
+        <ToolbarBtn action={() => editor.chain().focus().toggleCode().run()} active={editor.isActive('code')} title="código inline" icon={<Code size={12} />} />
+        <Sep />
+
+        {/* Listas */}
         <ToolbarBtn action={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} title="lista" icon={<List size={12} />} />
         <ToolbarBtn action={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} title="numerada" icon={<ListOrdered size={12} />} />
-        <ToolbarBtn action={() => editor.chain().focus().toggleCode().run()} active={editor.isActive('code')} title="código" icon={<Code size={12} />} />
-        <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 4px' }} />
+        <ToolbarBtn action={() => editor.chain().focus().toggleTaskList().run()} active={editor.isActive('taskList')} title="checklist" icon={<CheckSquare size={12} />} />
+        <Sep />
+
+        {/* Bloco */}
+        <ToolbarBtn action={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote')} title="citação" icon={<Quote size={12} />} />
+        <ToolbarBtn action={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive('codeBlock')} title="bloco de código" icon={<Code2 size={12} />} />
+        <ToolbarBtn action={() => editor.chain().focus().setHorizontalRule().run()} active={false} title="linha divisória" icon={<Minus size={12} />} />
+        <Sep />
+
+        {/* Link */}
+        <ToolbarBtn
+          action={() => { setLinkUrl(editor.getAttributes('link').href || ''); setShowLinkModal(true) }}
+          active={editor.isActive('link')} title="inserir link" icon={<LinkIcon size={12} />}
+        />
+
+        {/* Imagem */}
         <ToolbarBtn action={() => setShowImgModal(true)} active={false} title="inserir imagem (ou ctrl+v)" icon={<ImageIcon size={12} />} />
+
+        {/* Tabela */}
         <ToolbarBtn
           action={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
-          active={editor.isActive('table')} title="inserir tabela / editar tabela" icon={<Table2 size={12} />} />
-        <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', opacity: 0.7 }}>ctrl+v · clique na imagem para redimensionar</span>
+          active={editor.isActive('table')} title="inserir tabela" icon={<Table2 size={12} />}
+        />
+
+        <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', opacity: 0.6, marginLeft: 4 }}>ctrl+v · clique na imagem para redimensionar</span>
       </div>
+
+      {/* Modal de link */}
+      {showLinkModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'var(--overlay)', zIndex: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => e.target === e.currentTarget && setShowLinkModal(false)}>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-red)', borderRadius: 'var(--radius-md)', padding: 20, width: 340 }}>
+            <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--text-dim)', marginBottom: 10 }}>inserir link</div>
+            <input
+              autoFocus value={linkUrl} onChange={e => setLinkUrl(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') applyLink(); if (e.key === 'Escape') setShowLinkModal(false) }}
+              placeholder="https://..."
+              style={{ width: '100%', padding: '8px 10px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontFamily: 'var(--ff-mono)', fontSize: 12, borderRadius: 'var(--radius)', outline: 'none', boxSizing: 'border-box', marginBottom: 10 }}
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setShowLinkModal(false)} className="btn btn-ghost" style={{ flex: 1 }}>cancelar</button>
+              {editor.isActive('link') && (
+                <button onClick={() => { editor.chain().focus().unsetLink().run(); setShowLinkModal(false) }} className="btn btn-ghost" style={{ flex: 1, color: 'var(--red)' }}>remover</button>
+              )}
+              <button onClick={applyLink} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>aplicar</button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Menu contextual de tabela — aparece quando cursor está dentro de uma tabela */}
       <TableMenu editor={editor} />
       <EditorContent editor={editor} style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }} />
