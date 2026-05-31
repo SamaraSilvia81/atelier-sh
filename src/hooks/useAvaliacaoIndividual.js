@@ -118,10 +118,14 @@ export function useAvaliacaoIndividual(groupId, orgId) {
         updated,
         { onConflict: 'group_id,member_id,disciplina,fase' }
       )
-      if (error) throw error
+      if (error) {
+        console.error('[salvarFator] ERRO SUPABASE:', error.message, error.code, error.details, error.hint)
+        throw error
+      }
+      console.log('[salvarFator] SALVO OK:', { memberId, disciplina, fase, fator })
     } catch (e) {
+      console.error('[salvarFator] CATCH:', e.message)
       setErro(e.message)
-      // Rollback: recarregar do DB
       carregar()
     } finally {
       setSaving(false)
