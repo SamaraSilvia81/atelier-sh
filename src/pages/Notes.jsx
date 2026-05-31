@@ -286,31 +286,18 @@ export default function Notes({ org }) {
           </div>
         </div>
 
-        {/* ── Botão flutuante para expandir sidebar quando retraída ── */}
-        {!sidebarOpen && (
-          <button
-            onClick={() => setSidebarOpen(true)}
-            title="Expandir sidebar"
-            style={{
-              position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)',
-              zIndex: 10, background: 'var(--bg-alt)', border: '1px solid var(--border)',
-              borderLeft: 'none', borderRadius: '0 var(--radius) var(--radius) 0',
-              padding: '10px 5px', cursor: 'pointer', color: 'var(--text-dim)',
-              display: 'flex', alignItems: 'center', transition: 'all var(--fast)',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.borderColor = 'var(--border-red)' }}
-            onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-dim)'; e.currentTarget.style.borderColor = 'var(--border)' }}
-          >
-            <PanelLeftOpen size={13} />
-          </button>
-        )}
-
         {/* ── EDITOR ── */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
           {activeNote ? (
             <>
               {/* barra de título + ações */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-card)', flexShrink: 0, flexWrap: 'wrap' }}>
+                {!sidebarOpen && (
+                  <button onClick={() => setSidebarOpen(true)} title="expandir sidebar"
+                    style={{ padding: '4px 6px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    <PanelLeftOpen size={11} />
+                  </button>
+                )}
                 {editingTitle === activeNote.id ? (
                   <input autoFocus defaultValue={activeNote.title}
                     onBlur={e => { updateNote(activeNote.id, { title: e.target.value }); setEditingTitle(null) }}
@@ -401,15 +388,25 @@ export default function Notes({ org }) {
               </div>
             </>
           ) : (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
-              <FileText size={36} style={{ color: 'var(--text-dim)', opacity: 0.25 }} />
-              <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 22, letterSpacing: '0.08em', color: 'var(--text-dim)' }}>SELECIONE UMA NOTA</div>
-              <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.15em' }}>ou crie uma nova ao lado</div>
-              {groups.length > 0 && (
-                <button onClick={() => handleCreate(null)} className="btn btn-primary" style={{ marginTop: 8 }}>
-                  <Plus size={12} /> nova anotação
-                </button>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              {!sidebarOpen && (
+                <div style={{ padding: '9px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-card)', flexShrink: 0 }}>
+                  <button onClick={() => setSidebarOpen(true)} title="expandir sidebar"
+                    style={{ padding: '4px 6px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                    <PanelLeftOpen size={11} />
+                  </button>
+                </div>
               )}
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
+                <FileText size={36} style={{ color: 'var(--text-dim)', opacity: 0.25 }} />
+                <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 22, letterSpacing: '0.08em', color: 'var(--text-dim)' }}>SELECIONE UMA NOTA</div>
+                <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.15em' }}>ou crie uma nova ao lado</div>
+                {groups.length > 0 && (
+                  <button onClick={() => handleCreate(null)} className="btn btn-primary" style={{ marginTop: 8 }}>
+                    <Plus size={12} /> nova anotação
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
