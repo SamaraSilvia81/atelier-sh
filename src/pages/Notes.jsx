@@ -176,18 +176,17 @@ export default function Notes({ org }) {
     <div className="page-wrap" style={{ height: '100vh', overflow: 'hidden' }}>
 
       {/* ── Header ── */}
-      <header style={{ borderBottom: '1px solid var(--border)', padding: '10px 32px', background: 'var(--header-bg)', backdropFilter: 'blur(12px)', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
-        {!sidebarOpen && (
-          <button onClick={() => setSidebarOpen(true)} title="expandir sidebar"
-            style={{ padding: '4px 6px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', marginRight: 12, flexShrink: 0 }}>
-            <PanelLeftOpen size={11} />
-          </button>
-        )}
-        <div style={{ flex: 1, fontFamily: 'var(--ff-mono)', fontSize: 11, letterSpacing: '0.2em', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>
-          atelier.sh
-          <span style={{ color: 'var(--border-bright)', margin: '0 10px' }}>·</span>
-          <span style={{ color: 'var(--text-sub)' }}>{org?.name || 'sem org'}</span>
-          <span style={{ color: 'var(--border-bright)', margin: '0 10px' }}>·</span>
+      <header style={{ borderBottom: '1px solid var(--border)', padding: '0 24px', background: 'var(--header-bg)', backdropFilter: 'blur(12px)', flexShrink: 0, display: 'flex', alignItems: 'center', height: 44, gap: 12 }}>
+        <button onClick={() => setSidebarOpen(v => !v)} title={sidebarOpen ? 'retrair lista' : 'expandir lista'}
+          style={{ padding: '5px 6px', borderRadius: 'var(--radius)', border: '1px solid transparent', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0, transition: 'all var(--fast)' }}
+          onMouseEnter={e => { e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--surface)' }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-dim)'; e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.background = 'transparent' }}>
+          {sidebarOpen ? <PanelLeftClose size={13} /> : <PanelLeftOpen size={13} />}
+        </button>
+        <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
+        <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.18em', color: 'var(--text-dim)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ color: 'var(--text-muted)' }}>{org?.name || 'sem org'}</span>
+          <span style={{ color: 'var(--border-bright)' }}>·</span>
           <span>anotações</span>
         </div>
       </header>
@@ -280,15 +279,9 @@ export default function Notes({ org }) {
           </div>
 
           {/* rodapé sidebar */}
-          <div style={{ padding: '7px 10px', borderTop: '1px solid var(--border)', fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.12em', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ padding: '7px 10px', borderTop: '1px solid var(--border)', fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.12em' }}>
             <span>{filtered.length} anotaç{filtered.length !== 1 ? 'ões' : 'ão'} · {notes.filter(n => n.pinned).length} fixada{notes.filter(n => n.pinned).length !== 1 ? 's' : ''}
             {showFolderTree && folders.length > 0 && ` · ${folders.length} pasta${folders.length !== 1 ? 's' : ''}`}</span>
-            <button onClick={() => setSidebarOpen(v => !v)} title={sidebarOpen ? 'Retrair' : 'Expandir'}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', padding: 2, borderRadius: 'var(--radius)' }}
-              onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
-              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
-              {sidebarOpen ? <PanelLeftClose size={13} /> : <PanelLeftOpen size={13} />}
-            </button>
           </div>
         </div>
 
