@@ -498,7 +498,7 @@ function NoteEditor({ note, onUpdate }) {
 }
 
 // ── Main NotesPanel ───────────────────────────────────────────────────
-export default function NotesPanel({ group, orgId, onClose, inline = false }) {
+export default function NotesPanel({ group, orgId, onClose, inline = false, hideHeader = false }) {
   const { notes, loading, createNote, updateNote, deleteNote, togglePin, duplicateNote } = useNotes(group?.id, orgId)
   const { folders, createFolder, renameFolder, deleteFolder } = useFolders(group?.id, orgId)
   const { templates, saveAsTemplate, deleteTemplate } = useNoteTemplates(orgId)
@@ -663,6 +663,7 @@ export default function NotesPanel({ group, orgId, onClose, inline = false }) {
       display: 'flex', flexDirection: 'column', overflow: 'hidden'
     }}>
       {/* Header */}
+      {!hideHeader && (
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 20px', borderBottom: '1px solid var(--border)', flexShrink: 0, background: 'var(--bg-card)' }}>
         <div style={{ width: 8, height: 8, borderRadius: '50%', background: group?.color || 'var(--red)', flexShrink: 0 }} />
         <span style={{ fontWeight: 600, fontSize: 14 }}>{group?.name}</span>
@@ -675,12 +676,18 @@ export default function NotesPanel({ group, orgId, onClose, inline = false }) {
           <button onClick={onClose} style={{ color: 'var(--text-muted)', padding: 4, cursor: 'pointer' }}><X size={16} /></button>
         )}
       </div>
+      )}
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0, position: 'relative' }}>
         {/* Sidebar - nota list */}
         <div style={{ width: listOpen ? 220 : 0, minWidth: listOpen ? 220 : 0, borderRight: listOpen ? '1px solid var(--border)' : 'none', display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden', transition: 'width 0.2s ease, min-width 0.2s ease' }}>
           <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div style={{ display: 'flex', gap: 5 }}>
+              {hideHeader && (
+                <button onClick={() => setListOpen(v => !v)} title={listOpen ? 'Retrair lista' : 'Expandir lista'} style={{ color: 'var(--text-muted)', padding: '5px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                  <PanelLeftClose size={13} />
+                </button>
+              )}
               <button onClick={() => setAddingFolder(true)} disabled={addingFolder} className="btn btn-ghost"
                 style={{ flex: 1, justifyContent: 'center', fontSize: 10, padding: '5px 8px', gap: 4 }}>
                 <FolderPlus size={11} /> pasta

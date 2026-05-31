@@ -250,7 +250,7 @@ export default function GrupoPagina({ org, trelloToken, isAdmin }) {
       {/* ── Conteúdo da tab ─────────────────────────────────── */}
       {tab === 'anotacoes' ? (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
-          <NotesPanel group={group} orgId={org?.id} onClose={() => setTab('github')} inline />
+          <NotesPanel group={group} orgId={org?.id} onClose={() => setTab('github')} inline hideHeader />
         </div>
       ) : (
       <div style={{ padding: '24px 32px' }}>
