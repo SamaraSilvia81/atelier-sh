@@ -193,8 +193,6 @@ export default function GroupsDashboard({ org, project, projectId, isAdmin, trel
                 onOpenReview={null}
                 onDuplicate={isAdmin ? (id) => duplicateGroup(id) : null}
                 onSaveAsTemplate={isAdmin ? (id, isTpl) => isTpl ? unsetGroupTemplate(id) : saveGroupAsTemplate(id) : null}
-                initialOpen={sidebarGroupId === group.id}
-                onDetailClose={() => setSidebarGroupId(null)}
               />
             ))}
           </div>

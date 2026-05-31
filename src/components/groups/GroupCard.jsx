@@ -1,17 +1,13 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { fetchRepoInfo, fetchAtas } from '../../lib/github'
 import { GitBranch, FileText, Pencil, Trash2, LayoutList, Monitor, Lock, Users, ChevronRight, Copy, LayoutTemplate } from 'lucide-react'
-import GroupDetailModal from './GroupDetailModal'
 
-export default function GroupCard({ group, trelloToken, onEdit, onDelete, onOpenNotes, onOpenReview, onDuplicate, onSaveAsTemplate, view = 'grid', initialOpen = false, onDetailClose }) {
+export default function GroupCard({ group, trelloToken, onEdit, onDelete, onOpenNotes, onOpenReview, onDuplicate, onSaveAsTemplate, view = 'grid' }) {
+  const navigate = useNavigate()
   const [github, setGithub] = useState(null)
   const [atas, setAtas] = useState([])
   const [loading, setLoading] = useState({ gh: false })
-  const [showDetail, setShowDetail] = useState(false)
-
-  useEffect(() => {
-    if (initialOpen) setShowDetail(true)
-  }, [initialOpen])
 
   const parseMaybeJson = (val, fallback = []) => {
     if (Array.isArray(val)) return val
@@ -36,11 +32,6 @@ export default function GroupCard({ group, trelloToken, onEdit, onDelete, onOpen
   const barBg = group.status === 'active' ? 'linear-gradient(90deg, var(--red), var(--red-glow))' : group.status === 'attention' ? 'linear-gradient(90deg, #c8922a, #7a5010)' : 'var(--border)'
   const isPrivate = github?.error === 'unauthorized' || github?.private
   const notFound = github?.error === 'not_found'
-
-  function handleClose() {
-    setShowDetail(false)
-    if (onDetailClose) onDetailClose()
-  }
 
   const actionBtn = (title, icon, onClick, danger = false) => (
     <button key={title} onClick={onClick} title={title} style={{
@@ -80,10 +71,10 @@ export default function GroupCard({ group, trelloToken, onEdit, onDelete, onOpen
             {actionBtn('anotações', <FileText size={11} />, () => onOpenNotes(group))}
             {actionBtn('editar', <Pencil size={11} />, () => onEdit && onEdit(group))}
             {actionBtn('excluir', <Trash2 size={11} />, () => onDelete && onDelete(group.id), true)}
+            {actionBtn('detalhes', <ChevronRight size={11} />, () => navigate(`/grupo/${group.id}`))}
           </div>
         </div>
       </div>
-      {showDetail && <GroupDetailModal group={group} trelloToken={trelloToken} onClose={handleClose} onEdit={() => { handleClose(); onEdit && onEdit(group) }} onOpenNotes={() => { handleClose(); onOpenNotes(group) }} onOpenReview={() => { handleClose(); onOpenReview && onOpenReview(group) }} />}
     </>
   )
 
@@ -170,22 +161,11 @@ export default function GroupCard({ group, trelloToken, onEdit, onDelete, onOpen
             {group.trello_board_id && <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 4 }}><LayoutList size={10} /> trello</span>}
             {group.figma_url && <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: '#a259ff', display: 'flex', alignItems: 'center', gap: 4, opacity: 0.7 }}>◈ figma</span>}
           </div>
-          <button onClick={() => setShowDetail(true)} style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', background: 'none', border: 'none', padding: '4px 0' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
+          <button onClick={() => navigate(`/grupo/${group.id}`)} style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', background: 'none', border: 'none', padding: '4px 0' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
             detalhes <ChevronRight size={11} />
           </button>
         </div>
       </div>
-
-      {showDetail && (
-        <GroupDetailModal
-          group={group}
-          trelloToken={trelloToken}
-          onClose={handleClose}
-          onEdit={() => { handleClose(); onEdit && onEdit(group) }}
-          onOpenNotes={() => { handleClose(); onOpenNotes(group) }}
-          onOpenReview={() => { handleClose(); onOpenReview && onOpenReview(group) }}
-        />
-      )}
     </>
   )
 }

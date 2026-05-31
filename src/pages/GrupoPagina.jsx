@@ -162,7 +162,7 @@ export default function GrupoPagina({ org, trelloToken, isAdmin }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
 
       {/* Barra de status no topo */}
       <div style={{ height: 3, background: barBg, flexShrink: 0 }} />
@@ -248,6 +248,11 @@ export default function GrupoPagina({ org, trelloToken, isAdmin }) {
       </div>
 
       {/* ── Conteúdo da tab ─────────────────────────────────── */}
+      {tab === 'anotacoes' ? (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+          <NotesPanel group={group} orgId={org?.id} onClose={() => setTab('github')} inline />
+        </div>
+      ) : (
       <div style={{ padding: '24px 32px' }}>
 
         {/* ── GITHUB ─────────────────────────────────────────── */}
@@ -457,11 +462,7 @@ export default function GrupoPagina({ org, trelloToken, isAdmin }) {
         )}
 
         {/* ── ANOTAÇÕES ───────────────────────────────────────── */}
-        {tab === 'anotacoes' && (
-          <div style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <NotesPanel group={group} orgId={org?.id} onClose={() => setTab('github')} inline />
-          </div>
-        )}
+        {/* renderizado fora deste container — ver acima */}
 
         {/* ── AVALIAÇÃO ───────────────────────────────────────── */}
         {tab === 'avaliacao' && (
@@ -484,6 +485,7 @@ export default function GrupoPagina({ org, trelloToken, isAdmin }) {
           </div>
         )}
       </div>
+      )} {/* fecha o ternário anotacoes ? ... : (...) */}
 
       {/* Modal de edição */}
       {editando && (
