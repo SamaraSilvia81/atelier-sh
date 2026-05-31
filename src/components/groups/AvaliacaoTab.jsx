@@ -701,7 +701,7 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
 }
 
 // ─── AvaliacaoTab principal ───────────────────────────────────
-export default function AvaliacaoTab({ group, orgId: orgIdProp }) {
+export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
   const resolvedOrgId = orgIdProp || group?.org_id
 
   // DEBUG TEMPORÁRIO — remover após confirmar o problema
@@ -1140,7 +1140,7 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp }) {
     </div>
 
     {showDevolutiva && (
-      <DevolutivaModal group={group} orgId={resolvedOrgId} onClose={() => setShowDevolutiva(false)} />
+      <DevolutivaModal group={group} orgId={resolvedOrgId} org={org} onClose={() => setShowDevolutiva(false)} />
     )}
     </>
   )
