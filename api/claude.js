@@ -1,6 +1,9 @@
 // api/claude.js — Vercel Serverless Function
-// Proxy para a API do Anthropic sem CORS
-// Configure ANTHROPIC_API_KEY nas variáveis de ambiente do Vercel
+// ATENÇÃO: este arquivo deve ficar em /api/claude.js
+// na RAIZ do projeto (ao lado do package.json), NÃO dentro de /src
+//
+// Configure ANTHROPIC_API_KEY em:
+// Vercel → Settings → Environment Variables
 
 export const config = { api: { bodyParser: true } }
 
@@ -26,7 +29,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    const body = req.body
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -34,7 +36,7 @@ export default async function handler(req, res) {
         'x-api-key':         apiKey,
         'anthropic-version': '2023-06-01',
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(req.body),
     })
 
     const data = await response.json()
