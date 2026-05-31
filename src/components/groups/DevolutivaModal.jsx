@@ -84,15 +84,10 @@ Formato exato:
   "encaminhamento": "..."
 }`
 
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-
-  const res = await fetch(`${supabaseUrl}/functions/v1/claude-proxy-atelier`, {
+  const res = await fetch('/api/claude', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${supabaseKey}`,
-      'apikey': supabaseKey,
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
