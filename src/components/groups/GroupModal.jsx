@@ -39,8 +39,8 @@ export default function GroupModal({ group, trelloToken, trelloWorkspaceId, onCl
   const [stage,      setStage]      = useState(group?.stage || '')
 
   useEffect(() => {
-    if (trelloToken) fetchBoards(trelloToken, trelloWorkspaceId).then(setBoards)
-  }, [trelloToken, trelloWorkspaceId])
+    if (trelloToken) fetchBoards(trelloToken).then(setBoards)
+  }, [trelloToken])
 
   const [editingMemberId, setEditingMemberId] = useState(null)
 
@@ -137,7 +137,7 @@ export default function GroupModal({ group, trelloToken, trelloWorkspaceId, onCl
               {boards.length > 0 ? (
                 <select value={trelloBoardId} onChange={e => { const b = boards.find(b=>b.id===e.target.value); setTrelloBoardId(e.target.value); setTrelloBoardName(b?.name||'') }} style={{ ...inp, appearance:'none' }}>
                   <option value="">— sem board —</option>
-                  {boards.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  {boards.map(b => <option key={b.id} value={b.id}>{b.name}{b.idOrganization ? '' : ' (pessoal)'}</option>)}
                 </select>
               ) : (
                 <input value={trelloBoardId} onChange={e => setTrelloBoardId(e.target.value)} placeholder="configure o token Trello nas configurações" style={inp} />

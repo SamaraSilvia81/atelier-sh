@@ -21,12 +21,15 @@ export async function fetchWorkspaces(token) {
 
 export async function fetchBoards(token, workspaceId) {
   try {
-    const url = workspaceId
-      ? `${BASE}/organizations/${workspaceId}/boards?${auth(token)}&fields=id,name,url,dateLastActivity,closed&filter=open`
-      : `${BASE}/members/me/boards?${auth(token)}&fields=id,name,url,dateLastActivity,closed&filter=open`
-    const res = await fetch(url)
+    // Busca TODOS os boards acessíveis (incluindo compartilhados de outros workspaces)
+    // e filtra por workspace apenas se especificado
+    const res = await fetch(
+      `${BASE}/members/me/boards?${auth(token)}&fields=id,name,url,dateLastActivity,closed,idOrganization&filter=open&memberships=all`
+    )
     if (!res.ok) return []
-    return await res.json()
+    const all = await res.json()
+    if (workspaceId) return all.filter(b => b.idOrganization === workspaceId)
+    return all
   } catch { return [] }
 }
 
