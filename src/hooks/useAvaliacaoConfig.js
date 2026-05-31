@@ -68,6 +68,7 @@ export function useAvaliacaoConfig(groupId, orgId) {
           const merged = Object.entries(FATORES).map(([id, f]) => saved[id] ? saved[id] : { id, ...f })
           setFatoresCustomRaw(merged)
         }
+        // base_overrides e item_overrides da org são defaults
         if (orgData.base_overrides) setBaseOverridesRaw(orgData.base_overrides)
         if (orgData.item_overrides) setItemOverridesRaw(orgData.item_overrides)
         if (orgData.fase_nome_edit) setFaseNomeEditRaw(orgData.fase_nome_edit)
