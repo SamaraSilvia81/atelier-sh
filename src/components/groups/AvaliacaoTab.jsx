@@ -681,17 +681,18 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
 }
 
 // ─── AvaliacaoTab principal ───────────────────────────────────
-export default function AvaliacaoTab({ group }) {
+export default function AvaliacaoTab({ group, orgId: orgIdProp }) {
+  const resolvedOrgId = orgIdProp || group?.org_id
   const parseMaybeJson = (val, fallback = []) => {
     if (Array.isArray(val)) return val
     try { return JSON.parse(val) } catch { return fallback }
   }
   const members = parseMaybeJson(group?.members)
 
-  const avGrupo = useAvaliacao(group?.id, group?.org_id)
-  const avInd   = useAvaliacaoIndividual(group?.id, group?.org_id)
-  const crud    = useAvaliacaoCrud(group?.id, group?.org_id)
-  const config  = useAvaliacaoConfig(group?.id, group?.org_id)
+  const avGrupo = useAvaliacao(group?.id, resolvedOrgId)
+  const avInd   = useAvaliacaoIndividual(group?.id, resolvedOrgId)
+  const crud    = useAvaliacaoCrud(group?.id, resolvedOrgId)
+  const config  = useAvaliacaoConfig(group?.id, resolvedOrgId)
 
   const { notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, loading, saving, salvarNotaGrupo } = avGrupo
 
