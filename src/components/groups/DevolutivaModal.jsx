@@ -113,7 +113,59 @@ function coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina
 }
 
 
-function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null) {
+function montarSecaoIndividual(members, avInd, disciplinas) {
+  if (!members || members.length === 0) return ''
+
+  const fmt = n => n != null ? String(Number(n).toFixed(2)).replace('.', ',') : '—'
+
+  const FATORES_LABELS = {
+    liderou:          '✦ Liderou',
+    participou:       '✓ Participou',
+    participou_pouco: '△ Participou pouco',
+    so_fez_parte:     '◇ Só fez sua parte',
+    nao_participou:   '✗ Não participou',
+  }
+  const FATORES_MULT = {
+    liderou: 1.00, participou: 1.00, participou_pouco: 0.70,
+    so_fez_parte: 0.40, nao_participou: 0.00,
+  }
+
+  const linhasMembros = members.map(m => {
+    const nome = esc(m.name || m.profile?.name || m.user_id || 'Integrante')
+
+    // Coleta fator e nota por disciplina
+    const infosDisc = disciplinas.map(d => {
+      const totalGrupo = d.total ?? 0
+      const fator = avInd?.getFator?.(m.user_id || m.id, d.id, 'fase1') || null
+      const mult  = fator ? (FATORES_MULT[fator] ?? 0) : null
+      const nota  = mult != null ? parseFloat((totalGrupo * mult).toFixed(2)) : null
+      const label = fator ? (FATORES_LABELS[fator] || fator) : '—'
+      return { nome: d.nome, nota, label }
+    })
+
+    const totalInd = infosDisc.reduce((a, d) => a + (d.nota ?? 0), 0)
+
+    const discStr = infosDisc.map(d =>
+      `  \\item \\textbf{${esc(d.nome)}}: ${d.nota != null ? fmt(d.nota) + '\\,pts' : '\\textit{sem registro}'} — \\textit{${esc(d.label)}}`
+    ).join('\n')
+
+    return (
+      `\\subsubsection*{${nome}}\n\n` +
+      `\\begin{itemize}[leftmargin=14pt,itemsep=1pt,topsep=2pt,parsep=0pt]\n` +
+      discStr + '\n' +
+      `  \\item \\textbf{Total Individual:} ${fmt(totalInd)}\\,pts\n` +
+      `\\end{itemize}`
+    )
+  }).join('\n\n')
+
+  return (
+    `\\section{Devolutiva Individual}\n\n` +
+    `A seguir a contribuição registrada e a nota calculada por integrante, com base nos fatores de participação atribuídos pela professora.\n\n` +
+    linhasMembros
+  )
+}
+
+function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, members = [], avInd = null) {
   const { group, disciplinas, totalGeral } = dados
   const fmt = n => String(n.toFixed(2)).replace('.', ',')
   const hoje = new Date()
@@ -144,7 +196,7 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null) {
   function tabelaResumo(criterios) {
     const linhas = criterios.map(cr => {
       const { cmd, label } = statusCmd(cr)
-      return `${esc(cr.nome)} & \\${cmd}{${label}} & ${fmt(cr.max)} & \\textbf{${fmt(cr.nota)}} \\\\`
+      return `${esc(cr.nome)} & \\${cmd}{${label}} & \\textbf{${fmt(cr.nota)}} & ${fmt(cr.max)} \\\\`
     }).join('\n')
     const totalFase = criterios.reduce((a, c) => a + c.nota, 0)
     const maxFase   = criterios.reduce((a, c) => a + c.max,  0)
@@ -152,11 +204,11 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null) {
       '\\rowcolors{2}{crow}{white}\n' +
       '\\begin{tabular}{@{} L{2.8cm} C{2.0cm} C{1.1cm} C{1.1cm} @{}}\n' +
       '\\toprule\n' +
-      '\\textbf{Critério} & \\textbf{Status} & \\textbf{Máx.} & \\textbf{Nota} \\\\\n' +
+      '\\textbf{Critério} & \\textbf{Status} & \\textbf{Nota} & \\textbf{Máx.} \\\\\n' +
       '\\midrule\n' +
       linhas + '\n' +
       '\\midrule\n' +
-      `\\textbf{Total} & & \\textbf{${fmt(maxFase)}} & \\textbf{\\color{cred}${fmt(totalFase)}} \\\\\n` +
+      `\\textbf{Total} & & \\textbf{\\color{cred}${fmt(totalFase)}} & \\textbf{${fmt(maxFase)}} \\\\\n` +
       '\\bottomrule\n' +
       '\\end{tabular}'
     )
@@ -183,7 +235,7 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null) {
       : ''
 
     const comentStr = cr.comentario
-      ? '\n\n' + esc(cr.comentario)
+      ? '\n\n' + cr.comentario
       : ''
 
     return (
