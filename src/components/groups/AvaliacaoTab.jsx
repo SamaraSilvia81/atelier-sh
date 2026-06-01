@@ -154,6 +154,119 @@ function NotaVinculada({ groupId, orgId, label, onFechar }) {
   )
 }
 
+// ─── Pesquisa Primária — Seleção de Modalidades ───────────────
+function PesquisaPrimariaModalidades({ cr, discId, etapas, setEtapas }) {
+  const modalKey = `${discId}-${cr.id}-modalidades`
+  const ativas = etapas[modalKey] ? JSON.parse(etapas[modalKey]) : []
+
+  function toggleModalidade(mid) {
+    const nova = ativas.includes(mid)
+      ? ativas.filter(x => x !== mid)
+      : [...ativas, mid]
+    setEtapas(p => ({ ...p, [modalKey]: JSON.stringify(nova) }))
+  }
+
+  const corMap = {
+    formulario:          { bg: 'rgba(127,119,221,0.1)', border: 'rgba(127,119,221,0.4)', text: '#7F77DD' },
+    entrevista:          { bg: 'rgba(29,158,117,0.1)',  border: 'rgba(29,158,117,0.4)',  text: '#1D9E75' },
+    'observacao-direta': { bg: 'rgba(186,117,23,0.1)',  border: 'rgba(186,117,23,0.4)',  text: '#BA7517' },
+    shadowing:           { bg: 'rgba(76,163,199,0.1)',  border: 'rgba(76,163,199,0.4)',  text: '#4CA3C7' },
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--text-dim)' }}>
+          modalidades utilizadas pelo grupo
+        </span>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {cr.modalidades.map(m => {
+            const ativa = ativas.includes(m.id)
+            const cor = corMap[m.id] || { bg: 'var(--surface)', border: 'var(--border)', text: 'var(--text-muted)' }
+            return (
+              <button key={m.id} type="button" onClick={() => toggleModalidade(m.id)}
+                style={{
+                  padding: '4px 12px', borderRadius: 'var(--radius)',
+                  fontFamily: 'var(--ff-mono)', fontSize: 10, cursor: 'pointer',
+                  background: ativa ? cor.bg : 'var(--surface)',
+                  color: ativa ? cor.text : 'var(--text-dim)',
+                  border: `1px solid ${ativa ? cor.border : 'var(--border)'}`,
+                  fontWeight: ativa ? 600 : 400, transition: 'all 0.12s',
+                }}>
+                {ativa ? '✓ ' : ''}{m.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {cr.modalidades.filter(m => ativas.includes(m.id)).map(m => {
+        const cor = corMap[m.id] || { bg: 'var(--surface)', border: 'var(--border)', text: 'var(--text-muted)' }
+        const marcados = m.itens.filter((_, i) => etapas[`${discId}-${cr.id}-${m.id}-item-${i}`]).length
+        const total = m.itens.length
+        const ratio = total > 0 ? marcados / total : 0
+        const sugestao = ratio >= 1.0 ? { label: 'Completo', cor: '#5aab6e' }
+          : ratio >= 0.75 ? { label: 'Quase completo', cor: '#7F77DD' }
+          : ratio >= 0.50 ? { label: 'Faltou pouco', cor: '#4CA3C7' }
+          : ratio >= 0.25 ? { label: 'Faltou bastante', cor: '#c8922a' }
+          : { label: 'Faltou muito', cor: '#e06060' }
+        return (
+          <div key={m.id} style={{ borderLeft: `2px solid ${cor.border}`, paddingLeft: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: cor.text }}>
+              {m.label}
+            </span>
+            {m.itens.map((item, i) => {
+              const itemKey = `${discId}-${cr.id}-${m.id}-item-${i}`
+              const feito = etapas[itemKey] ?? false
+              return (
+                <button key={i} type="button"
+                  onClick={() => setEtapas(p => ({ ...p, [itemKey]: !feito }))}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 8,
+                    padding: '5px 8px', borderRadius: 'var(--radius)',
+                    background: feito ? 'rgba(90,171,110,0.08)' : 'var(--surface)',
+                    border: `1px solid ${feito ? 'rgba(90,171,110,0.3)' : 'var(--border)'}`,
+                    cursor: 'pointer', textAlign: 'left',
+                  }}>
+                  <div style={{
+                    width: 14, height: 14, borderRadius: 3, flexShrink: 0, marginTop: 1,
+                    border: `1.5px solid ${feito ? '#5aab6e' : 'var(--border)'}`,
+                    background: feito ? '#5aab6e' : 'transparent',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {feito && <Check size={9} style={{ color: '#fff' }} />}
+                  </div>
+                  <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, color: feito ? 'var(--text-sub)' : 'var(--text-dim)', lineHeight: 1.5 }}>
+                    {item}
+                  </span>
+                </button>
+              )
+            })}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 4px' }}>
+              <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)' }}>{marcados} / {total}</span>
+              <div style={{ flex: 1, height: 3, borderRadius: 2, background: 'var(--border)', overflow: 'hidden', maxWidth: 60 }}>
+                <div style={{ height: '100%', width: `${ratio * 100}%`, background: sugestao.cor, transition: 'width 0.2s' }} />
+              </div>
+              <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 8, color: sugestao.cor, opacity: 0.8 }}>→ {sugestao.label}</span>
+            </div>
+          </div>
+        )
+      })}
+
+      {ativas.length >= 2 && (() => {
+        const totalChecks = cr.modalidades.filter(m => ativas.includes(m.id)).reduce((acc, m) => acc + m.itens.length, 0)
+        const marcadosTotal = cr.modalidades.filter(m => ativas.includes(m.id)).reduce((acc, m) =>
+          acc + m.itens.filter((_, i) => etapas[`${discId}-${cr.id}-${m.id}-item-${i}`]).length, 0)
+        return (
+          <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', paddingTop: 2 }}>
+            {ativas.length} modalidades · {marcadosTotal}/{totalChecks} checks totais
+          </div>
+        )
+      })()}
+    </div>
+  )
+}
+
 // ─── Critério Row — editável por completo ─────────────────────
 function CriterioRow({
   cr, discId, faseNome, notaGrupo, nivelGrupo, atrasoGrupo, onSave,
@@ -334,7 +447,10 @@ function CriterioRow({
       {/* Detalhes expandidos */}
       {detAberto && (
         <div style={{ paddingLeft: 22, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {/* Itens / checklist */}
+          {/* Pesquisa Primária: modalidades condicionais */}
+          {cr.modalidades ? (
+            <PesquisaPrimariaModalidades cr={cr} discId={discId} etapas={etapas} setEtapas={setEtapas} />
+          ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {itensAtivos.map((item, i) => {
               const itemKey = `${discId}-${cr.id}-item-${i}`
@@ -426,6 +542,7 @@ function CriterioRow({
               )
             )}
           </div>
+          )} {/* fim do else de modalidades */}
 
           {/* Arquivos */}
           {cr.arquivos && cr.arquivos.length > 0 && (
