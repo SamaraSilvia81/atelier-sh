@@ -148,7 +148,8 @@ function montarSecaoIndividual(members, contribuicoes, disciplinas) {
   // Fases disponíveis
   const fasesCols = disciplinas.flatMap(d => d.fases.map(f => ({ discId: d.id, discNome: d.nome, faseNome: f.nome, criterios: f.criterios })))
   const headerCols = fasesCols.map(c => `\\textbf{\\small ${esc(c.discId.toUpperCase())} ${esc(c.faseNome)}}`).join(' & ')
-  const colSpec = 'p{3.5cm} ' + 'p{3.2cm} '.repeat(fasesCols.length) + 'p{1.8cm}'
+  const totalCols = fasesCols.length
+  const colSpec = `p{3.5cm} ${Array(totalCols).fill('>{\\raggedright\\arraybackslash}p{3.5cm}').join(' ')} p{2cm}`
 
   const linhasInt = members.map(m => {
     const mid = m.user_id || m.id
@@ -351,6 +352,7 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
     `\\settopmatter{printacmref=false}`,
     `\\setcopyright{none}`,
     `\\acmYear{${ano}}`,
+    `\\let\\balance\\relax`,
     ``,
     `% ── Pacotes ─────────────────────────────────────────────────`,
     `\\usepackage[portuguese]{babel}`,
@@ -394,14 +396,11 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
     `}`,
     ``,
     `% ────────────────────────────────────────────────────────────`,
+    `\\AtBeginDocument{\\pagestyle{empty}}`,
     `\\begin{document}`,
-    `\\pagestyle{fancy}`,
-    `\\fancyhf{}`,
-    `\\renewcommand{\\headrulewidth}{0pt}`,
-    `\\fancyfoot[C]{\\thepage}`,
+    `\\thispagestyle{empty}`,
     ``,
     `% ── CAPA ────────────────────────────────────────────────────`,
-    `\\clearpage`,
     `\\thispagestyle{empty}`,
     `{`,
     `  \\newgeometry{top=0cm,bottom=0cm,left=0cm,right=0cm}`,
@@ -414,6 +413,10 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
     `}`,
     `\\clearpage`,
     `\\setcounter{page}{1}`,
+    `\\pagestyle{fancy}`,
+    `\\fancyhf{}`,
+    `\\renewcommand{\\headrulewidth}{0pt}`,
+    `\\fancyfoot[C]{\\thepage}`,
     ``,
     `% ── METADADOS ────────────────────────────────────────────────`,
     `\\title{Devolutiva de Avaliação: Fase 1 --- Imersão}`,
@@ -438,7 +441,7 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
     `  \\country{Brasil}`,
     `}`,
     ``,
-    ...(resumoIA ? [`\\begin{abstract}`, esc(resumoIA), `\\end{abstract}`, ``] : []),
+    ...(resumoIA?.trim() ? [`\\begin{abstract}`, resumoIA.trim(), `\\end{abstract}`, ``] : []),
   ].join('\n')
 
   // ── rodapé / assinatura ────────────────────────────────────
@@ -464,7 +467,7 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
 
   return (
     preambulo +
-    '\\maketitle\n\n' +
+    '\\maketitle\n\n\\vspace{1em}\n' +
     secoes + '\n\n' +
     rodape + '\n\n' +
     legendaNiveis() + '\n\n' +
