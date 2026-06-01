@@ -1,4 +1,11 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useCallback } from 'react'
+import {
+  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
+} from '@dnd-kit/core'
+import {
+  SortableContext, useSortable, verticalListSortingStrategy, arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { ChevronDown, ChevronRight, AlertTriangle, FileText, X,
   Plus, Trash2, Pencil, Check, User, Users, Info, Calendar, Download } from 'lucide-react'
 import { useAvaliacao }            from '../../hooks/useAvaliacao'
@@ -35,6 +42,37 @@ function Barra({ valor, max, cor, height = 4 }) {
   return (
     <div style={{ height, borderRadius: 2, background: 'var(--border)', overflow: 'hidden', flex: 1, minWidth: 60 }}>
       <div style={{ height: '100%', width: `${pct(valor, max)}%`, background: cor, borderRadius: 2, transition: 'width 0.3s ease' }} />
+    </div>
+  )
+}
+
+// ─── SortableItem — wrapper reutilizável para qualquer item arrastável ────────
+function SortableItem({ id, editMode, children, style = {} }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  const itemStyle = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+    position: 'relative',
+    ...style,
+  }
+  return (
+    <div ref={setNodeRef} style={itemStyle}>
+      {editMode && (
+        <div
+          {...attributes}
+          {...listeners}
+          style={{
+            position: 'absolute', left: -18, top: '50%', transform: 'translateY(-50%)',
+            cursor: 'grab', color: 'var(--text-dim)', display: 'flex', alignItems: 'center',
+            padding: '4px 2px', opacity: 0.5, userSelect: 'none', touchAction: 'none',
+          }}
+          title="arrastar para reordenar"
+        >
+          ⠿
+        </div>
+      )}
+      {children}
     </div>
   )
 }
@@ -251,6 +289,7 @@ function PesquisaPrimariaModalidades({ cr, discId, etapas, setEtapas, editMode, 
   }
 
   const ff = { fontFamily: 'var(--ff-mono)' }
+  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -280,7 +319,20 @@ function PesquisaPrimariaModalidades({ cr, discId, etapas, setEtapas, editMode, 
       </div>
 
       {/* ── Botões de toggle das modalidades ── */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+      <DndContext
+        sensors={dndSensors}
+        collisionDetection={closestCenter}
+        onDragEnd={({ active, over }) => {
+          if (!over || active.id === over.id) return
+          const ids = modalidades.map(m => m.id)
+          const oldIdx = ids.indexOf(active.id)
+          const newIdx = ids.indexOf(over.id)
+          if (oldIdx === -1 || newIdx === -1) return
+          salvarModalidades(arrayMove(modalidades, oldIdx, newIdx))
+        }}
+      >
+      <SortableContext items={modalidades.map(m => m.id)} strategy={verticalListSortingStrategy}>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', paddingLeft: editMode ? 18 : 0 }}>
         {modalidades.map(m => {
           const ativa = ativas.includes(m.id)
           const cor = corMap[m.id] || { bg: 'rgba(127,119,221,0.1)', border: 'rgba(127,119,221,0.4)', text: '#7F77DD' }
@@ -337,6 +389,8 @@ function PesquisaPrimariaModalidades({ cr, discId, etapas, setEtapas, editMode, 
           )
         })}
       </div>
+      </SortableContext>
+      </DndContext>
 
       {/* ── Checks por modalidade ativa ── */}
       {modalidades.filter(m => ativas.includes(m.id)).map(m => {
@@ -370,6 +424,23 @@ function PesquisaPrimariaModalidades({ cr, discId, etapas, setEtapas, editMode, 
             </div>
 
             {/* Lista de itens */}
+            <DndContext
+              sensors={dndSensors}
+              collisionDetection={closestCenter}
+              onDragEnd={({ active, over }) => {
+                if (!over || active.id === over.id) return
+                const ids = m.itens.map((it, idx) => `${m.id}-item-${idx}`)
+                const oldIdx = ids.indexOf(active.id)
+                const newIdx = ids.indexOf(over.id)
+                if (oldIdx === -1 || newIdx === -1) return
+                const novas = modalidades.map(mod => mod.id === m.id
+                  ? { ...mod, itens: arrayMove(mod.itens, oldIdx, newIdx) }
+                  : mod)
+                salvarModalidades(novas)
+              }}
+            >
+            <SortableContext items={m.itens.map((_, idx) => `${m.id}-item-${idx}`)} strategy={verticalListSortingStrategy}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: editMode ? 18 : 0 }}>
             {m.itens.map((item, i) => {
               const itemKey = `${discId}-${cr.id}-${m.id}-item-${i}`
               const feito   = etapas[itemKey] ?? false
@@ -387,8 +458,10 @@ function PesquisaPrimariaModalidades({ cr, discId, etapas, setEtapas, editMode, 
                 )
               }
 
+              const sortId = `${m.id}-item-${i}`
               return (
-                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 4 }}>
+                <SortableItem key={sortId} id={sortId} editMode={editMode}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 4 }}>
                   <button type="button"
                     onClick={() => setEtapas(p => ({ ...p, [itemKey]: !feito }))}
                     style={{
@@ -427,8 +500,13 @@ function PesquisaPrimariaModalidades({ cr, discId, etapas, setEtapas, editMode, 
                     </div>
                   )}
                 </div>
+                </SortableItem>
               )
             })}
+
+            </div>
+            </SortableContext>
+            </DndContext>
 
             {/* Input de novo item */}
             {editMode && addingItem === m.id && (
@@ -495,6 +573,7 @@ function CriterioRow({
   const [addingItem,   setAddingItem]   = useState(false)
 
   const itensAtivos = itensOverride ?? cr.itens ?? []
+  const dndSensors  = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   const notaCalculada = calcNota(cr.max, nivelLocal, atrasoLocal)
   const notaAtual = notaGrupo(discId, cr.id)
@@ -654,7 +733,19 @@ function CriterioRow({
           {cr.modalidades ? (
             <PesquisaPrimariaModalidades cr={cr} discId={discId} etapas={etapas} setEtapas={setEtapas} editMode={editMode} itemOverrides={itemOverrides} setItemOverrides={setItemOverrides} />
           ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <DndContext
+            sensors={dndSensors}
+            collisionDetection={closestCenter}
+            onDragEnd={({ active, over }) => {
+              if (!over || active.id === over.id) return
+              const oldIdx = itensAtivos.indexOf(active.id)
+              const newIdx = itensAtivos.indexOf(over.id)
+              if (oldIdx === -1 || newIdx === -1) return
+              onSetItens(cr.id, arrayMove(itensAtivos, oldIdx, newIdx))
+            }}
+          >
+          <SortableContext items={itensAtivos} strategy={verticalListSortingStrategy}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: editMode ? 18 : 0 }}>
             {itensAtivos.map((item, i) => {
               const itemKey = `${discId}-${cr.id}-item-${i}`
               const feito = etapas[itemKey] ?? false
@@ -672,7 +763,8 @@ function CriterioRow({
               }
 
               return (
-                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                <SortableItem key={item + i} id={item} editMode={editMode}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
                   <button type="button" onClick={() => setEtapas(p => ({ ...p, [itemKey]: !feito }))}
                     style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '5px 8px', borderRadius: 'var(--radius)', background: feito ? 'rgba(90,171,110,0.08)' : 'var(--surface)', border: `1px solid ${feito ? 'rgba(90,171,110,0.3)' : 'var(--border)'}`, cursor: 'pointer', textAlign: 'left', flex: 1 }}>
                     <div style={{ width: 16, height: 16, borderRadius: 3, border: `1.5px solid ${feito ? '#5aab6e' : 'var(--border)'}`, background: feito ? '#5aab6e' : 'transparent', flexShrink: 0, marginTop: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -697,6 +789,7 @@ function CriterioRow({
                     </div>
                   )}
                 </div>
+                </SortableItem>
               )
             })}
 
@@ -745,6 +838,8 @@ function CriterioRow({
               )
             )}
           </div>
+          </SortableContext>
+          </DndContext>
           )} {/* fim do else de modalidades */}
 
           {/* Arquivos */}
@@ -1126,9 +1221,19 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
   const disc = DISCIPLINAS.find(d => d.id === discAtiva)
   const total = totalDisciplina(discAtiva)
 
+  // Sensors para drag and drop — declarados aqui para respeitar regras de hooks
+  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+
   if (loading) return <div style={{ padding: 28, ...mono, fontSize: 11, color: 'var(--text-dim)' }}>carregando avaliações_</div>
 
-  const fasesAtivas = crud.getFasesDisciplina(discAtiva)
+  const fasesAtivas = (() => {
+    const fases = crud.getFasesDisciplina(discAtiva)
+    const ordemSalva = itemOverrides?.[`${discAtiva}-fases-ordem`]
+    if (!ordemSalva || !Array.isArray(ordemSalva)) return fases
+    const ordered = ordemSalva.map(nome => fases.find(f => f.nome === nome)).filter(Boolean)
+    const rest = fases.filter(f => !ordemSalva.includes(f.nome))
+    return [...ordered, ...rest]
+  })()
 
   return (
     <>
@@ -1264,15 +1369,36 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
               <Barra valor={total} max={disc.total} cor={disc.cor} height={4} />
             </div>
 
+            <DndContext
+              sensors={dndSensors}
+              collisionDetection={closestCenter}
+              onDragEnd={({ active, over }) => {
+                if (!over || active.id === over.id) return
+                const ids = fasesAtivas.map(f => f.nome)
+                const oldIdx = ids.indexOf(active.id)
+                const newIdx = ids.indexOf(over.id)
+                if (oldIdx === -1 || newIdx === -1) return
+                const novaOrdem = arrayMove(ids, oldIdx, newIdx)
+                setItemOverrides(prev => ({ ...prev, [`${discAtiva}-fases-ordem`]: novaOrdem }))
+              }}
+            >
+            <SortableContext items={fasesAtivas.map(f => f.nome)} strategy={verticalListSortingStrategy}>
             {fasesAtivas.map(fase => {
               const aberta = fasesAbertas[fase.nome] !== false
-              const criteriosFase = crud.getCriteriosFase(discAtiva, fase.nome).map(aplicarOverride)
+              const criteriosFaseRaw = crud.getCriteriosFase(discAtiva, fase.nome).map(aplicarOverride)
+              const ordemCrit = itemOverrides?.[`${discAtiva}-${fase.nome}-ordem`]
+              const criteriosFase = ordemCrit && Array.isArray(ordemCrit)
+                ? [...ordemCrit.map(id => criteriosFaseRaw.find(cr => cr.id === id)).filter(Boolean),
+                   ...criteriosFaseRaw.filter(cr => !ordemCrit.includes(cr.id))]
+                : criteriosFaseRaw
               const totalFase = criteriosFase.reduce((a, cr) => a + (notaGrupo(discAtiva, cr.id) ?? 0), 0)
               const maxFase = criteriosFase.reduce((a, cr) => a + cr.max, 0) || fase.total || 1
               const nomeExibido = faseNomeEdit[fase.nome] ?? fase.nome
 
               return (
-                <div key={fase.nome} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+                <SortableItem key={fase.nome} id={fase.nome} editMode={editMode}
+                  style={{ marginBottom: 0 }}>
+                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
                   {/* Header da fase */}
                   <div
                     onClick={() => editandoFase !== fase.nome && setFasesAbertas(p => ({ ...p, [fase.nome]: !aberta }))}
@@ -1367,7 +1493,24 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
                     )
                   })()}
 
-                  {aberta && criteriosFase.map(cr => (
+                  {aberta && (
+                  <DndContext
+                    sensors={dndSensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={({ active, over }) => {
+                      if (!over || active.id === over.id) return
+                      const ids = criteriosFase.map(cr => cr.id)
+                      const oldIdx = ids.indexOf(active.id)
+                      const newIdx = ids.indexOf(over.id)
+                      if (oldIdx === -1 || newIdx === -1) return
+                      const novaOrdem = arrayMove(ids, oldIdx, newIdx)
+                      setItemOverrides(prev => ({ ...prev, [`${discAtiva}-${fase.nome}-ordem`]: novaOrdem }))
+                    }}
+                  >
+                  <SortableContext items={criteriosFase.map(cr => cr.id)} strategy={verticalListSortingStrategy}>
+                  <div style={{ paddingLeft: editMode ? 18 : 0 }}>
+                  {criteriosFase.map(cr => (
+                    <SortableItem key={cr.id} id={cr.id} editMode={editMode}>
                     <CriterioRow key={cr.id}
                       cr={cr} discId={discAtiva} faseNome={fase.nome}
                       notaGrupo={notaGrupo} nivelGrupo={nivelGrupo} atrasoGrupo={atrasoGrupo}
@@ -1382,7 +1525,13 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
                       itemOverrides={itemOverrides} setItemOverrides={setItemOverrides}
                       niveisCustom={niveisCustom}
                     />
+                    </SortableItem>
                   ))}
+
+                  </div>
+                  </SortableContext>
+                  </DndContext>
+                  )}
 
                   {aberta && editMode && (
                     <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border)' }}>
@@ -1413,8 +1562,12 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
                     </div>
                   )}
                 </div>
+              </SortableItem>
               )
             })}
+
+            </SortableContext>
+            </DndContext>
 
             {editMode && (
               <div>

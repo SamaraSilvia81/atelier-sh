@@ -85,45 +85,45 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null) {
 
         // Atraso
         const atrasoStr = cr.atrasoLabel
-          ? `\n\\\\vspace{2pt}\\\\noindent{\\\\footnotesize\\\\color{crimson}\\\\textit{Atraso: ${esc(cr.atrasoLabel)}}}`
+          ? `\n\\vspace{2pt}\\noindent{\\footnotesize\\color{crimson}\\textit{Atraso: ${esc(cr.atrasoLabel)}}}`
           : ''
 
         // Checklist
         const checksStr = cr.checksFeitos.length > 0
-          ? `\n\\\\begin{itemize}[leftmargin=18pt,itemsep=2pt,topsep=4pt,parsep=0pt]\n` +
+          ? `\n\\begin{itemize}[leftmargin=18pt,itemsep=2pt,topsep=4pt,parsep=0pt]\n` +
             cr.checksFeitos.map(ch =>
-              `  \\\\item[${ch.marcado ? '$\\\\checkmark$' : '$\\\\square$'}] ` +
-              `{\\\\small\\\\color{${ch.marcado ? 'sage' : 'muted'}}${esc(ch.texto)}}`
+              `  \\item[${ch.marcado ? '$\\checkmark$' : '$\\square$'}] ` +
+              `{\\small\\color{${ch.marcado ? 'sage' : 'muted'}}${esc(ch.texto)}}`
             ).join('\n') +
-            `\n\\\\end{itemize}`
+            `\n\\end{itemize}`
           : ''
 
         // Anotação da professora
         const comentStr = cr.comentario
-          ? `\n\\\\begin{tcolorbox}[enhanced,colback=bg,colframe=bordercolor,` +
+          ? `\n\\begin{tcolorbox}[enhanced,colback=bg,colframe=bordercolor,` +
             `leftrule=2pt,rightrule=0.3pt,toprule=0.3pt,bottomrule=0.3pt,` +
             `arc=0pt,left=10pt,right=10pt,top=6pt,bottom=6pt,` +
             `borderline west={2pt}{0pt}{crimson}]\n` +
-            `{\\\\footnotesize\\\\color{muted}\\\\semibold\\\\MakeUppercase{observação}}\\\\\\\\[4pt]\n` +
-            `{\\\\small\\\\color{textmid}\\\\setstretch{1.4}${esc(cr.comentario)}}\n` +
-            `\\\\end{tcolorbox}`
+            `{\\footnotesize\\color{muted}\\semibold\\MakeUppercase{observação}}\\\\[4pt]\n` +
+            `{\\small\\color{textmid}\\setstretch{1.4}${esc(cr.comentario)}}\n` +
+            `\\end{tcolorbox}`
           : ''
 
         return `
-\\\\subsubsection*{${esc(cr.nome)} \\\\hfill {\\\\${chipCmd} ${fmt(cr.nota)} / ${fmt(cr.max)} pts}}
+\\subsubsection*{${esc(cr.nome)} \\hfill {\\${chipCmd} ${fmt(cr.nota)} / ${fmt(cr.max)} pts}}
 ${checksStr}${atrasoStr}${comentStr}`
-      }).join('\n\\\\medskip\n')
+      }).join('\n\\medskip\n')
 
       return `
-\\\\subsection*{${esc(f.nome)} \\\\hfill {\\\\small\\\\color{muted}${fmt(f.totalFase)} / ${fmt(f.maxFase)} pts}}
-\\\\noindent\\\\rule{\\\\linewidth}{0.3pt}\\\\vspace{-4pt}
+\\subsection*{${esc(f.nome)} \\hfill {\\small\\color{muted}${fmt(f.totalFase)} / ${fmt(f.maxFase)} pts}}
+\\noindent\\rule{\\linewidth}{0.3pt}\\vspace{-4pt}
 ${criteriosLatex}`
     }).join('\n')
 
     return `
-\\\\newpage
-\\\\section*{${esc(d.nome)} \\\\hfill {\\\\color{crimson}\\\\semibold ${fmt(d.total)} / ${fmt(d.max)} pts}}
-\\\\noindent\\\\rule{\\\\linewidth}{1pt}\\\\vspace{2pt}
+\\newpage
+\\section*{${esc(d.nome)} \\hfill {\\color{crimson}\\semibold ${fmt(d.total)} / ${fmt(d.max)} pts}}
+\\noindent\\rule{\\linewidth}{1pt}\\vspace{2pt}
 ${fasesLatex}`
   }).join('\n')
 
