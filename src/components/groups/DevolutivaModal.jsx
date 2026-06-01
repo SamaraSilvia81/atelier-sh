@@ -74,149 +74,188 @@ function coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina
 
 function montarTex(dados, turma, dataEntrega, resumoIA = null) {
   const { group, disciplinas, totalGeral } = dados
-  const fmt  = n => String(n.toFixed(2)).replace('.', ',')
+  const fmt = n => String(n.toFixed(2)).replace('.', ',')
+  const hoje = new Date()
+  const dataHoje = hoje.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })
 
-  const secoes = disciplinas.map(d => {
-    const fasesLatex = d.fases.map(f => {
-      const criteriosLatex = f.criterios.map(cr => {
-        // Chips de nível
-        const pct = cr.max > 0 ? cr.nota / cr.max : 0
-        const chipCmd = pct >= 0.8 ? 'chipfull' : pct >= 0.5 ? 'chippartial' : 'chiplow'
+  // ── Status label e comando por percentual ─────────────────
+  function statusCmd(nota, max) {
+    if (max === 0) return { cmd: 'statuswarn', label: '---' }
+    const p = nota / max
+    if (p >= 1.0) return { cmd: 'statusok',   label: 'Completo' }
+    if (p >= 0.8) return { cmd: 'statusok',   label: 'Completo' }
+    if (p >= 0.5) return { cmd: 'statuswarn', label: 'c/ ressalvas' }
+    if (p >  0)   return { cmd: 'statuswarn', label: 'Incompleto' }
+    return { cmd: 'statuswarn', label: 'Não entregue' }
+  }
 
-        // Atraso
-        const atrasoStr = cr.atrasoLabel
-          ? `\n\\vspace{2pt}\\noindent{\\footnotesize\\color{crimson}\\textit{Atraso: ${esc(cr.atrasoLabel)}}}`
-          : ''
-
-        // Checklist
-        const checksStr = cr.checksFeitos.length > 0
-          ? `\n\\begin{itemize}[leftmargin=18pt,itemsep=2pt,topsep=4pt,parsep=0pt]\n` +
-            cr.checksFeitos.map(ch =>
-              `  \\item[${ch.marcado ? '$\\checkmark$' : '$\\square$'}] ` +
-              `{\\small\\color{${ch.marcado ? 'sage' : 'muted'}}${esc(ch.texto)}}`
-            ).join('\n') +
-            `\n\\end{itemize}`
-          : ''
-
-        // Anotação da professora
-        const comentStr = cr.comentario
-          ? `\n\\begin{tcolorbox}[enhanced,colback=bg,colframe=bordercolor,` +
-            `leftrule=2pt,rightrule=0.3pt,toprule=0.3pt,bottomrule=0.3pt,` +
-            `arc=0pt,left=10pt,right=10pt,top=6pt,bottom=6pt,` +
-            `borderline west={2pt}{0pt}{crimson}]\n` +
-            `{\\footnotesize\\color{muted}\\semibold\\MakeUppercase{observação}}\\\\[4pt]\n` +
-            `{\\small\\color{textmid}\\setstretch{1.4}${esc(cr.comentario)}}\n` +
-            `\\end{tcolorbox}`
-          : ''
-
-        return `
-\\subsubsection*{${esc(cr.nome)} \\hfill {\\${chipCmd} ${fmt(cr.nota)} / ${fmt(cr.max)} pts}}
-${checksStr}${atrasoStr}${comentStr}`
-      }).join('\n\\medskip\n')
-
-      return `
-\\subsection*{${esc(f.nome)} \\hfill {\\small\\color{muted}${fmt(f.totalFase)} / ${fmt(f.maxFase)} pts}}
-\\noindent\\rule{\\linewidth}{0.3pt}\\vspace{-4pt}
-${criteriosLatex}`
+  // ── Tabela de resumo da fase ──────────────────────────────
+  function tabelaFase(fase) {
+    const linhas = fase.criterios.map(cr => {
+      const { cmd, label } = statusCmd(cr.nota, cr.max)
+      return `${esc(cr.nome)} & \\${cmd}{${label}} & ${fmt(cr.max)} & \\textbf{${fmt(cr.nota)}} \\\\`
     }).join('\n')
+    const totalFase = fase.criterios.reduce((a, c) => a + c.nota, 0)
+    const maxFase   = fase.criterios.reduce((a, c) => a + c.max,  0)
+    return `\\rowcolors{2}{crow}{white}
+\\begin{tabular}{@{} L{2.8cm} C{2.0cm} C{1.1cm} C{1.1cm} @{}}
+\\toprule
+\\textbf{Critério} & \\textbf{Status} & \\textbf{Máx.} & \\textbf{Nota} \\\\
+\\midrule
+${linhas}
+\\midrule
+\\textbf{Total} & & \\textbf{${fmt(maxFase)}} & \\textbf{\\color{cred}${fmt(totalFase)}} \\\\
+\\bottomrule
+\\end{tabular}`
+  }
 
-    return `
-\\newpage
-\\section*{${esc(d.nome)} \\hfill {\\color{crimson}\\semibold ${fmt(d.total)} / ${fmt(d.max)} pts}}
-\\noindent\\rule{\\linewidth}{1pt}\\vspace{2pt}
-${fasesLatex}`
-  }).join('\n')
+  // ── Seções de comentário por critério ─────────────────────
+  function secoesCriterios(fase) {
+    return fase.criterios.map(cr => {
+      const { cmd, label } = statusCmd(cr.nota, cr.max)
+      const atrasoStr = cr.atrasoLabel
+        ? `\n\n{\\small\\color{cred}\\textit{Penalização por atraso: ${esc(cr.atrasoLabel)}}}`
+        : ''
+      const comentStr = cr.comentario
+        ? `\n\n${esc(cr.comentario)}`
+        : ''
+      return `\\subsection{${esc(cr.nome)}}
 
-  return `% Devolutiva — ${group.name}
-% ETE Cicero Dias . Modulo 1 . ${new Date().getFullYear()}
-% Compilar com XeLaTeX no Overleaf
-% INSTRUCAO: faca upload da capa como "capa.png" no mesmo projeto
+\\noindent\\${cmd}{${fmt(cr.nota)}\\,/\\,${fmt(cr.max)} pts · ${label}}
+${comentStr}${atrasoStr}`
+    }).join('\n\n')
+  }
 
-\\documentclass[11pt, a4paper]{article}
-\\usepackage[a4paper, top=0cm, bottom=0cm, left=0cm, right=0cm]{geometry}
-\\usepackage{fontspec}
-\\usepackage{xcolor}
-\\usepackage{graphicx}
-\\usepackage{tcolorbox}
-\\tcbuselibrary{skins}
-\\usepackage{enumitem}
-\\usepackage{setspace}
-\\usepackage{parskip}
+  // ── Uma section por disciplina ────────────────────────────
+  const secoes = disciplinas.map((d, di) => {
+    const fasesConteudo = d.fases.map(f => {
+      return `\\subsection{${esc(f.nome)}}
+
+${tabelaFase(f)}
+
+${secoesCriterios(f)}`
+    }).join('\n\n')
+
+    return `% ════════════════════════════════════════════════════════════
+\\section{${esc(d.nome)}}
+% ════════════════════════════════════════════════════════════
+
+\\notadestaque{${fmt(d.total)}}{${fmt(d.max)}}
+
+${fasesConteudo}`
+  }).join('\n\n')
+
+  // ── Resumo abstract ───────────────────────────────────────
+  const abstractStr = resumoIA
+    ? `\\begin{abstract}\n${esc(resumoIA)}\n\\end{abstract}\n\n`
+    : ''
+
+  // ── Período formatado ─────────────────────────────────────
+  const periodoStr = dataEntrega || dataHoje
+
+  return `% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+%  Devolutiva — ${group.name}
+%  Disciplina: Design Thinking (DE_233) — ETE Cícero Dias
+%  Profa. Samara Silva  ·  Recife, ${dataHoje}
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+\\documentclass[
+  sigconf,
+  language=portuguese
+]{acmart}
+
+% ── Desliga rodapé ACM ──────────────────────────────────────
+\\settopmatter{printacmref=false}
+\\setcopyright{none}
+\\acmYear{${hoje.getFullYear()}}
+
+% ── Pacotes ─────────────────────────────────────────────────
+\\usepackage[portuguese]{babel}
 \\usepackage{microtype}
-\\usepackage{amssymb}
-\\usepackage{fancyhdr}
-\\usepackage{hyperref}
-\\hypersetup{hidelinks}
+\\usepackage{booktabs}
+\\usepackage{tabularx}
+\\usepackage{array}
+\\usepackage{colortbl}
+\\usepackage[dvipsnames,table]{xcolor}
+\\usepackage[inline]{enumitem}
+\\usepackage{graphicx}
 
-\\setmainfont{Source Sans Pro}[UprightFont={* Light},BoldFont={* Bold},ItalicFont={* Light Italic}]
-\\newfontfamily\\semibold{Source Sans Pro}[UprightFont={* Regular},BoldFont={* SemiBold}]
+% ── Cores ───────────────────────────────────────────────────
+\\definecolor{cgood}{HTML}{1E6B3A}
+\\definecolor{cwarn}{HTML}{8B4500}
+\\definecolor{cred}{HTML}{C0392B}
+\\definecolor{cmuted}{HTML}{666666}
+\\definecolor{crow}{HTML}{F2EFEB}
 
-\\definecolor{crimson}{HTML}{860120}
-\\definecolor{blush}{HTML}{C4506A}
-\\definecolor{sage}{HTML}{828f58}
-\\definecolor{muted}{HTML}{8a7070}
-\\definecolor{textmid}{HTML}{3d2020}
-\\definecolor{bordercolor}{HTML}{e0cfc8}
-\\definecolor{blushdim}{HTML}{fdeef2}
-\\definecolor{sagedim}{HTML}{eef1e6}
-\\definecolor{crimsondim}{HTML}{fae8ee}
-\\definecolor{bg}{HTML}{fffbef}
+% ── Colunas customizadas para tabela ────────────────────────
+\\newcolumntype{L}[1]{>{\\raggedright\\arraybackslash}p{#1}}
+\\newcolumntype{C}[1]{>{\\centering\\arraybackslash}p{#1}}
 
-\\newcommand{\\chipfull}[1]{\\colorbox{sagedim}{\\color{sage}\\semibold\\small\\strut\\ #1\\ }}
-\\newcommand{\\chippartial}[1]{\\colorbox{blushdim}{\\color{blush}\\semibold\\small\\strut\\ #1\\ }}
-\\newcommand{\\chiplow}[1]{\\colorbox{crimsondim}{\\color{crimson}\\semibold\\small\\strut\\ #1\\ }}
+% ── Comando nota destacada ───────────────────────────────────
+\\newcommand{\\notadestaque}[2]{%
+  \\noindent\\textbf{Nota:}\\enspace%
+  {\\large\\bfseries\\color{cred}#1\\,/\\,#2\\,pts}%
+}
 
-\\setlength{\\parskip}{6pt}
-\\setlength{\\parindent}{0pt}
+% ── Comando label de status ──────────────────────────────────
+\\newcommand{\\statusok}[1]{{\\small\\bfseries\\color{cgood}#1}}
+\\newcommand{\\statuswarn}[1]{{\\small\\bfseries\\color{cwarn}#1}}
 
+% ── Renomeações PT-BR ────────────────────────────────────────
+\\AtBeginDocument{%
+  \\renewcommand{\\abstractname}{Resumo}
+  \\renewcommand{\\figurename}{Figura}
+  \\renewcommand{\\tablename}{Tabela}
+}
+
+% ────────────────────────────────────────────────────────────
 \\begin{document}
 
-% ── PAGINA DE CAPA (imagem full-page) ─────────────────────────
+% ── CAPA ────────────────────────────────────────────────────
 \\thispagestyle{empty}
-\\begin{figure}[h!]
-  \\centering
-  \\includegraphics[width=\\paperwidth,height=\\paperheight,keepaspectratio=false]{capa}
-\\end{figure}
-\\clearpage
+\\IfFileExists{capa.png}{%
+  \\includegraphics[width=\\paperwidth,height=\\paperheight]{capa.png}%
+}{%
+  \\begin{center}\\small\\color{gray}[capa.png n\\~ao encontrada]\\end{center}%
+}
+\\newpage
 
-% ── PAGINA DE IDENTIFICACAO DO GRUPO ──────────────────────────
-\\newgeometry{top=3cm, bottom=3cm, left=3cm, right=3cm}
-\\thispagestyle{empty}
-\\begin{center}
-  {\\footnotesize\\color{muted}\\MakeUppercase{ETE Cicero Dias · Modulo 1 · Projeto Integrador I}}\\\\[4pt]
-  {\\footnotesize\\color{muted}\\MakeUppercase{Profa Samara Silvia Sabino · ${esc(turma)}}}\\\\[3cm]
-  {\\color{crimson}\\semibold\\fontsize{9}{11}\\selectfont\\MakeUppercase{Devolutiva Oficial — Etapa 01 — Imersao}}\\\\[16pt]
-  {\\semibold\\fontsize{28}{32}\\selectfont ${esc(group.name)}}\\\\[0.6cm]
-  \\noindent\\rule{0.5\\linewidth}{0.4pt}\\\\[0.6cm]
-  {\\small\\color{muted}Periodo: ${esc(dataEntrega)}}\\\\[2.5cm]
-  \\begin{tcolorbox}[enhanced,colback=bg,colframe=crimson,arc=3pt,boxrule=0.8pt,
-    left=24pt,right=24pt,top=14pt,bottom=14pt,width=0.45\\linewidth]
-    \\centering
-    {\\footnotesize\\color{muted}\\semibold\\MakeUppercase{Nota Final — Design Thinking}}\\\\[10pt]
-    {\\semibold\\fontsize{44}{44}\\selectfont\\color{crimson} ${fmt(totalGeral)}}\\\\[4pt]
-    {\\color{muted}\\small / 30,00 pts}
-  \\end{tcolorbox}
-\\end{center}
-\\clearpage
+% ── METADADOS ────────────────────────────────────────────────
+\\title{Devolutiva de Avaliação: Fase 1 --- Imersão}
 
-% ── RESUMO (gerado por IA) ────────────────────────────────────
-${resumoIA ? `\\begin{abstract}
-${esc(resumoIA)}
-\\end{abstract}
-\\clearpage
-` : ''}
-% ── SUMARIO ───────────────────────────────────────────────────
-\\pagestyle{fancy}
-\\fancyhf{}
-\\fancyhead[L]{\\footnotesize\\color{muted}\\MakeUppercase{Devolutiva · ${esc(group.name)}}}
-\\fancyhead[R]{\\footnotesize\\color{muted}\\thepage}
-\\renewcommand{\\headrulewidth}{0.3pt}
+\\author{Profa. Samara Silva}
+\\authornote{%
+  Grupo avaliado: ${esc(group.name)}\\quad·\\quad
+  Período: ${esc(periodoStr)}\\quad·\\quad
+  Avaliado em: ${esc(dataHoje)}.%
+}
+\\email{samarasilvia.educa@gmail.com}
+\\affiliation{%
+  \\institution{ETE Cícero Dias}
+  \\department{Design Thinking --- DE\\_233}
+  \\city{Recife}
+  \\state{Pernambuco}
+  \\country{Brasil}
+}
 
-\\tableofcontents
-\\clearpage
+${abstractStr}\\maketitle
 
-% ── CONTEUDO POR DISCIPLINA ───────────────────────────────────
 ${secoes}
+
+% ── Considerações Finais ─────────────────────────────────────
+\\section{Considerações Finais}
+
+A avaliação da Fase~1 foi concluída. Os ajustes indicados devem ser incorporados antes do avanço para a Fase~2 (Definição).
+
+% ── Assinatura ───────────────────────────────────────────────
+
+\\noindent\\rule{\\linewidth}{0.4pt}
+
+\\begin{flushright}
+\\textbf{Profa.\\ Samara Silva}\\\\
+{\\small\\color{cmuted} Design Thinking --- DE\\_233 · ETE Cícero Dias}\\\\
+{\\small\\color{cmuted} Recife, ${esc(dataHoje)}}
+\\end{flushright}
 
 \\end{document}
 `
