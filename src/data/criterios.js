@@ -7,7 +7,15 @@ export const NIVEIS_AVALIACAO = [
     desc: 'Fez tudo e fez certo. Critério plenamente atendido.' },
   { id: 'completo_ressalvas',    label: 'Completo c/ ressalvas',     pct: 0.85, cor: '#7F77DD', emoji: '🔵',
     desc: 'Fez tudo, mas algo ficou incorreto ou impreciso. Esforço total, qualidade com falha.' },
-  { id: 'faltou_pouco',         label: 'Faltou pouco',              pct: 0.75, cor: '#4CA3C7', emoji: '🟦',
+  {
+    id: 'completo_inadequado',
+    label: 'Completo, mas inadequado',
+    pct: 0.70,
+    cor: '#B06AD9',
+    emoji: '🟣',
+    desc: 'Preencheu todos os itens, porém boa parte do conteúdo não atende ao propósito da atividade.'
+  },
+  { id: 'faltou_pouco',         label: 'Faltou pouco',              pct: 0.65, cor: '#4CA3C7', emoji: '🟦',
     desc: 'Fez bastante e acertou o que fez. Faltaram partes, mas o que entregou presta.' },
   { id: 'faltou_pouco_erros',   label: 'Faltou pouco c/ erros',     pct: 0.60, cor: '#78A86A', emoji: '🟡',
     desc: 'Fez bastante, mas errou partes relevantes. Metade do caminho com qualidade irregular.' },
