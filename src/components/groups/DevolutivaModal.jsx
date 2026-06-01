@@ -109,7 +109,7 @@ function coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina
 }
 
 // ── Monta o .tex ──────────────────────────────────────────────
-function montarTex(dados, turma, dataEntrega, resumoIA, discId, members, avInd) {
+function montarTex(dados, turma, dataEntrega, resumoIA, discId, members, contribuicoes) {
   const { group, disciplinas } = dados
   const fmt  = n => String(Number(n).toFixed(2)).replace('.', ',')
   const hoje = new Date()
@@ -240,7 +240,8 @@ function montarTex(dados, turma, dataEntrega, resumoIA, discId, members, avInd) 
       const linhasDisc = discsAlvo.flatMap(d =>
         d.fases.map(f => {
           const notaFase = f.criterios.reduce((a, c) => a + c.nota, 0)
-          const fatorId  = avInd?.getFator?.(mid, d.id, f.nome) || null
+          const contrib  = contribuicoes.find(c => String(c.member_id) === String(mid) && c.disciplina === d.id && c.fase === f.nome)
+          const fatorId  = contrib?.fator || null
           const info     = fatorId ? (FATORES_INFO[fatorId] || { label: fatorId, mult: 0, desc: '' }) : null
           const notaInd  = info ? parseFloat((notaFase * info.mult).toFixed(2)) : null
           if (notaInd != null) totalInd += notaInd
@@ -251,7 +252,7 @@ function montarTex(dados, turma, dataEntrega, resumoIA, discId, members, avInd) 
       ).join('\n')
 
       // extras
-      const extrasM = avInd?.getExtras?.(mid) || []
+      const extrasM = []  // extras não incluídos na devolutiva PDF
       const totalExtras = extrasM.reduce((a, e) => a + Number(e.valor), 0)
       totalInd += totalExtras
 
@@ -338,6 +339,7 @@ function montarTex(dados, turma, dataEntrega, resumoIA, discId, members, avInd) 
 \\settopmatter{printacmref=false}
 \\setcopyright{none}
 \\acmYear{${ano}}
+\\let\\balance\\relax
 
 % ── Pacotes ─────────────────────────────────────────────────
 \\usepackage[portuguese]{babel}
@@ -485,6 +487,7 @@ export default function DevolutivaModal({ group, orgId: orgIdProp, org, discId, 
   const [pushUrl,     setPushUrl]     = useState('')
 
   const { notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, loading } = avaliacao
+  const loadingInd = avInd?.loading ?? false
   const { etapas } = config
 
   const parseMaybeJson = (val, fb = []) => {
@@ -525,7 +528,7 @@ export default function DevolutivaModal({ group, orgId: orgIdProp, org, discId, 
         }
       }
       const resumoIA = await gerarResumoGroq(dados, settings)
-      const tex      = montarTex(dados, turma, dataEntrega, resumoIA, discId, members, avInd)
+      const tex      = montarTex(dados, turma, dataEntrega, resumoIA, discId, members, avInd.contribuicoes || [])
       setTexContent(tex)
       const path   = montarPath()
       const result = await pushFileToRepo({
@@ -582,7 +585,7 @@ export default function DevolutivaModal({ group, orgId: orgIdProp, org, discId, 
               <div style={{ flex: 1 }}>{lbl('Turma')}<input value={turma} onChange={e => setTurma(e.target.value)} style={inp} /></div>
               <div style={{ flex: 1 }}>{lbl('Período')}<input value={dataEntrega} onChange={e => setDataEntrega(e.target.value)} style={inp} /></div>
             </div>
-            <button onClick={gerar} disabled={loading}
+            <button onClick={gerar} disabled={loading || loadingInd}
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px', background: 'var(--red)', border: 'none', borderRadius: 'var(--radius)', color: '#fff', ...mono, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', opacity: loading ? 0.5 : 1 }}>
               <GitBranch size={14} /> Gerar e publicar no GitHub
             </button>
@@ -592,6 +595,7 @@ export default function DevolutivaModal({ group, orgId: orgIdProp, org, discId, 
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '24px 0' }}>
               <div style={{ width: 40, height: 40, border: '2px solid var(--border)', borderTopColor: 'var(--red)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
               <div style={{ ...mono, fontSize: 12, color: 'var(--text-muted)' }}>Montando .tex e publicando...</div>
+              {loadingInd && <div style={{ ...mono, fontSize: 10, color: 'var(--text-dim)' }}>carregando dados individuais...</div>}
             </div>
           )}
 
