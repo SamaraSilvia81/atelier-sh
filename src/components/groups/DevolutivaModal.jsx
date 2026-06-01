@@ -148,7 +148,7 @@ function montarSecaoIndividual(members, contribuicoes, disciplinas) {
   // Fases disponíveis
   const fasesCols = disciplinas.flatMap(d => d.fases.map(f => ({ discId: d.id, discNome: d.nome, faseNome: f.nome, criterios: f.criterios })))
   const headerCols = fasesCols.map(c => `\\textbf{\\small ${esc(c.discId.toUpperCase())} ${esc(c.faseNome)}}`).join(' & ')
-  const colSpec = 'p{3cm} ' + 'p{2.8cm} '.repeat(fasesCols.length) + 'c'
+  const colSpec = 'p{3.5cm} ' + 'p{3.2cm} '.repeat(fasesCols.length) + 'p{1.8cm}'
 
   const linhasInt = members.map(m => {
     const mid = m.user_id || m.id
@@ -330,12 +330,7 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
   }).join('\n\n')
 
   // ── abstract após maketitle, em 1 coluna ──────────────────────
-  const abstractStr = resumoIA
-    ? '\n% ── Resumo em coluna única ──────────────────────────────────\n' +
-      '\\begin{adjustbox}{minipage=\\linewidth}\n' +
-      '\\begin{abstract}\n' + esc(resumoIA) + '\n\\end{abstract}\n' +
-      '\\end{adjustbox}\n\n'
-    : ''
+  const abstractStr = ''
 
   const periodoStr = dataEntrega || dataHoje
 
@@ -368,6 +363,7 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
     `\\usepackage[inline]{enumitem}`,
     `\\usepackage{graphicx}`,
     `\\usepackage{adjustbox}`,
+    `\\usepackage{fancyhdr}`,
     ``,
     `% ── Cores ───────────────────────────────────────────────────`,
     `\\definecolor{cgood}{HTML}{1E6B3A}`,
@@ -399,17 +395,23 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
     ``,
     `% ────────────────────────────────────────────────────────────`,
     `\\begin{document}`,
+    `\\pagestyle{fancy}`,
+    `\\fancyhf{}`,
+    `\\renewcommand{\\headrulewidth}{0pt}`,
+    `\\fancyfoot[C]{\\thepage}`,
     ``,
     `% ── CAPA ────────────────────────────────────────────────────`,
+    `\\clearpage`,
     `\\thispagestyle{empty}`,
+    `\\newgeometry{top=0cm,bottom=0cm,left=0cm,right=0cm}`,
     `\\IfFileExists{capa.png}{%`,
-    `  \\includegraphics[width=\\paperwidth,height=\\paperheight]{capa.png}%`,
+    `  \\includegraphics[width=\\paperwidth,height=\\paperheight,keepaspectratio=false]{capa.png}%`,
     `}{\\IfFileExists{../../capa.png}{%`,
-    `  \\includegraphics[width=\\paperwidth,height=\\paperheight]{../../capa.png}%`,
-    `}{%`,
-    `  \\begin{center}\\vspace*{4cm}[capa.png n\\~ao encontrada]\\end{center}%`,
-    `}}`,
-    `\\newpage`,
+    `  \\includegraphics[width=\\paperwidth,height=\\paperheight,keepaspectratio=false]{../../capa.png}%`,
+    `}{\\vspace*{6cm}\\begin{center}{\\large\\color{gray}[capa.png n\\~ao encontrada]}\\end{center}}`,
+    `\\restoregeometry`,
+    `\\clearpage`,
+    `\\setcounter{page}{1}`,
     ``,
     `% ── METADADOS ────────────────────────────────────────────────`,
     `\\title{Devolutiva de Avaliação: Fase 1 --- Imersão}`,
@@ -434,6 +436,7 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
     `  \\country{Brasil}`,
     `}`,
     ``,
+    ...(resumoIA ? [`\\begin{abstract}`, esc(resumoIA), `\\end{abstract}`, ``] : []),
   ].join('\n')
 
   // ── rodapé / assinatura ────────────────────────────────────
@@ -455,18 +458,15 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
     `\\end{flushright}`,
     ``,
     `% ── Sem referências bibliográficas ───────────────────────────`,
-    ``,
-    `\\end{document}`,
   ].join('\n')
 
   return (
     preambulo +
     '\\maketitle\n\n' +
-    abstractStr +
     secoes + '\n\n' +
+    rodape + '\n\n' +
     legendaNiveis() + '\n\n' +
-    montarSecaoIndividual(members, avInd?.contribuicoes || [], dados.disciplinas) + '\n\n' +
-    rodape + '\n'
+    montarSecaoIndividual(members, avInd?.contribuicoes || [], dados.disciplinas) + '\n\n\\end{document}\n'
   )
 }
 
