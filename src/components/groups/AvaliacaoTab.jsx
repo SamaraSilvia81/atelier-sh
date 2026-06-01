@@ -155,9 +155,21 @@ function NotaVinculada({ groupId, orgId, label, onFechar }) {
 }
 
 // ─── Pesquisa Primária — Seleção de Modalidades ───────────────
-function PesquisaPrimariaModalidades({ cr, discId, etapas, setEtapas }) {
-  const modalKey = `${discId}-${cr.id}-modalidades`
+function PesquisaPrimariaModalidades({ cr, discId, etapas, setEtapas, editMode, itemOverrides, setItemOverrides }) {
+  const modalKey  = `${discId}-${cr.id}-modalidades`
+  const configKey = `${discId}-${cr.id}-modalidades-config`
+
+  // Ativas: quais modalidades o grupo usou (por grupo, em etapas)
   const ativas = etapas[modalKey] ? JSON.parse(etapas[modalKey]) : []
+
+  // Modalidades editáveis: override da org ou fallback para cr.modalidades
+  const modalidades = itemOverrides?.[configKey]
+    ? JSON.parse(itemOverrides[configKey])
+    : cr.modalidades
+
+  function salvarModalidades(novas) {
+    setItemOverrides(prev => ({ ...prev, [configKey]: JSON.stringify(novas) }))
+  }
 
   function toggleModalidade(mid) {
     const nova = ativas.includes(mid)
@@ -173,92 +185,282 @@ function PesquisaPrimariaModalidades({ cr, discId, etapas, setEtapas }) {
     shadowing:           { bg: 'rgba(76,163,199,0.1)',  border: 'rgba(76,163,199,0.4)',  text: '#4CA3C7' },
   }
 
+  // ── Estado de edição ──
+  const [editandoModal,   setEditandoModal]   = useState(null) // id da modalidade sendo editada (label)
+  const [editModalLabel,  setEditModalLabel]  = useState('')
+  const [novaModalLabel,  setNovaModalLabel]  = useState('')
+  const [addingModal,     setAddingModal]     = useState(false)
+
+  const [editandoItem,    setEditandoItem]    = useState(null) // { modalId, idx }
+  const [editItemVal,     setEditItemVal]     = useState('')
+  const [novoItem,        setNovoItem]        = useState('')
+  const [addingItem,      setAddingItem]      = useState(null) // modalId
+
+  // ── Edição de label de modalidade ──
+  function confirmarEditModal(mid) {
+    if (!editModalLabel.trim()) { setEditandoModal(null); return }
+    const novas = modalidades.map(m => m.id === mid ? { ...m, label: editModalLabel.trim() } : m)
+    salvarModalidades(novas)
+    setEditandoModal(null)
+  }
+
+  // ── Adicionar modalidade ──
+  function adicionarModalidade() {
+    if (!novaModalLabel.trim()) return
+    const id = novaModalLabel.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+    const novas = [...modalidades, { id, label: novaModalLabel.trim(), itens: [] }]
+    salvarModalidades(novas)
+    setNovaModalLabel('')
+    setAddingModal(false)
+  }
+
+  // ── Remover modalidade ──
+  function removerModalidade(mid) {
+    const novas = modalidades.filter(m => m.id !== mid)
+    salvarModalidades(novas)
+    // Remove dos ativos também
+    const novasAtivas = ativas.filter(x => x !== mid)
+    setEtapas(p => ({ ...p, [modalKey]: JSON.stringify(novasAtivas) }))
+  }
+
+  // ── Edição de item dentro de modalidade ──
+  function confirmarEditItem(mid, idx) {
+    if (!editItemVal.trim()) { setEditandoItem(null); return }
+    const novas = modalidades.map(m => m.id === mid
+      ? { ...m, itens: m.itens.map((it, i) => i === idx ? editItemVal.trim() : it) }
+      : m)
+    salvarModalidades(novas)
+    setEditandoItem(null)
+  }
+
+  function removerItem(mid, idx) {
+    const novas = modalidades.map(m => m.id === mid
+      ? { ...m, itens: m.itens.filter((_, i) => i !== idx) }
+      : m)
+    salvarModalidades(novas)
+  }
+
+  function adicionarItem(mid) {
+    if (!novoItem.trim()) return
+    const novas = modalidades.map(m => m.id === mid
+      ? { ...m, itens: [...m.itens, novoItem.trim()] }
+      : m)
+    salvarModalidades(novas)
+    setNovoItem('')
+    setAddingItem(null)
+  }
+
+  const ff = { fontFamily: 'var(--ff-mono)' }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--text-dim)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+      {/* ── Cabeçalho: label + add modal em editMode ── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ ...ff, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--text-dim)' }}>
           modalidades utilizadas pelo grupo
         </span>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {cr.modalidades.map(m => {
-            const ativa = ativas.includes(m.id)
-            const cor = corMap[m.id] || { bg: 'var(--surface)', border: 'var(--border)', text: 'var(--text-muted)' }
-            return (
-              <button key={m.id} type="button" onClick={() => toggleModalidade(m.id)}
-                style={{
-                  padding: '4px 12px', borderRadius: 'var(--radius)',
-                  fontFamily: 'var(--ff-mono)', fontSize: 10, cursor: 'pointer',
-                  background: ativa ? cor.bg : 'var(--surface)',
-                  color: ativa ? cor.text : 'var(--text-dim)',
-                  border: `1px solid ${ativa ? cor.border : 'var(--border)'}`,
-                  fontWeight: ativa ? 600 : 400, transition: 'all 0.12s',
-                }}>
-                {ativa ? '✓ ' : ''}{m.label}
-              </button>
-            )
-          })}
-        </div>
+        {editMode && (
+          addingModal ? (
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              <input autoFocus value={novaModalLabel} onChange={e => setNovaModalLabel(e.target.value)}
+                placeholder="nome da modalidade..."
+                onKeyDown={e => { if (e.key === 'Enter') adicionarModalidade(); if (e.key === 'Escape') { setAddingModal(false); setNovaModalLabel('') } }}
+                style={{ ...ff, fontSize: 10, padding: '3px 8px', borderRadius: 'var(--radius)', border: '1px solid var(--border-red)', background: 'var(--surface)', color: 'var(--text)', outline: 'none', width: 160 }} />
+              <button type="button" onClick={adicionarModalidade} style={{ color: '#5aab6e', background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}><Check size={11} /></button>
+              <button type="button" onClick={() => { setAddingModal(false); setNovaModalLabel('') }} style={{ color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}><X size={11} /></button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => setAddingModal(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: 4, ...ff, fontSize: 9, color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}>
+              <Plus size={10} /> modalidade
+            </button>
+          )
+        )}
       </div>
 
-      {cr.modalidades.filter(m => ativas.includes(m.id)).map(m => {
-        const cor = corMap[m.id] || { bg: 'var(--surface)', border: 'var(--border)', text: 'var(--text-muted)' }
+      {/* ── Botões de toggle das modalidades ── */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+        {modalidades.map(m => {
+          const ativa = ativas.includes(m.id)
+          const cor = corMap[m.id] || { bg: 'rgba(127,119,221,0.1)', border: 'rgba(127,119,221,0.4)', text: '#7F77DD' }
+          return (
+            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              {/* Label editável em editMode */}
+              {editMode && editandoModal === m.id ? (
+                <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                  <input autoFocus value={editModalLabel} onChange={e => setEditModalLabel(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') confirmarEditModal(m.id); if (e.key === 'Escape') setEditandoModal(null) }}
+                    style={{ ...ff, fontSize: 10, padding: '3px 8px', borderRadius: 'var(--radius)', border: '1px solid var(--border-red)', background: 'var(--surface)', color: 'var(--text)', outline: 'none', width: 120 }} />
+                  <button type="button" onClick={() => confirmarEditModal(m.id)} style={{ color: '#5aab6e', background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}><Check size={10} /></button>
+                  <button type="button" onClick={() => setEditandoModal(null)} style={{ color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}><X size={10} /></button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => !editMode && toggleModalidade(m.id)}
+                  style={{
+                    padding: '4px 10px', borderRadius: 'var(--radius)',
+                    ...ff, fontSize: 10, cursor: editMode ? 'default' : 'pointer',
+                    background: ativa ? cor.bg : 'var(--surface)',
+                    color: ativa ? cor.text : 'var(--text-dim)',
+                    border: `1px solid ${ativa ? cor.border : 'var(--border)'}`,
+                    fontWeight: ativa ? 600 : 400, transition: 'all 0.12s',
+                  }}>
+                  {!editMode && ativa ? '✓ ' : ''}{m.label}
+                </button>
+              )}
+              {/* Ações de edição da modalidade */}
+              {editMode && editandoModal !== m.id && (
+                <div style={{ display: 'flex', gap: 1 }}>
+                  <button type="button" onClick={() => { setEditandoModal(m.id); setEditModalLabel(m.label) }}
+                    style={{ color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 2 }}
+                    onMouseEnter={e => e.currentTarget.style.color = '#7F77DD'}
+                    onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
+                    <Pencil size={9} />
+                  </button>
+                  <button type="button" onClick={() => removerModalidade(m.id)}
+                    style={{ color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 2 }}
+                    onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
+                    onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
+                    <Trash2 size={9} />
+                  </button>
+                </div>
+              )}
+              {/* Toggle também disponível em editMode (separado dos botões de edição) */}
+              {editMode && editandoModal !== m.id && (
+                <button type="button" onClick={() => toggleModalidade(m.id)}
+                  style={{ ...ff, fontSize: 8, color: ativa ? '#5aab6e' : 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px' }}
+                  title={ativa ? 'desmarcar' : 'marcar como usada'}>
+                  {ativa ? '●' : '○'}
+                </button>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* ── Checks por modalidade ativa ── */}
+      {modalidades.filter(m => ativas.includes(m.id)).map(m => {
+        const cor = corMap[m.id] || { bg: 'rgba(127,119,221,0.1)', border: 'rgba(127,119,221,0.4)', text: '#7F77DD' }
         const marcados = m.itens.filter((_, i) => etapas[`${discId}-${cr.id}-${m.id}-item-${i}`]).length
-        const total = m.itens.length
-        const ratio = total > 0 ? marcados / total : 0
-        const sugestao = ratio >= 1.0 ? { label: 'Completo', cor: '#5aab6e' }
-          : ratio >= 0.75 ? { label: 'Quase completo', cor: '#7F77DD' }
-          : ratio >= 0.50 ? { label: 'Faltou pouco', cor: '#4CA3C7' }
-          : ratio >= 0.25 ? { label: 'Faltou bastante', cor: '#c8922a' }
-          : { label: 'Faltou muito', cor: '#e06060' }
+        const total    = m.itens.length
+        const ratio    = total > 0 ? marcados / total : 0
+        const sugestao = ratio >= 1.0 ? { label: 'Completo',       cor: '#5aab6e' }
+          : ratio >= 0.75             ? { label: 'Quase completo',  cor: '#7F77DD' }
+          : ratio >= 0.50             ? { label: 'Faltou pouco',    cor: '#4CA3C7' }
+          : ratio >= 0.25             ? { label: 'Faltou bastante', cor: '#c8922a' }
+          :                             { label: 'Faltou muito',    cor: '#e06060' }
+
         return (
           <div key={m.id} style={{ borderLeft: `2px solid ${cor.border}`, paddingLeft: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: cor.text }}>
-              {m.label}
-            </span>
+
+            {/* Cabeçalho da modalidade */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ ...ff, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: cor.text }}>
+                {m.label}
+              </span>
+              {/* Botão add item em editMode */}
+              {editMode && (
+                addingItem === m.id ? null : (
+                  <button type="button" onClick={() => { setAddingItem(m.id); setNovoItem('') }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 3, ...ff, fontSize: 8, color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                    <Plus size={9} /> item
+                  </button>
+                )
+              )}
+            </div>
+
+            {/* Lista de itens */}
             {m.itens.map((item, i) => {
               const itemKey = `${discId}-${cr.id}-${m.id}-item-${i}`
-              const feito = etapas[itemKey] ?? false
-              return (
-                <button key={i} type="button"
-                  onClick={() => setEtapas(p => ({ ...p, [itemKey]: !feito }))}
-                  style={{
-                    display: 'flex', alignItems: 'flex-start', gap: 8,
-                    padding: '5px 8px', borderRadius: 'var(--radius)',
-                    background: feito ? 'rgba(90,171,110,0.08)' : 'var(--surface)',
-                    border: `1px solid ${feito ? 'rgba(90,171,110,0.3)' : 'var(--border)'}`,
-                    cursor: 'pointer', textAlign: 'left',
-                  }}>
-                  <div style={{
-                    width: 14, height: 14, borderRadius: 3, flexShrink: 0, marginTop: 1,
-                    border: `1.5px solid ${feito ? '#5aab6e' : 'var(--border)'}`,
-                    background: feito ? '#5aab6e' : 'transparent',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    {feito && <Check size={9} style={{ color: '#fff' }} />}
+              const feito   = etapas[itemKey] ?? false
+              const isEditing = editMode && editandoItem?.modalId === m.id && editandoItem?.idx === i
+
+              if (isEditing) {
+                return (
+                  <div key={i} style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                    <input autoFocus value={editItemVal} onChange={e => setEditItemVal(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') confirmarEditItem(m.id, i); if (e.key === 'Escape') setEditandoItem(null) }}
+                      style={{ flex: 1, ...ff, fontSize: 10, padding: '4px 8px', borderRadius: 'var(--radius)', border: '1px solid var(--border-red)', background: 'var(--surface)', color: 'var(--text)', outline: 'none' }} />
+                    <button type="button" onClick={() => confirmarEditItem(m.id, i)} style={{ color: '#5aab6e', background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}><Check size={11} /></button>
+                    <button type="button" onClick={() => setEditandoItem(null)} style={{ color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}><X size={11} /></button>
                   </div>
-                  <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, color: feito ? 'var(--text-sub)' : 'var(--text-dim)', lineHeight: 1.5 }}>
-                    {item}
-                  </span>
-                </button>
+                )
+              }
+
+              return (
+                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 4 }}>
+                  <button type="button"
+                    onClick={() => setEtapas(p => ({ ...p, [itemKey]: !feito }))}
+                    style={{
+                      flex: 1, display: 'flex', alignItems: 'flex-start', gap: 8,
+                      padding: '5px 8px', borderRadius: 'var(--radius)',
+                      background: feito ? 'rgba(90,171,110,0.08)' : 'var(--surface)',
+                      border: `1px solid ${feito ? 'rgba(90,171,110,0.3)' : 'var(--border)'}`,
+                      cursor: 'pointer', textAlign: 'left',
+                    }}>
+                    <div style={{
+                      width: 14, height: 14, borderRadius: 3, flexShrink: 0, marginTop: 1,
+                      border: `1.5px solid ${feito ? '#5aab6e' : 'var(--border)'}`,
+                      background: feito ? '#5aab6e' : 'transparent',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {feito && <Check size={9} style={{ color: '#fff' }} />}
+                    </div>
+                    <span style={{ ...ff, fontSize: 10, color: feito ? 'var(--text-sub)' : 'var(--text-dim)', lineHeight: 1.5 }}>
+                      {item}
+                    </span>
+                  </button>
+                  {editMode && (
+                    <div style={{ display: 'flex', gap: 1, paddingTop: 4, flexShrink: 0 }}>
+                      <button type="button" onClick={() => { setEditandoItem({ modalId: m.id, idx: i }); setEditItemVal(item) }}
+                        style={{ color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 2 }}
+                        onMouseEnter={e => e.currentTarget.style.color = '#7F77DD'}
+                        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
+                        <Pencil size={9} />
+                      </button>
+                      <button type="button" onClick={() => removerItem(m.id, i)}
+                        style={{ color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 2 }}
+                        onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
+                        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>
+                        <Trash2 size={9} />
+                      </button>
+                    </div>
+                  )}
+                </div>
               )
             })}
+
+            {/* Input de novo item */}
+            {editMode && addingItem === m.id && (
+              <div style={{ display: 'flex', gap: 5, alignItems: 'center', paddingTop: 2 }}>
+                <input autoFocus value={novoItem} onChange={e => setNovoItem(e.target.value)}
+                  placeholder="texto do item..."
+                  onKeyDown={e => { if (e.key === 'Enter') adicionarItem(m.id); if (e.key === 'Escape') { setAddingItem(null); setNovoItem('') } }}
+                  style={{ flex: 1, ...ff, fontSize: 10, padding: '4px 8px', borderRadius: 'var(--radius)', border: '1px solid var(--border-red)', background: 'var(--surface)', color: 'var(--text)', outline: 'none' }} />
+                <button type="button" onClick={() => adicionarItem(m.id)} style={{ color: '#5aab6e', background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}><Check size={11} /></button>
+                <button type="button" onClick={() => { setAddingItem(null); setNovoItem('') }} style={{ color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}><X size={11} /></button>
+              </div>
+            )}
+
+            {/* Barra de progresso da modalidade */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 4px' }}>
-              <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)' }}>{marcados} / {total}</span>
+              <span style={{ ...ff, fontSize: 9, color: 'var(--text-dim)' }}>{marcados} / {total}</span>
               <div style={{ flex: 1, height: 3, borderRadius: 2, background: 'var(--border)', overflow: 'hidden', maxWidth: 60 }}>
                 <div style={{ height: '100%', width: `${ratio * 100}%`, background: sugestao.cor, transition: 'width 0.2s' }} />
               </div>
-              <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 8, color: sugestao.cor, opacity: 0.8 }}>→ {sugestao.label}</span>
+              <span style={{ ...ff, fontSize: 8, color: sugestao.cor, opacity: 0.8 }}>→ {sugestao.label}</span>
             </div>
           </div>
         )
       })}
 
+      {/* Resumo geral quando 2+ modalidades ativas */}
       {ativas.length >= 2 && (() => {
-        const totalChecks = cr.modalidades.filter(m => ativas.includes(m.id)).reduce((acc, m) => acc + m.itens.length, 0)
-        const marcadosTotal = cr.modalidades.filter(m => ativas.includes(m.id)).reduce((acc, m) =>
+        const totalChecks    = modalidades.filter(m => ativas.includes(m.id)).reduce((acc, m) => acc + m.itens.length, 0)
+        const marcadosTotal  = modalidades.filter(m => ativas.includes(m.id)).reduce((acc, m) =>
           acc + m.itens.filter((_, i) => etapas[`${discId}-${cr.id}-${m.id}-item-${i}`]).length, 0)
         return (
-          <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, color: 'var(--text-dim)', paddingTop: 2 }}>
+          <div style={{ ...ff, fontSize: 9, color: 'var(--text-dim)', paddingTop: 2 }}>
             {ativas.length} modalidades · {marcadosTotal}/{totalChecks} checks totais
           </div>
         )
@@ -274,6 +476,7 @@ function CriterioRow({
   groupId, orgId,
   itensOverride, onSetItens,
   etapas, setEtapas,
+  itemOverrides, setItemOverrides,
   niveisCustom: niveis,   // lista customizável de níveis
 }) {
   const niveisAtivos = niveis || NIVEIS_AVALIACAO
@@ -449,7 +652,7 @@ function CriterioRow({
         <div style={{ paddingLeft: 22, display: 'flex', flexDirection: 'column', gap: 6 }}>
           {/* Pesquisa Primária: modalidades condicionais */}
           {cr.modalidades ? (
-            <PesquisaPrimariaModalidades cr={cr} discId={discId} etapas={etapas} setEtapas={setEtapas} />
+            <PesquisaPrimariaModalidades cr={cr} discId={discId} etapas={etapas} setEtapas={setEtapas} editMode={editMode} itemOverrides={itemOverrides} setItemOverrides={setItemOverrides} />
           ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {itensAtivos.map((item, i) => {
@@ -1176,6 +1379,7 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
                       itensOverride={itemOverrides[`${discAtiva}-${cr.id}`] ?? null}
                       onSetItens={handleSetItens}
                       etapas={etapas} setEtapas={setEtapas}
+                      itemOverrides={itemOverrides} setItemOverrides={setItemOverrides}
                       niveisCustom={niveisCustom}
                     />
                   ))}
