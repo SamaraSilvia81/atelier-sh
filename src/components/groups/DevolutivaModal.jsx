@@ -112,18 +112,34 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null) {
     )
   }
 
-  // ── seção por critério (subsection + nota + comentário) ────
+  // ── seção por critério (subsection + nota + checks + comentário) ──
   function secaoCriterio(cr) {
     const { cmd, label } = statusCmd(cr.nota, cr.max)
+
+    // checks: ✓ marcados em verde, □ não marcados em cinza
+    const checksStr = cr.checksFeitos && cr.checksFeitos.length > 0
+      ? '\n\n' +
+        '\\begin{itemize}[leftmargin=14pt,itemsep=1pt,topsep=3pt,parsep=0pt]\n' +
+        cr.checksFeitos.map(c =>
+          c.marcado
+            ? `  \\item[\\textcolor{cgood}{$\\checkmark$}] {\\small\\textcolor{cgood}{${esc(c.texto)}}}`
+            : `  \\item[$\\square$] {\\small\\textcolor{cmuted}{${esc(c.texto)}}}`
+        ).join('\n') + '\n' +
+        '\\end{itemize}'
+      : ''
+
     const atrasoStr = cr.atrasoLabel
       ? `\n\n{\\small\\color{cred}\\textit{Penalização por atraso: ${esc(cr.atrasoLabel)}}}`
       : ''
+
     const comentStr = cr.comentario
       ? '\n\n' + esc(cr.comentario)
       : ''
+
     return (
       `\\subsection{${esc(cr.nome)}}\n\n` +
       `\\noindent\\${cmd}{${fmt(cr.nota)}\\,/\\,${fmt(cr.max)} pts · ${label}}` +
+      checksStr +
       comentStr +
       atrasoStr
     )
