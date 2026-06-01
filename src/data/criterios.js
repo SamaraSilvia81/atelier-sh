@@ -50,7 +50,7 @@ export const DISCIPLINAS = [
         criterios: [
           { id: 'pesquisa-desk', nome: 'Pesquisa Desk', max: 0.5, arquivos: ['imersao-pesquisa-desk_A.pdf'], itens: ['Dados secundários relevantes e atuais sobre o ODS escolhido','Fontes confiáveis: ONU, IBGE, artigos acadêmicos ou jornalísticos','Contextualiza o problema com base factual','Conexão clara entre os dados e o problema'] },
           { id: 'matriz-alinhamento', nome: 'Matriz de Alinhamento', max: 0.5, arquivos: ['imersao-matriz-alinhamento_A.pdf'], itens: ['Preenchida com perguntas reais do grupo sobre o problema','Reflete o que o grupo sabe e precisa descobrir','Serviu de base para planejar a pesquisa primária'] },
-          { id: 'matriz-csd', nome: 'Matriz CSD', max: 0.5, arquivos: ['imersao-matriz-csd_A.pdf'], itens: ['Os três quadrantes preenchidos: Certezas, Suposições, Dúvidas','Conteúdo específico do projeto — não genérico','Revela pensamento crítico','Coerência entre a CSD e o que foi pesquisado'] },
+          { id: 'matriz-csd', nome: 'Matriz CSD & Perguntas de pesquisa', max: 0.5, arquivos: ['imersao-matriz-csd_A.pdf'], itens: ['Os três quadrantes preenchidos: Certezas, Suposições, Dúvidas','Conteúdo específico do projeto — não genérico','Revela pensamento crítico','Coerência entre a CSD e o que foi pesquisado'] },
           {
             id: 'pesquisa-primaria',
             nome: 'Pesquisa Primária',
