@@ -7,7 +7,6 @@ import { useAvaliacaoCrud } from '../../hooks/useAvaliacaoCrud'
 import { useNotes } from '../../hooks/useNotes'
 import { useAvaliacaoConfig } from '../../hooks/useAvaliacaoConfig'
 import { useAvaliacaoIndividual } from '../../hooks/useAvaliacaoIndividual'
-import { useAvaliacaoConfig } from '../../hooks/useAvaliacaoConfig'
 import { pushFileToRepo } from '../../lib/github'
 import { useSettings } from '../../hooks/useSettings'
 
@@ -485,7 +484,6 @@ export default function DevolutivaModal({ group, orgId: orgIdProp, org, discId, 
   const { notes } = useNotes(group?.id, resolvedOrgId)
   const config    = useAvaliacaoConfig(group?.id, resolvedOrgId)
   const avInd     = useAvaliacaoIndividual(group?.id, resolvedOrgId)
-  const config    = useAvaliacaoConfig(group?.id, resolvedOrgId)
   const { settings } = useSettings()
 
   const [turma,       setTurma]       = useState('Turma A · 2026.1')
