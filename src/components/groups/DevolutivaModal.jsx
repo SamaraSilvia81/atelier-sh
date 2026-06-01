@@ -184,6 +184,7 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
     if (!id || id === 'nao_fez') return { cmd: 'statuswarn', label: 'Não entregue' }
     if (id === 'completo')           return { cmd: 'statusok',   label: 'Completo' }
     if (id === 'completo_ressalvas') return { cmd: 'statuswarn', label: 'Completo c/ ressalvas' }
+     if (id === 'completo_inadequado') return { cmd: 'statuswarn', label: 'Completo, mas inadequeado'}
     if (id === 'faltou_pouco')       return { cmd: 'statuswarn', label: 'Faltou pouco' }
     if (id === 'faltou_pouco_erros') return { cmd: 'statuswarn', label: 'Faltou pouco c/ erros' }
     if (id === 'faltou_muito')       return { cmd: 'statuswarn', label: 'Faltou muito' }
