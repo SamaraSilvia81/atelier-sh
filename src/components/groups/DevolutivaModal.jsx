@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { X, FileText, Download, CheckCircle, AlertTriangle, GitBranch } from 'lucide-react'
-import { DISCIPLINAS, NIVEIS_AVALIACAO, PENALIZACOES_ATRASO, FATORES } from '../../data/criterios'
+import { DISCIPLINAS, NIVEIS_AVALIACAO, PENALIZACOES_ATRASO } from '../../data/criterios'
+import { FATORES } from '../../hooks/useAvaliacaoIndividual'
 import { useAvaliacao } from '../../hooks/useAvaliacao'
 import { useAvaliacaoCrud } from '../../hooks/useAvaliacaoCrud'
 import { useNotes } from '../../hooks/useNotes'
