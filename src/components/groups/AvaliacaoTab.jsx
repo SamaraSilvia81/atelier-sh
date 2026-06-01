@@ -1366,11 +1366,6 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{disc.nome}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ fontSize: 11, color: disc.cor, fontWeight: 600 }}>{total.toFixed(2).replace('.', ',')} / {disc.total} pts</span>
-                  <button type="button" onClick={() => setDevolutivaTarget({ discId: discAtiva, faseNome: null })}
-                    title={`Devolutiva PDF — ${disc.nome}`}
-                    style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 'var(--radius)', border: `1px solid ${disc.corBorder}`, background: disc.corBg, color: disc.cor, ...mono, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}>
-                    <Download size={9} /> PDF
-                  </button>
                 </div>
               </div>
               <Barra valor={total} max={disc.total} cor={disc.cor} height={4} />

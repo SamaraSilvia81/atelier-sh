@@ -78,7 +78,11 @@ function coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina
         const atraso     = atrasoGrupo(disc.id, cr.id)
         const atrasoInfo = PENALIZACOES_ATRASO.find(a => a.id === atraso)
         const nota       = notaGrupo(disc.id, cr.id) ?? 0
-        const notaVinc   = notes.find(n => n.title === `Avaliação: ${cr.nome}`)
+        const crNomeNorm = cr.nome.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim()
+        const notaVinc   = notes.find(n => {
+          const t = (n.title || '').replace(/&amp;/g, '&').trim()
+          return t === `Avaliação: ${crNomeNorm}` || t === `Avaliação: ${cr.nome}`
+        })
         const comentario = notaVinc?.content ? htmlToLatex(notaVinc.content) : ''
         const itens      = cr.itens || []
         const checksFeitos = itens.map((item, i) => ({
@@ -304,7 +308,7 @@ function montarTex(dados, turma, dataEntrega, resumoIA, discId, members, contrib
     return [
       `\\section{${esc(d.nome)}}`,
       '',
-      `\\notadestaque{${fmt(d.total)}}{${fmt(d.max)}}`,
+      `\\notadestaque{${fmt(d.fases.reduce((a,f)=>a+f.totalFase,0))}}{${fmt(d.fases.reduce((a,f)=>a+f.maxFase,0))}}`,
       '',
       '\\subsection{Resumo dos Critérios}',
       '',
