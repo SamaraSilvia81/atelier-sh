@@ -7,6 +7,7 @@ import { useAvaliacaoCrud } from '../../hooks/useAvaliacaoCrud'
 import { useNotes } from '../../hooks/useNotes'
 import { useAvaliacaoConfig } from '../../hooks/useAvaliacaoConfig'
 import { useAvaliacaoIndividual } from '../../hooks/useAvaliacaoIndividual'
+import { useAvaliacaoConfig } from '../../hooks/useAvaliacaoConfig'
 import { pushFileToRepo } from '../../lib/github'
 import { useSettings } from '../../hooks/useSettings'
 
@@ -68,7 +69,7 @@ function htmlToText(html = '') {
 }
 
 // ── Coleta dados do Atelier ───────────────────────────────────
-function coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, crud, notes, etapas) {
+function coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, crud, notes, etapas, baseOverrides = {}) {
   const disciplinas = DISCIPLINAS.map(disc => {
     const todasFases = crud.getFasesDisciplina(disc.id)
     const fases = todasFases.map(fase => {
@@ -78,10 +79,13 @@ function coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina
         const atraso     = atrasoGrupo(disc.id, cr.id)
         const atrasoInfo = PENALIZACOES_ATRASO.find(a => a.id === atraso)
         const nota       = notaGrupo(disc.id, cr.id) ?? 0
-        const crNomeNorm = cr.nome.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim()
+        // Aplicar override de nome (editado pela prof no Atelier)
+        const ovKey = `${disc.id}-${cr.id}`
+        const nomeReal = baseOverrides[ovKey]?.nome ?? cr.nome
+        const nomeNorm = nomeReal.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim()
         const notaVinc   = notes.find(n => {
           const t = (n.title || '').replace(/&amp;/g, '&').trim()
-          return t === `Avaliação: ${crNomeNorm}` || t === `Avaliação: ${cr.nome}`
+          return t === `Avaliação: ${nomeNorm}` || t === `Avaliação: ${nomeReal}`
         })
         const comentario = notaVinc?.content ? htmlToLatex(notaVinc.content) : ''
         const itens      = cr.itens || []
@@ -90,7 +94,7 @@ function coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina
           marcado: etapas?.[`${disc.id}-${cr.id}-item-${i}`] ?? false,
         }))
         return {
-          id: cr.id, nome: cr.nome, max: cr.max, nota,
+          id: cr.id, nome: nomeReal, max: baseOverrides[ovKey]?.max ?? cr.max, nota,
           nivelLabel:  nivelInfo?.label  || '—',
           nivelEmoji:  nivelInfo?.emoji  || '',
           nivelDesc:   nivelInfo?.desc   || '',
@@ -481,6 +485,7 @@ export default function DevolutivaModal({ group, orgId: orgIdProp, org, discId, 
   const { notes } = useNotes(group?.id, resolvedOrgId)
   const config    = useAvaliacaoConfig(group?.id, resolvedOrgId)
   const avInd     = useAvaliacaoIndividual(group?.id, resolvedOrgId)
+  const config    = useAvaliacaoConfig(group?.id, resolvedOrgId)
   const { settings } = useSettings()
 
   const [turma,       setTurma]       = useState('Turma A · 2026.1')
@@ -515,7 +520,7 @@ export default function DevolutivaModal({ group, orgId: orgIdProp, org, discId, 
     try {
       setErro('')
       setEtapa('gerando')
-      const dadosBrutos = coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, crud, notes, etapas)
+      const dadosBrutos = coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, crud, notes, config.etapas, config.baseOverrides || {})
       // Filtra por discId e/ou faseNome
       let dados = dadosBrutos
       if (discId) {
