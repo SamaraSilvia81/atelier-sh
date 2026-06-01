@@ -51,7 +51,7 @@ function htmlToLatex(html = '') {
       return `\n\\begin{enumerate}[leftmargin=14pt,itemsep=1pt,topsep=3pt]\n${items}\n\\end{enumerate}\n`
     })
     .replace(/<\/p>/gi, '\n\n')
-    .replace(/<br\s*\/?>/gi, '\\\\\n')
+    .replace(/<br\s*\/?>/gi, '\n\n')
     .replace(/<[^>]*>/g, '')
     .replace(/&amp;/g, '\\&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
     .replace(/&nbsp;/g, '~').replace(/&quot;/g, '"')
@@ -206,7 +206,7 @@ function montarTex(dados, turma, dataEntrega, resumoIA, discId, members, avInd) 
       : ''
 
     const nivelDescStr = cr.nivelDesc
-      ? `\n\n{\\small\\color{cmuted}\\textit{${esc(cr.nivelEmoji)} ${esc(cr.nivelDesc)}}}`
+      ? `\n\n{\\small\\color{cmuted}\\textit{${esc(cr.nivelDesc)}}}`
       : ''
 
     const comentStr = cr.comentario ? '\n\n' + cr.comentario : ''
