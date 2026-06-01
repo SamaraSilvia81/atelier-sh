@@ -33,31 +33,50 @@ function escInline(str = '') {
 
 function htmlToLatex(html = '') {
   if (!html) return ''
+
+  function inlineToLatex(h) {
+    if (!h) return ''
+    return h
+      .replace(/<strong[^>]*>(.*?)<\/strong>/gis, (_, t) => `\\textbf{${inlineToLatex(t)}}`)
+      .replace(/<b[^>]*>(.*?)<\/b>/gis,           (_, t) => `\\textbf{${inlineToLatex(t)}}`)
+      .replace(/<em[^>]*>(.*?)<\/em>/gis,         (_, t) => `\\textit{${inlineToLatex(t)}}`)
+      .replace(/<i[^>]*>(.*?)<\/i>/gis,           (_, t) => `\\textit{${inlineToLatex(t)}}`)
+      .replace(/<code[^>]*>(.*?)<\/code>/gis,     (_, t) => `\\texttt{${escInline(t)}}`)
+      .replace(/<[^>]*>/g, '')
+      .replace(/&amp;/g, '\\&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+      .replace(/&nbsp;/g, '~').replace(/&quot;/g, "''")
+      .replace(/([%#])/g, '\\$1')
+  }
+
+  function liToLatex(h) {
+    return inlineToLatex(h.replace(/<p[^>]*>(.*?)<\/p>/gis, '$1'))
+  }
+
   return html
-    .replace(/<h1[^>]*>(.*?)<\/h1>/gis,  (_, t) => `\n\n\\textbf{\\large ${escInline(t)}}\n\n`)
-    .replace(/<h2[^>]*>(.*?)<\/h2>/gis,  (_, t) => `\n\n\\textbf{${escInline(t)}}\n\n`)
-    .replace(/<h3[^>]*>(.*?)<\/h3>/gis,  (_, t) => `\n\n\\textit{\\textbf{${escInline(t)}}}\n\n`)
-    .replace(/<strong[^>]*>(.*?)<\/strong>/gis, (_, t) => `\\textbf{${escInline(t)}}`)
-    .replace(/<em[^>]*>(.*?)<\/em>/gis,         (_, t) => `\\textit{${escInline(t)}}`)
-    .replace(/<code[^>]*>(.*?)<\/code>/gis,      (_, t) => `\\texttt{${escInline(t)}}`)
+    .replace(/<h1[^>]*>(.*?)<\/h1>/gis, (_, t) => `\n\n\\textbf{\\large ${inlineToLatex(t)}}\n\n`)
+    .replace(/<h2[^>]*>(.*?)<\/h2>/gis, (_, t) => `\n\n\\textbf{${inlineToLatex(t)}}\n\n`)
+    .replace(/<h3[^>]*>(.*?)<\/h3>/gis, (_, t) => `\n\n\\textit{\\textbf{${inlineToLatex(t)}}}\n\n`)
     .replace(/<ul[^>]*>(.*?)<\/ul>/gis, (_, body) => {
       const items = [...body.matchAll(/<li[^>]*>(.*?)<\/li>/gis)]
-        .map(m => `  \\item ${escInline(m[1].replace(/<[^>]*>/g, '').trim())}`).join('\n')
-      return `\n\\begin{itemize}[leftmargin=14pt,itemsep=1pt,topsep=3pt]\n${items}\n\\end{itemize}\n`
+        .map(m => `  \\item ${liToLatex(m[1].trim())}`).join('\n')
+      return `\n\\begin{itemize}[leftmargin=14pt,itemsep=2pt,topsep=4pt]\n${items}\n\\end{itemize}\n`
     })
     .replace(/<ol[^>]*>(.*?)<\/ol>/gis, (_, body) => {
       const items = [...body.matchAll(/<li[^>]*>(.*?)<\/li>/gis)]
-        .map(m => `  \\item ${escInline(m[1].replace(/<[^>]*>/g, '').trim())}`).join('\n')
-      return `\n\\begin{enumerate}[leftmargin=14pt,itemsep=1pt,topsep=3pt]\n${items}\n\\end{enumerate}\n`
+        .map(m => `  \\item ${liToLatex(m[1].trim())}`).join('\n')
+      return `\n\\begin{enumerate}[leftmargin=14pt,itemsep=2pt,topsep=4pt]\n${items}\n\\end{enumerate}\n`
     })
-    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<p[^>]*>(.*?)<\/p>/gis, (_, t) => `\n\n${inlineToLatex(t)}\n\n`)
+    .replace(/<strong[^>]*>(.*?)<\/strong>/gis, (_, t) => `\\textbf{${inlineToLatex(t)}}`)
+    .replace(/<b[^>]*>(.*?)<\/b>/gis,           (_, t) => `\\textbf{${inlineToLatex(t)}}`)
+    .replace(/<em[^>]*>(.*?)<\/em>/gis,         (_, t) => `\\textit{${inlineToLatex(t)}}`)
+    .replace(/<i[^>]*>(.*?)<\/i>/gis,           (_, t) => `\\textit{${inlineToLatex(t)}}`)
     .replace(/<br\s*\/?>/gi, '\n\n')
     .replace(/<[^>]*>/g, '')
     .replace(/&amp;/g, '\\&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&nbsp;/g, '~').replace(/&quot;/g, '"')
+    .replace(/&nbsp;/g, '~').replace(/&quot;/g, "''")
     .replace(/\n{3,}/g, '\n\n').trim()
 }
-
 function htmlToText(html = '') {
   return html
     .replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n').replace(/<\/li>/gi, '\n')
@@ -167,6 +186,7 @@ function montarTex(dados, turma, dataEntrega, resumoIA, discId, members, contrib
 
   // ── legenda dos níveis de avaliação ──
   function legendaNiveis() {
+    // Renderizado em coluna única como apêndice
     const linhas = NIVEIS_AVALIACAO.map(n =>
       `  \\item \\textbf{${esc(n.label)}} (${Math.round(n.pct * 100)}\\%): ${esc(n.desc)}`
     ).join('\n')
@@ -175,9 +195,11 @@ function montarTex(dados, turma, dataEntrega, resumoIA, discId, members, contrib
       return `  \\item \\textbf{${esc(a.label)}}: ${v}`
     }).join('\n')
     return [
+      '\\appendix',
+      '\\onecolumn',
       '\\section{Critérios e Níveis de Avaliação}',
       '',
-      'Esta seção apresenta os níveis utilizados e as penalizações por atraso, para transparência na avaliação.',
+      'Esta seção lista os critérios de avaliação utilizados neste documento para referência dos estudantes.',
       '',
       '\\subsection{Níveis de Completude}',
       '',
@@ -212,9 +234,7 @@ function montarTex(dados, turma, dataEntrega, resumoIA, discId, members, contrib
       ? `\n\n{\\small\\color{cred}\\textit{Penalização por atraso: ${esc(cr.atrasoLabel)}}}`
       : ''
 
-    const nivelDescStr = cr.nivelDesc
-      ? `\n\n{\\small\\color{cmuted}\\textit{${esc(cr.nivelDesc)}}}`
-      : ''
+    const nivelDescStr = ''  // removido — explicado no apêndice
 
     const comentStr = cr.comentario ? '\n\n' + cr.comentario : ''
 
@@ -463,7 +483,18 @@ async function gerarResumoGroq(dados, settings) {
       })
     )
   ).join('\n')
-  const prompt = `Você é professora de Design Thinking do ensino técnico. Escreva um resumo acadêmico conciso (8 a 10 linhas) em português para a devolutiva do grupo "${dados.group.name}". Mencione a nota total (${totalGeral.toFixed(2)} pts), destaque pontos fortes e indique pontos de atenção. Use linguagem técnica e objetiva.\n\nDados:\n${linhas}\n\nResponda apenas com o texto, sem títulos, markdown ou aspas.`
+  const prompt = `Você é professora de Design Thinking do ensino técnico da ETE Cícero Dias. Escreva o resumo (abstract) da devolutiva avaliativa do grupo "${dados.group.name}" para a Fase 1 — Imersão.
+
+O resumo deve ter entre 12 e 15 linhas, em português formal e acadêmico. Estruture o texto em prosa corrida (sem tópicos):
+1. Apresente o grupo e a nota obtida (${totalGeral.toFixed(2)} pts do total disponível)
+2. Destaque os pontos fortes com especificidade — o que foi bem executado e por quê merece destaque
+3. Aponte os pontos de atenção metodológicos com clareza e construtividade
+4. Oriente brevemente sobre os próximos passos para a Fase 2 — Definição
+
+Dados da avaliação por critério:
+${linhas}
+
+Responda apenas com o texto do resumo em prosa. Sem títulos, marcadores, markdown ou aspas externas.`
   try {
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
