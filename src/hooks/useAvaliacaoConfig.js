@@ -63,7 +63,13 @@ export function useAvaliacaoConfig(groupId, orgId) {
       if (orgErr) throw orgErr
 
       if (orgData) {
-        if (orgData.niveis_custom?.length)  setNiveisCustomRaw(orgData.niveis_custom)
+        if (orgData.niveis_custom?.length) {
+          // Merge: garante que novos níveis adicionados ao código apareçam
+          // mesmo que o banco tenha uma versão anterior sem eles
+          const savedMap = Object.fromEntries(orgData.niveis_custom.map(n => [n.id, n]))
+          const merged = NIVEIS_DEFAULT.map(n => savedMap[n.id] ? { ...n, ...savedMap[n.id] } : n)
+          setNiveisCustomRaw(merged)
+        }
         if (orgData.fatores_custom?.length) {
           const saved  = Object.fromEntries(orgData.fatores_custom.map(f => [f.id, f]))
           const merged = Object.entries(FATORES).map(([id, f]) => saved[id] ? saved[id] : { id, ...f })
