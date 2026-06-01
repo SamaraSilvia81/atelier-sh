@@ -76,6 +76,7 @@ function htmlToLatex(html = '') {
     .replace(/&nbsp;/g, '~').replace(/&quot;/g, "''")
     .replace(/\n{3,}/g, '\n\n').trim()
 }
+
 function htmlToText(html = '') {
   return html
     .replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n').replace(/<\/li>/gi, '\n')
@@ -100,7 +101,6 @@ function coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina
         const comentario = notaVinc?.content ? htmlToLatex(notaVinc.content) : ''
 
         // Checks marcados — etapas salvas no config
-        const itensOverride = null // vem do crud se necessário
         const itens = cr.itens || []
         const checksFeitos = itens.map((item, i) => {
           const key = `${disc.id}-${cr.id}-item-${i}`
@@ -149,7 +149,9 @@ function montarSecaoIndividual(members, contribuicoes, disciplinas) {
   const fasesCols = disciplinas.flatMap(d => d.fases.map(f => ({ discId: d.id, discNome: d.nome, faseNome: f.nome, criterios: f.criterios })))
   const headerCols = fasesCols.map(c => `\\textbf{\\small ${esc(c.discId.toUpperCase())} ${esc(c.faseNome)}}`).join(' & ')
   const totalCols = fasesCols.length
-  const colSpec = `p{3.5cm} ${Array(totalCols).fill('>{\\raggedright\\arraybackslash}p{3.5cm}').join(' ')} p{2cm}`
+  
+  // Utilizando tabularx com X dinâmico para esticar conforme o número de fases
+  const colSpec = `X ${Array(totalCols).fill('X').join(' ')} p{2.5cm}`
 
   const linhasInt = members.map(m => {
     const mid = m.user_id || m.id
@@ -174,23 +176,25 @@ function montarSecaoIndividual(members, contribuicoes, disciplinas) {
     `\\section{Devolutiva Individual}\n\n` +
     `A nota individual é calculada aplicando o fator de contribuição sobre a nota do grupo em cada fase.\n\n` +
     `\\subsection{Fatores de Contribuição}\n\n` +
-    `\\begin{tabular}{@{} p{4cm} c @{}}\n` +
+    `\\begin{tabularx}{0.6\\linewidth}{@{} X c @{}}\n` +
     `\\toprule\n` +
     `\\textbf{Fator} & \\textbf{Multiplicador} \\\\\n` +
     `\\midrule\n` +
     linhasFatores + `\n` +
     `\\bottomrule\n` +
-    `\\end{tabular}\n\n` +
+    `\\end{tabularx}\n\n` +
+    `\\vspace{1em}\n` +
     `\\subsection{Notas por Integrante}\n\n` +
-    `\\begin{tabular}{@{} ${colSpec} @{}}\n` +
+    `\\begin{tabularx}{\\linewidth}{@{} ${colSpec} @{}}\n` +
     `\\toprule\n` +
     `\\textbf{Integrante} & ${headerCols} & \\textbf{Total} \\\\\n` +
     `\\midrule\n` +
     linhasInt + `\n` +
     `\\bottomrule\n` +
-    `\\end{tabular}`
+    `\\end{tabularx}`
   )
 }
+
 function legendaNiveis() {
   const linhasNiveis = NIVEIS_AVALIACAO.map(n =>
     `${esc(n.label)} & ${Math.round(n.pct * 100)}\\% & ${esc(n.desc)} \\\\`
@@ -205,21 +209,22 @@ function legendaNiveis() {
     `\\section{Critérios e Níveis de Avaliação}\n\n` +
     `Esta seção apresenta os critérios de avaliação para referência dos estudantes.\n\n` +
     `\\subsection{Níveis de Completude}\n\n` +
-    `\\begin{tabular}{@{} p{3cm} p{0.8cm} p{9.5cm} @{}}\n` +
+    `\\begin{tabularx}{\\linewidth}{@{} p{4cm} p{1.5cm} X @{}}\n` +
     `\\toprule\n` +
     `\\textbf{Nível} & \\textbf{\\%} & \\textbf{Descrição} \\\\\n` +
     `\\midrule\n` +
     linhasNiveis + `\n` +
     `\\bottomrule\n` +
-    `\\end{tabular}\n\n` +
+    `\\end{tabularx}\n\n` +
+    `\\vspace{1em}\n` +
     `\\subsection{Penalizações por Atraso}\n\n` +
-    `\\begin{tabular}{@{} p{3.5cm} p{5cm} @{}}\n` +
+    `\\begin{tabularx}{0.6\\linewidth}{@{} X p{5cm} @{}}\n` +
     `\\toprule\n` +
     `\\textbf{Atraso} & \\textbf{Desconto} \\\\\n` +
     `\\midrule\n` +
     linhasPenais + `\n` +
     `\\bottomrule\n` +
-    `\\end{tabular}`
+    `\\end{tabularx}`
   )
 }
 
@@ -234,8 +239,8 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
   // título adaptado
   const discNome = discId ? (disciplinas.find(d => d.id === discId)?.nome || discId) : null
   const tituloDoc = discNome
-    ? `Devolutiva de Avaliação: ${discNome}`
-    : `Devolutiva de Avaliação: Fase 1 --- Imersão`
+    ? `Feedback Avaliativo de Projeto: ${discNome}`
+    : `Feedback Avaliativo de Projeto: Fase 1 --- Imersão`
 
   // ── helpers de status — usa nivelId real do sistema ──────────
   function statusCmd(cr) {
@@ -243,7 +248,7 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
     if (!id || id === 'nao_fez') return { cmd: 'statuswarn', label: 'Não entregue' }
     if (id === 'completo')           return { cmd: 'statusok',   label: 'Completo' }
     if (id === 'completo_ressalvas') return { cmd: 'statuswarn', label: 'Completo c/ ressalvas' }
-    if (id === 'completo_inadequado') return { cmd: 'statuswarn', label: 'Completo, mas inadequeado'}
+    if (id === 'completo_inadequado') return { cmd: 'statuswarn', label: 'Completo, mas inadequado'}
     if (id === 'faltou_pouco')       return { cmd: 'statuswarn', label: 'Faltou pouco' }
     if (id === 'faltou_pouco_erros') return { cmd: 'statuswarn', label: 'Faltou pouco c/ erros' }
     if (id === 'faltou_muito')       return { cmd: 'statuswarn', label: 'Faltou muito' }
@@ -262,7 +267,7 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
     const maxFase   = criterios.reduce((a, c) => a + c.max,  0)
     return (
       '\\rowcolors{2}{crow}{white}\n' +
-      '\\begin{tabular}{@{} L{2.8cm} C{2.0cm} C{1.1cm} C{1.1cm} @{}}\n' +
+      '\\begin{tabular}{@{} L{2.6cm} C{2.5cm} C{1.1cm} C{1.1cm} @{}}\n' +
       '\\toprule\n' +
       '\\textbf{Critério} & \\textbf{Status} & \\textbf{Nota} & \\textbf{Máx.} \\\\\n' +
       '\\midrule\n' +
@@ -330,12 +335,9 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
     )
   }).join('\n\n')
 
-  // ── abstract após maketitle, em 1 coluna ──────────────────────
-  const abstractStr = ''
-
   const periodoStr = dataEntrega || dataHoje
 
-  // ── preâmbulo exatamente igual ao template de referência ───
+  // ── preâmbulo ───────────────────────────────────────────────
   const preambulo = [
     `% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %`,
     `%  Devolutiva — Fase 1: Imersão`,
@@ -345,6 +347,7 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
     ``,
     `\\documentclass[`,
     `  sigconf,`,
+    `  nonacm, % Remove o rodapé da ACM`,
     `  language=portuguese`,
     `]{acmart}`,
     ``,
@@ -366,6 +369,11 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
     `\\usepackage{graphicx}`,
     `\\usepackage{adjustbox}`,
     `\\usepackage{fancyhdr}`,
+    `\\usepackage{eso-pic} % Para a capa preencher toda a página sem gerar páginas em branco`,
+    ``,
+    `% ── Ajuste contra quebras de texto ruins (Textos Cortados) ──`,
+    `\\tolerance=1000`,
+    `\\emergencystretch=1.5em`,
     ``,
     `% ── Cores ───────────────────────────────────────────────────`,
     `\\definecolor{cgood}{HTML}{1E6B3A}`,
@@ -396,30 +404,38 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
     `}`,
     ``,
     `% ────────────────────────────────────────────────────────────`,
-    `\\AtBeginDocument{\\pagestyle{empty}}`,
     `\\begin{document}`,
-    `\\thispagestyle{empty}`,
     ``,
     `% ── CAPA ────────────────────────────────────────────────────`,
     `\\thispagestyle{empty}`,
-    `{`,
-    `  \\newgeometry{top=0cm,bottom=0cm,left=0cm,right=0cm}`,
-    `  \\IfFileExists{capa.png}{\\includegraphics[width=\\paperwidth,height=\\paperheight,keepaspectratio=false]{capa.png}}{`,
-    `    \\IfFileExists{../../capa.png}{\\includegraphics[width=\\paperwidth,height=\\paperheight,keepaspectratio=false]{../../capa.png}}{`,
-    `      \\vspace*{6cm}\\begin{center}{\\large\\color{gray}[capa.png nao encontrada]}\\end{center}`,
-    `    }`,
-    `  }`,
-    `  \\restoregeometry`,
+    `\\AddToShipoutPictureBG*{%`,
+    `  \\AtPageLowerLeft{%`,
+    `    \\IfFileExists{capa.png}{%`,
+    `      \\includegraphics[width=\\paperwidth,height=\\paperheight]{capa.png}%`,
+    `    }{%`,
+    `      \\IfFileExists{../../capa.png}{%`,
+    `        \\includegraphics[width=\\paperwidth,height=\\paperheight]{../../capa.png}%`,
+    `      }{%`,
+    `        \\parbox[b][\\paperheight]{\\paperwidth}{%`,
+    `          \\vspace*{10cm}\\begin{center}{\\large\\color{gray}[capa.png não encontrada]}\\end{center}%`,
+    `        }%`,
+    `      }%`,
+    `    }%`,
+    `  }%`,
     `}`,
+    `\\mbox{} % Caixa vazia para garantir que a página da capa seja gerada e preenchida`,
     `\\clearpage`,
+    ``,
+    `% ── CONFIGURAÇÃO DE PÁGINA PÓS-CAPA ─────────────────────────`,
     `\\setcounter{page}{1}`,
     `\\pagestyle{fancy}`,
     `\\fancyhf{}`,
     `\\renewcommand{\\headrulewidth}{0pt}`,
     `\\fancyfoot[C]{\\thepage}`,
+    `\\setlength{\\headsep}{0.8cm} % Distancia o cabeçalho do conteúdo das colunas`,
     ``,
     `% ── METADADOS ────────────────────────────────────────────────`,
-    `\\title{Devolutiva de Avaliação: Fase 1 --- Imersão}`,
+    `\\title{${esc(tituloDoc)}}`,
     ``,
     `\\author{Profa.\\ Samara Silva}`,
     `\\authornote{Grupo: \\textbf{${esc(group.name)}} \\textperiodcentered\\ Per\\'{i}odo: ${esc(periodoStr)} \\textperiodcentered\\ Avaliado em: ${esc(dataHoje)}.}`,
@@ -454,6 +470,7 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
     ``,
     `% ── Assinatura ───────────────────────────────────────────────`,
     ``,
+    `\\vspace{1.5em}`,
     `\\noindent\\rule{\\linewidth}{0.4pt}`,
     ``,
     `\\begin{flushright}`,
