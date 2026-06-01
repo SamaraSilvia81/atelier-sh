@@ -72,24 +72,22 @@ function coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina
   return { group, disciplinas, totalGeral: disciplinas.reduce((a, d) => a + d.total, 0) }
 }
 
+
 function montarTex(dados, turma, dataEntrega, resumoIA = null) {
   const { group, disciplinas, totalGeral } = dados
   const fmt = n => String(n.toFixed(2)).replace('.', ',')
   const hoje = new Date()
   const dataHoje = hoje.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })
 
-  // ── Status label e comando por percentual ─────────────────
   function statusCmd(nota, max) {
     if (max === 0) return { cmd: 'statuswarn', label: '---' }
     const p = nota / max
-    if (p >= 1.0) return { cmd: 'statusok',   label: 'Completo' }
     if (p >= 0.8) return { cmd: 'statusok',   label: 'Completo' }
     if (p >= 0.5) return { cmd: 'statuswarn', label: 'c/ ressalvas' }
     if (p >  0)   return { cmd: 'statuswarn', label: 'Incompleto' }
     return { cmd: 'statuswarn', label: 'Não entregue' }
   }
 
-  // ── Tabela de resumo da fase ──────────────────────────────
   function tabelaFase(fase) {
     const linhas = fase.criterios.map(cr => {
       const { cmd, label } = statusCmd(cr.nota, cr.max)
@@ -97,168 +95,127 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null) {
     }).join('\n')
     const totalFase = fase.criterios.reduce((a, c) => a + c.nota, 0)
     const maxFase   = fase.criterios.reduce((a, c) => a + c.max,  0)
-    return `\\rowcolors{2}{crow}{white}
-\\begin{tabular}{@{} L{2.8cm} C{2.0cm} C{1.1cm} C{1.1cm} @{}}
-\\toprule
-\\textbf{Critério} & \\textbf{Status} & \\textbf{Máx.} & \\textbf{Nota} \\\\
-\\midrule
-${linhas}
-\\midrule
-\\textbf{Total} & & \\textbf{${fmt(maxFase)}} & \\textbf{\\color{cred}${fmt(totalFase)}} \\\\
-\\bottomrule
-\\end{tabular}`
+    return (
+      '\\rowcolors{2}{crow}{white}\n' +
+      '\\begin{tabular}{@{} L{2.8cm} C{2.0cm} C{1.1cm} C{1.1cm} @{}}\n' +
+      '\\toprule\n' +
+      '\\textbf{Critério} & \\textbf{Status} & \\textbf{Máx.} & \\textbf{Nota} \\\\\n' +
+      '\\midrule\n' +
+      linhas + '\n' +
+      '\\midrule\n' +
+      `\\textbf{Total} & & \\textbf{${fmt(maxFase)}} & \\textbf{\\color{cred}${fmt(totalFase)}} \\\\\n` +
+      '\\bottomrule\n' +
+      '\\end{tabular}'
+    )
   }
 
-  // ── Seções de comentário por critério ─────────────────────
   function secoesCriterios(fase) {
     return fase.criterios.map(cr => {
       const { cmd, label } = statusCmd(cr.nota, cr.max)
       const atrasoStr = cr.atrasoLabel
-        ? `\n\n{\\small\\color{cred}\\textit{Penalização por atraso: ${esc(cr.atrasoLabel)}}}`
+        ? '\n\n' + `{\\small\\color{cred}\\textit{Penalização por atraso: ${esc(cr.atrasoLabel)}}}`
         : ''
       const comentStr = cr.comentario
-        ? `\n\n${esc(cr.comentario)}`
+        ? '\n\n' + esc(cr.comentario)
         : ''
-      return `\\subsection{${esc(cr.nome)}}
-
-\\noindent\\${cmd}{${fmt(cr.nota)}\\,/\\,${fmt(cr.max)} pts · ${label}}
-${comentStr}${atrasoStr}`
+      return (
+        `\\subsection{${esc(cr.nome)}}\n\n` +
+        `\\noindent\\${cmd}{${fmt(cr.nota)}\\,/\\,${fmt(cr.max)} pts · ${label}}` +
+        comentStr + atrasoStr
+      )
     }).join('\n\n')
   }
 
-  // ── Uma section por disciplina ────────────────────────────
-  const secoes = disciplinas.map((d, di) => {
+  const secoes = disciplinas.map(d => {
     const fasesConteudo = d.fases.map(f => {
-      return `\\subsection{${esc(f.nome)}}
-
-${tabelaFase(f)}
-
-${secoesCriterios(f)}`
+      return (
+        `\\subsection{${esc(f.nome)}}\n\n` +
+        tabelaFase(f) + '\n\n' +
+        secoesCriterios(f)
+      )
     }).join('\n\n')
 
-    return `% ════════════════════════════════════════════════════════════
-\\section{${esc(d.nome)}}
-% ════════════════════════════════════════════════════════════
-
-\\notadestaque{${fmt(d.total)}}{${fmt(d.max)}}
-
-${fasesConteudo}`
+    return (
+      `\\section{${esc(d.nome)}}\n\n` +
+      `\\notadestaque{${fmt(d.total)}}{${fmt(d.max)}}\n\n` +
+      fasesConteudo
+    )
   }).join('\n\n')
 
-  // ── Resumo abstract ───────────────────────────────────────
   const abstractStr = resumoIA
-    ? `\\begin{abstract}\n${esc(resumoIA)}\n\\end{abstract}\n\n`
+    ? '\\begin{abstract}\n' + esc(resumoIA) + '\n\\end{abstract}\n\n'
     : ''
 
-  // ── Período formatado ─────────────────────────────────────
   const periodoStr = dataEntrega || dataHoje
+  const ano = hoje.getFullYear()
 
-  return `% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
-%  Devolutiva — ${group.name}
-%  Disciplina: Design Thinking (DE_233) — ETE Cícero Dias
-%  Profa. Samara Silva  ·  Recife, ${dataHoje}
-% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
-
-\\documentclass[
-  sigconf,
-  language=portuguese
-]{acmart}
-
-% ── Desliga rodapé ACM ──────────────────────────────────────
-\\settopmatter{printacmref=false}
-\\setcopyright{none}
-\\acmYear{${hoje.getFullYear()}}
-
-% ── Pacotes ─────────────────────────────────────────────────
-\\usepackage[portuguese]{babel}
-\\usepackage{microtype}
-\\usepackage{booktabs}
-\\usepackage{tabularx}
-\\usepackage{array}
-\\usepackage{colortbl}
-\\usepackage[dvipsnames,table]{xcolor}
-\\usepackage[inline]{enumitem}
-\\usepackage{graphicx}
-
-% ── Cores ───────────────────────────────────────────────────
-\\definecolor{cgood}{HTML}{1E6B3A}
-\\definecolor{cwarn}{HTML}{8B4500}
-\\definecolor{cred}{HTML}{C0392B}
-\\definecolor{cmuted}{HTML}{666666}
-\\definecolor{crow}{HTML}{F2EFEB}
-
-% ── Colunas customizadas para tabela ────────────────────────
-\\newcolumntype{L}[1]{>{\\raggedright\\arraybackslash}p{#1}}
-\\newcolumntype{C}[1]{>{\\centering\\arraybackslash}p{#1}}
-
-% ── Comando nota destacada ───────────────────────────────────
-\\newcommand{\\notadestaque}[2]{%
-  \\noindent\\textbf{Nota:}\\enspace%
-  {\\large\\bfseries\\color{cred}#1\\,/\\,#2\\,pts}%
-}
-
-% ── Comando label de status ──────────────────────────────────
-\\newcommand{\\statusok}[1]{{\\small\\bfseries\\color{cgood}#1}}
-\\newcommand{\\statuswarn}[1]{{\\small\\bfseries\\color{cwarn}#1}}
-
-% ── Renomeações PT-BR ────────────────────────────────────────
-\\AtBeginDocument{%
-  \\renewcommand{\\abstractname}{Resumo}
-  \\renewcommand{\\figurename}{Figura}
-  \\renewcommand{\\tablename}{Tabela}
-}
-
-% ────────────────────────────────────────────────────────────
-\\begin{document}
-
-% ── CAPA ────────────────────────────────────────────────────
-\\thispagestyle{empty}
-\\IfFileExists{capa.png}{%
-  \\includegraphics[width=\\paperwidth,height=\\paperheight]{capa.png}%
-}{%
-  \\begin{center}\\small\\color{gray}[capa.png n\\~ao encontrada]\\end{center}%
-}
-\\newpage
-
-% ── METADADOS ────────────────────────────────────────────────
-\\title{Devolutiva de Avaliação: Fase 1 --- Imersão}
-
-\\author{Profa. Samara Silva}
-\\authornote{%
-  Grupo avaliado: ${esc(group.name)}\\quad·\\quad
-  Período: ${esc(periodoStr)}\\quad·\\quad
-  Avaliado em: ${esc(dataHoje)}.%
-}
-\\email{samarasilvia.educa@gmail.com}
-\\affiliation{%
-  \\institution{ETE Cícero Dias}
-  \\department{Design Thinking --- DE\\_233}
-  \\city{Recife}
-  \\state{Pernambuco}
-  \\country{Brasil}
-}
-
-${abstractStr}\\maketitle
-
-${secoes}
-
-% ── Considerações Finais ─────────────────────────────────────
-\\section{Considerações Finais}
-
-A avaliação da Fase~1 foi concluída. Os ajustes indicados devem ser incorporados antes do avanço para a Fase~2 (Definição).
-
-% ── Assinatura ───────────────────────────────────────────────
-
-\\noindent\\rule{\\linewidth}{0.4pt}
-
-\\begin{flushright}
-\\textbf{Profa.\\ Samara Silva}\\\\
-{\\small\\color{cmuted} Design Thinking --- DE\\_233 · ETE Cícero Dias}\\\\
-{\\small\\color{cmuted} Recife, ${esc(dataHoje)}}
-\\end{flushright}
-
-\\end{document}
-`
+  return (
+    '% Devolutiva — ' + group.name + '\n' +
+    '% ETE Cicero Dias . Modulo 1 . ' + ano + '\n' +
+    '% Compilar com pdflatex/xelatex no Overleaf\n\n' +
+    '\\documentclass[\n  sigconf,\n  language=portuguese\n]{acmart}\n\n' +
+    '\\settopmatter{printacmref=false}\n' +
+    '\\setcopyright{none}\n' +
+    '\\acmYear{' + ano + '}\n\n' +
+    '\\usepackage[portuguese]{babel}\n' +
+    '\\usepackage{microtype}\n' +
+    '\\usepackage{booktabs}\n' +
+    '\\usepackage{tabularx}\n' +
+    '\\usepackage{array}\n' +
+    '\\usepackage{colortbl}\n' +
+    '\\usepackage[dvipsnames,table]{xcolor}\n' +
+    '\\usepackage[inline]{enumitem}\n' +
+    '\\usepackage{graphicx}\n\n' +
+    '\\definecolor{cgood}{HTML}{1E6B3A}\n' +
+    '\\definecolor{cwarn}{HTML}{8B4500}\n' +
+    '\\definecolor{cred}{HTML}{C0392B}\n' +
+    '\\definecolor{cmuted}{HTML}{666666}\n' +
+    '\\definecolor{crow}{HTML}{F2EFEB}\n\n' +
+    '\\newcolumntype{L}[1]{>{\\raggedright\\arraybackslash}p{#1}}\n' +
+    '\\newcolumntype{C}[1]{>{\\centering\\arraybackslash}p{#1}}\n\n' +
+    '\\newcommand{\\notadestaque}[2]{%\n' +
+    '  \\noindent\\textbf{Nota:}\\enspace%\n' +
+    '  {\\large\\bfseries\\color{cred}#1\\,/\\,#2\\,pts}%\n' +
+    '}\n\n' +
+    '\\newcommand{\\statusok}[1]{{\\small\\bfseries\\color{cgood}#1}}\n' +
+    '\\newcommand{\\statuswarn}[1]{{\\small\\bfseries\\color{cwarn}#1}}\n\n' +
+    '\\AtBeginDocument{%\n' +
+    '  \\renewcommand{\\abstractname}{Resumo}\n' +
+    '  \\renewcommand{\\figurename}{Figura}\n' +
+    '  \\renewcommand{\\tablename}{Tabela}\n' +
+    '}\n\n' +
+    '\\begin{document}\n\n' +
+    '\\thispagestyle{empty}\n' +
+    '\\IfFileExists{capa.png}{%\n' +
+    '  \\includegraphics[width=\\paperwidth,height=\\paperheight]{capa.png}%\n' +
+    '}{%\n' +
+    '  \\begin{center}\\small\\color{gray}[capa.png nao encontrada]\\end{center}%\n' +
+    '}\n' +
+    '\\newpage\n\n' +
+    '\\title{Devolutiva de Avaliação: Fase 1 --- Imersão}\n\n' +
+    '\\author{Profa. Samara Silva}\n' +
+    `\\authornote{Grupo avaliado: ${esc(group.name)}\\quad·\\quad Período: ${esc(periodoStr)}\\quad·\\quad Avaliado em: ${esc(dataHoje)}.}\n` +
+    '\\email{samarasilvia.educa@gmail.com}\n' +
+    '\\affiliation{%\n' +
+    '  \\institution{ETE Cícero Dias}\n' +
+    '  \\department{Design Thinking --- DE\\_233}\n' +
+    '  \\city{Recife}\n' +
+    '  \\state{Pernambuco}\n' +
+    '  \\country{Brasil}\n' +
+    '}\n\n' +
+    abstractStr +
+    '\\maketitle\n\n' +
+    secoes + '\n\n' +
+    '\\section{Considerações Finais}\n\n' +
+    'A avaliação da Fase~1 foi concluída. Os ajustes indicados devem ser incorporados antes do avanço para a Fase~2 (Definição).\n\n' +
+    '\\noindent\\rule{\\linewidth}{0.4pt}\n\n' +
+    '\\begin{flushright}\n' +
+    '\\textbf{Profa.\\ Samara Silva}\\\\\n' +
+    `{\\small\\color{cmuted} Design Thinking --- DE\\_233 · ETE Cícero Dias}\\\\\n` +
+    `{\\small\\color{cmuted} Recife, ${esc(dataHoje)}}\n` +
+    '\\end{flushright}\n\n' +
+    '\\end{document}\n'
+  )
 }
 
 async function compilarPDF(tex) {
