@@ -8,6 +8,7 @@ const NIVEIS_DEFAULT = NIVEIS_AVALIACAO.map(n => ({
   display: {
     completo:             'Completo',
     completo_ressalvas:   'Completo c/ ressalvas',
+    completo_inadequado:   'Completo, mas inadequado',
     faltou_pouco:         'Faltou pouco',
     faltou_pouco_erros:   'Faltou pouco c/ erros',
     faltou_muito:         'Faltou muito',
