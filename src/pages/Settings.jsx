@@ -51,6 +51,8 @@ export default function Settings({ currentOrgId }) {
   const [trelloToken,  setTrelloToken]  = useState('')
   const [githubToken,  setGithubToken]  = useState('')
   const [figmaToken,   setFigmaToken]   = useState('')
+  const [groqToken,    setGroqToken]    = useState('')
+  const [showGroq,     setShowGroq]     = useState(false)
   const [showGH,       setShowGH]       = useState(false)
   const [showFG,       setShowFG]       = useState(false)
   const [workspaces,   setWorkspaces]   = useState([])
@@ -70,6 +72,7 @@ export default function Settings({ currentOrgId }) {
       setGithubToken(settings.github_token || '')
       setTrelloToken(settings.trello_token || '')
       setFigmaToken(settings.figma_token  || '')
+      setGroqToken(settings.groq_token   || '')
       setSoundsOn(settings.sounds_enabled !== false)
     }
   }, [loadingSettings])
@@ -206,6 +209,24 @@ export default function Settings({ currentOrgId }) {
             <ExternalLink size={11} /> gerar token no Figma
           </a>
         </div>
+
+        <div style={S}>
+          <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 18, letterSpacing: '0.05em', marginBottom: 4 }}>GROQ <span style={{ color: '#f55036', fontSize: 14 }}>⚡</span></div>
+          <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.28em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 18 }}>// geração de resumos nas devolutivas (gratuito)</div>
+          <TokenRow label="api key" settingsKey="groq_token" value={groqToken} onChange={setGroqToken} show={showGroq} setShow={setShowGroq} hint="gsk_..." saved={saved} savingSettings={savingSettings} onSave={handleSaveToken} />
+          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+            <a href="https://console.groq.com/keys" target="_blank" rel="noopener" className="btn btn-ghost" style={{ fontSize: 10 }}>
+              <ExternalLink size={11} /> gerar chave no Groq Console
+            </a>
+          </div>
+          <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius)', padding: 12, fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.8, borderLeft: '2px solid var(--border-red)', marginTop: 14 }}>
+            <div style={{ color: 'var(--text-sub)', marginBottom: 4 }}>// tier gratuito do Groq:</div>
+            <div>• <span style={{ color: 'var(--red)' }}>6.000 tokens/min</span> · <span style={{ color: 'var(--red)' }}>500 requests/dia</span></div>
+            <div>• suficiente para ~400 devolutivas por dia</div>
+            <div>• modelo: <span style={{ color: 'var(--text-sub)' }}>llama-3.1-70b-versatile</span></div>
+          </div>
+        </div>
+
 
         <div style={S}>
           <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 18, letterSpacing: '0.05em', marginBottom: 4 }}>TEMA</div>

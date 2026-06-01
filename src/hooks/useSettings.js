@@ -6,6 +6,7 @@ const DEFAULTS = {
   github_token:   '',
   trello_token:   '',
   figma_token:    '',
+  groq_token:     '',
   sounds_enabled: true,
   sounds_volume:  0.5,
   proxy_url:      'https://atelier-sh-proxy.onrender.com',
@@ -19,6 +20,7 @@ function cacheLocally(s) {
     if (s.trello_token  !== undefined) localStorage.setItem('atelier_trello_token',  s.trello_token)
     if (s.figma_token   !== undefined) localStorage.setItem('atelier_figma_token',   s.figma_token)
     if (s.proxy_url     !== undefined) localStorage.setItem('atelier_proxy_url',     s.proxy_url)
+    if (s.groq_token    !== undefined) localStorage.setItem('atelier_groq_token',    s.groq_token)
   } catch {}
 }
 

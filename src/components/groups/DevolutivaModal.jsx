@@ -6,6 +6,7 @@ import { useAvaliacaoCrud } from '../../hooks/useAvaliacaoCrud'
 import { useNotes } from '../../hooks/useNotes'
 import { useAvaliacaoConfig } from '../../hooks/useAvaliacaoConfig'
 import { pushFileToRepo } from '../../lib/github'
+import { useSettings } from '../../hooks/useSettings'
 
 const mono = { fontFamily: 'var(--ff-mono)' }
 
@@ -71,7 +72,7 @@ function coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina
   return { group, disciplinas, totalGeral: disciplinas.reduce((a, d) => a + d.total, 0) }
 }
 
-function montarTex(dados, turma, dataEntrega) {
+function montarTex(dados, turma, dataEntrega, resumoIA = null) {
   const { group, disciplinas, totalGeral } = dados
   const fmt  = n => String(n.toFixed(2)).replace('.', ',')
 
@@ -198,6 +199,12 @@ ${fasesLatex}`
 \\end{center}
 \\clearpage
 
+% ── RESUMO (gerado por IA) ────────────────────────────────────
+${resumoIA ? `\\begin{abstract}
+${esc(resumoIA)}
+\\end{abstract}
+\\clearpage
+` : ''}
 % ── SUMARIO ───────────────────────────────────────────────────
 \\pagestyle{fancy}
 \\fancyhf{}
@@ -240,6 +247,7 @@ export default function DevolutivaModal({ group, orgId: orgIdProp, org, onClose 
   const { notes } = useNotes(group?.id, resolvedOrgId)
   const config    = useAvaliacaoConfig(group?.id, resolvedOrgId)
 
+  const { settings } = useSettings()
   const [turma,       setTurma]       = useState('Turma A · 2026.1')
   const [dataEntrega, setDataEntrega] = useState('22 de maio de 2026')
   const [etapa,       setEtapa]       = useState('idle')
@@ -266,13 +274,59 @@ export default function DevolutivaModal({ group, orgId: orgIdProp, org, onClose 
     return `${turmaDir}/${grupoDir}/devolutiva-imersao-${data}.tex`
   }
 
+
+  // ── Gera resumo via Groq ────────────────────────────────────
+  async function gerarResumoGroq(dados) {
+    const token = settings?.groq_token || localStorage.getItem('atelier_groq_token')
+    if (!token) return null
+
+    const { disciplinas, totalGeral } = dados
+    const linhas = disciplinas.flatMap(d =>
+      d.fases.flatMap(f =>
+        f.criterios.map(cr => {
+          const pct = cr.max > 0 ? ((cr.nota / cr.max) * 100).toFixed(0) : 0
+          return `- ${cr.nome}: ${cr.nota.toFixed(2)}/${cr.max.toFixed(2)} pts (${pct}%) — nível: ${cr.nivelLabel}${cr.comentario ? ` — obs: ${cr.comentario.slice(0, 120)}` : ''}`
+        })
+      )
+    ).join('\n')
+
+    const prompt = `Você é uma professora de Design Thinking do ensino técnico. 
+Escreva um resumo acadêmico conciso (8 a 10 linhas) em português para a devolutiva do grupo "${dados.group.name}".
+O resumo deve: mencionar a nota total (${totalGeral.toFixed(2)} pts), destacar os pontos fortes, indicar os pontos de atenção metodológicos e orientar sobre os próximos passos.
+Use linguagem técnica e objetiva, sem floreios.
+
+Dados da avaliação:
+${linhas}
+
+Responda apenas com o texto do resumo, sem títulos, sem markdown, sem aspas.`
+
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          model: 'llama-3.1-70b-versatile',
+          max_tokens: 400,
+          temperature: 0.4,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      })
+      if (!res.ok) return null
+      const json = await res.json()
+      return json.choices?.[0]?.message?.content?.trim() || null
+    } catch {
+      return null
+    }
+  }
+
   async function gerar() {
     try {
       setErro('')
       setEtapa('gerando')
 
-      const dados = coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, crud, notes, etapas)
-      const tex   = montarTex(dados, turma, dataEntrega)
+      const dados    = coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, crud, notes, etapas)
+      const resumoIA = await gerarResumoGroq(dados)
+      const tex      = montarTex(dados, turma, dataEntrega, resumoIA)
       setTexContent(tex)
 
       // Push pro GitHub ETE-CiceroDias/ete-docs-mod1
