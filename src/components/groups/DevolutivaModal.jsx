@@ -20,6 +20,46 @@ function esc(str = '') {
     .replace(/</g, '\\textless{}').replace(/>/g, '\\textgreater{}')
 }
 
+function htmlToLatex(html = '') {
+  if (!html) return ''
+  return html
+    // headings → \paragraph (bold, menor que subsection — já estamos dentro de subsection)
+    .replace(/<h1[^>]*>(.*?)<\/h1>/gis,  (_, t) => `\n\n\\textbf{\\large ${escInline(t)}}\n\n`)
+    .replace(/<h2[^>]*>(.*?)<\/h2>/gis,  (_, t) => `\n\n\\textbf{${escInline(t)}}\n\n`)
+    .replace(/<h3[^>]*>(.*?)<\/h3>/gis,  (_, t) => `\n\n\\textit{\\textbf{${escInline(t)}}}\n\n`)
+    // inline
+    .replace(/<strong[^>]*>(.*?)<\/strong>/gis, (_, t) => `\\textbf{${escInline(t)}}`)
+    .replace(/<em[^>]*>(.*?)<\/em>/gis,         (_, t) => `\\textit{${escInline(t)}}`)
+    .replace(/<code[^>]*>(.*?)<\/code>/gis,      (_, t) => `\\texttt{${escInline(t)}}`)
+    // listas
+    .replace(/<ul[^>]*>(.*?)<\/ul>/gis, (_, body) => {
+      const items = [...body.matchAll(/<li[^>]*>(.*?)<\/li>/gis)].map(m =>
+        `  \\item ${escInline(m[1].replace(/<[^>]*>/g, '').trim())}`
+      ).join('\n')
+      return `\n\\begin{itemize}[leftmargin=14pt,itemsep=1pt,topsep=3pt]\n${items}\n\\end{itemize}\n`
+    })
+    .replace(/<ol[^>]*>(.*?)<\/ol>/gis, (_, body) => {
+      const items = [...body.matchAll(/<li[^>]*>(.*?)<\/li>/gis)].map(m =>
+        `  \\item ${escInline(m[1].replace(/<[^>]*>/g, '').trim())}`
+      ).join('\n')
+      return `\n\\begin{enumerate}[leftmargin=14pt,itemsep=1pt,topsep=3pt]\n${items}\n\\end{enumerate}\n`
+    })
+    // parágrafos e quebras
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<br\s*\/?>/gi, '\\\\\n')
+    // entidades HTML
+    .replace(/<[^>]*>/g, '')
+    .replace(/&amp;/g, '\\&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, '~').replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, '\n\n').trim()
+}
+
+// escapa só texto inline já limpo de tags
+function escInline(str = '') {
+  return esc(str.replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/&quot;/g, '"'))
+}
+
+// manter compatibilidade — usado em outros lugares
 function htmlToText(html = '') {
   return html
     .replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n').replace(/<\/li>/gi, '\n')
@@ -41,7 +81,7 @@ function coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina
 
         // Anotação vinculada
         const notaVinc = notes.find(n => n.title === `Avaliação: ${cr.nome}`)
-        const comentario = notaVinc?.content ? htmlToText(notaVinc.content) : ''
+        const comentario = notaVinc?.content ? htmlToLatex(notaVinc.content) : ''
 
         // Checks marcados — etapas salvas no config
         const itensOverride = null // vem do crud se necessário
@@ -73,27 +113,37 @@ function coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina
 }
 
 
-function montarTex(dados, turma, dataEntrega, resumoIA = null) {
+function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null) {
   const { group, disciplinas, totalGeral } = dados
   const fmt = n => String(n.toFixed(2)).replace('.', ',')
   const hoje = new Date()
   const dataHoje = hoje.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })
   const ano = hoje.getFullYear()
 
-  // ── helpers de status ──────────────────────────────────────
-  function statusCmd(nota, max) {
-    if (max === 0) return { cmd: 'statuswarn', label: '---' }
-    const p = nota / max
-    if (p >= 0.8) return { cmd: 'statusok',   label: 'Completo' }
-    if (p >= 0.5) return { cmd: 'statuswarn', label: 'c/ ressalvas' }
-    if (p >  0)   return { cmd: 'statuswarn', label: 'Incompleto' }
-    return { cmd: 'statuswarn', label: 'Não entregue' }
+  // título adaptado
+  const discNome = discId ? (disciplinas.find(d => d.id === discId)?.nome || discId) : null
+  const tituloDoc = discNome
+    ? `Devolutiva de Avaliação: ${discNome}`
+    : `Devolutiva de Avaliação: Fase 1 --- Imersão`
+
+  // ── helpers de status — usa nivelId real do sistema ──────────
+  function statusCmd(cr) {
+    const id = cr.nivelId
+    if (!id || id === 'nao_fez') return { cmd: 'statuswarn', label: 'Não entregue' }
+    if (id === 'completo')           return { cmd: 'statusok',   label: 'Completo' }
+    if (id === 'completo_ressalvas') return { cmd: 'statuswarn', label: 'Completo c/ ressalvas' }
+    if (id === 'faltou_pouco')       return { cmd: 'statuswarn', label: 'Faltou pouco' }
+    if (id === 'faltou_pouco_erros') return { cmd: 'statuswarn', label: 'Faltou pouco c/ erros' }
+    if (id === 'faltou_muito')       return { cmd: 'statuswarn', label: 'Faltou muito' }
+    if (id === 'faltou_muito_erros') return { cmd: 'statuswarn', label: 'Faltou muito e errou' }
+    if (id === 'errado')             return { cmd: 'statuswarn', label: 'Errado' }
+    return { cmd: 'statuswarn', label: cr.nivelLabel || 'Não entregue' }
   }
 
   // ── tabela resumo de uma fase ──────────────────────────────
   function tabelaResumo(criterios) {
     const linhas = criterios.map(cr => {
-      const { cmd, label } = statusCmd(cr.nota, cr.max)
+      const { cmd, label } = statusCmd(cr)
       return `${esc(cr.nome)} & \\${cmd}{${label}} & ${fmt(cr.max)} & \\textbf{${fmt(cr.nota)}} \\\\`
     }).join('\n')
     const totalFase = criterios.reduce((a, c) => a + c.nota, 0)
@@ -114,7 +164,7 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null) {
 
   // ── seção por critério (subsection + nota + checks + comentário) ──
   function secaoCriterio(cr) {
-    const { cmd, label } = statusCmd(cr.nota, cr.max)
+    const { cmd, label } = statusCmd(cr)
 
     // checks: ✓ marcados em verde, □ não marcados em cinza
     const checksStr = cr.checksFeitos && cr.checksFeitos.length > 0
@@ -168,9 +218,12 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null) {
     )
   }).join('\n\n')
 
-  // ── abstract (gerado pelo Groq ou vazio) ───────────────────
+  // ── abstract após maketitle, em 1 coluna ──────────────────────
   const abstractStr = resumoIA
-    ? '\\begin{abstract}\n' + esc(resumoIA) + '\n\\end{abstract}\n\n'
+    ? '\n% ── Resumo em coluna única ──────────────────────────────────\n' +
+      '\\begin{adjustbox}{minipage=\\linewidth}\n' +
+      '\\begin{abstract}\n' + esc(resumoIA) + '\n\\end{abstract}\n' +
+      '\\end{adjustbox}\n\n'
     : ''
 
   const periodoStr = dataEntrega || dataHoje
@@ -203,6 +256,7 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null) {
     `\\usepackage[dvipsnames,table]{xcolor}`,
     `\\usepackage[inline]{enumitem}`,
     `\\usepackage{graphicx}`,
+    `\\usepackage{adjustbox}`,
     ``,
     `% ── Cores ───────────────────────────────────────────────────`,
     `\\definecolor{cgood}{HTML}{1E6B3A}`,
@@ -247,12 +301,8 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null) {
     `% ── METADADOS ────────────────────────────────────────────────`,
     `\\title{Devolutiva de Avaliação: Fase 1 --- Imersão}`,
     ``,
-    `\\author{Profa. Samara Silva}`,
-    `\\authornote{%`,
-    `  Grupo avaliado: ${esc(group.name)}\\quad·\\quad`,
-    `  Período: ${esc(periodoStr)}\\quad·\\quad`,
-    `  Avaliado em: ${esc(dataHoje)}.%`,
-    `}`,
+    `\\author{Profa.\\ Samara Silva}`,
+    `\\authornote{Grupo avaliado: \\textbf{${esc(group.name)}} · Período: ${esc(periodoStr)} · Avaliado em: ${esc(dataHoje)}.}`,
     `\\email{samarasilvia.educa@gmail.com}`,
     `\\affiliation{%`,
     `  \\institution{ETE Cícero Dias}`,
@@ -289,8 +339,8 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null) {
 
   return (
     preambulo +
-    abstractStr +
     '\\maketitle\n\n' +
+    abstractStr +
     secoes + '\n\n' +
     rodape + '\n'
   )
@@ -314,7 +364,7 @@ async function compilarPDF(tex) {
 }
 
 // ── Componente ────────────────────────────────────────────────
-export default function DevolutivaModal({ group, orgId: orgIdProp, org, onClose }) {
+export default function DevolutivaModal({ group, orgId: orgIdProp, org, discId, onClose }) {
   const resolvedOrgId = orgIdProp || group?.org_id
   const avaliacao = useAvaliacao(group?.id, resolvedOrgId)
   const crud      = useAvaliacaoCrud(group?.id, resolvedOrgId)
@@ -398,9 +448,13 @@ Responda apenas com o texto do resumo, sem títulos, sem markdown, sem aspas.`
       setErro('')
       setEtapa('gerando')
 
-      const dados    = coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, crud, notes, etapas)
+      const dadosBrutos = coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, crud, notes, etapas)
+      // Se discId foi passado, filtra só a disciplina ativa
+      const dados = discId
+        ? { ...dadosBrutos, disciplinas: dadosBrutos.disciplinas.filter(d => d.id === discId) }
+        : dadosBrutos
       const resumoIA = await gerarResumoGroq(dados)
-      const tex      = montarTex(dados, turma, dataEntrega, resumoIA)
+      const tex      = montarTex(dados, turma, dataEntrega, resumoIA, discId)
       setTexContent(tex)
 
       // Push pro GitHub ETE-CiceroDias/ete-docs-mod1
