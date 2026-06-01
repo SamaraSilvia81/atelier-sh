@@ -1153,7 +1153,7 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
   const [discAtiva,     setDiscAtiva]     = useState('dt')
   const [fasesAbertas,  setFasesAbertas]  = useState({})
   const [editMode,      setEditMode]      = useState(false)
-  const [showDevolutiva, setShowDevolutiva] = useState(false)
+  const [devolutivaTarget, setDevolutivaTarget] = useState(null) // null=fechado, {discId,faseNome} — faseNome=null=geral da disc
   const [regrasAbertas, setRegrasAbertas] = useState(false)
   const [addingFase,    setAddingFase]    = useState(false)
   const [novaFaseNome,  setNovaFaseNome]  = useState('')
@@ -1362,9 +1362,16 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
             </div>
 
             <div style={{ padding: '10px 14px', background: 'var(--surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{disc.nome}</span>
-                <span style={{ fontSize: 11, color: disc.cor, fontWeight: 600 }}>{total.toFixed(2).replace('.', ',')} / {disc.total} pts</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 11, color: disc.cor, fontWeight: 600 }}>{total.toFixed(2).replace('.', ',')} / {disc.total} pts</span>
+                  <button type="button" onClick={() => setDevolutivaTarget({ discId: discAtiva, faseNome: null })}
+                    title={`Devolutiva PDF — ${disc.nome}`}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 'var(--radius)', border: `1px solid ${disc.corBorder}`, background: disc.corBg, color: disc.cor, ...mono, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}>
+                    <Download size={9} /> PDF
+                  </button>
+                </div>
               </div>
               <Barra valor={total} max={disc.total} cor={disc.cor} height={4} />
             </div>
@@ -1435,11 +1442,17 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
                         <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 'var(--radius)', border: '1px solid var(--border-red)', color: 'var(--red)', background: 'var(--red-dim)', flexShrink: 0 }}>custom</span>
                       )}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, paddingLeft: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, paddingLeft: 10 }}>
                       <Barra valor={totalFase} max={maxFase} cor={disc.cor} height={4} />
                       <span style={{ fontSize: 11, color: disc.cor, fontWeight: 600, whiteSpace: 'nowrap' }}>
                         {totalFase.toFixed(2).replace('.', ',')} / {maxFase.toFixed(2).replace('.', ',')} pts
                       </span>
+                      <button type="button"
+                        onClick={e => { e.stopPropagation(); setDevolutivaTarget({ discId: discAtiva, faseNome: fase.nome }) }}
+                        title={`Devolutiva PDF — ${fase.nome}`}
+                        style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '2px 7px', borderRadius: 'var(--radius)', border: `1px solid ${disc.corBorder}`, background: disc.corBg, color: disc.cor, ...mono, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', flexShrink: 0 }}>
+                        <Download size={8} /> PDF
+                      </button>
                     </div>
                   </div>
 
@@ -1613,8 +1626,13 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
       </div>
     </div>
 
-    {showDevolutiva && (
-      <DevolutivaModal group={group} orgId={resolvedOrgId} org={org} onClose={() => setShowDevolutiva(false)} />
+    {devolutivaTarget && (
+      <DevolutivaModal
+        group={group} orgId={resolvedOrgId} org={org}
+        discId={devolutivaTarget.discId}
+        faseNome={devolutivaTarget.faseNome}
+        onClose={() => setDevolutivaTarget(null)}
+      />
     )}
     </>
   )

@@ -69,7 +69,8 @@ function htmlToText(html = '') {
 // ── Coleta dados do Atelier ───────────────────────────────────
 function coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, crud, notes, etapas) {
   const disciplinas = DISCIPLINAS.map(disc => {
-    const fases = crud.getFasesDisciplina(disc.id).map(fase => {
+    const todasFases = crud.getFasesDisciplina(disc.id)
+    const fases = todasFases.map(fase => {
       const criterios = crud.getCriteriosFase(disc.id, fase.nome).map(cr => {
         const nivel      = nivelGrupo(disc.id, cr.id)
         const nivelInfo  = NIVEIS_AVALIACAO.find(n => n.id === nivel)
@@ -466,7 +467,7 @@ async function gerarResumoGroq(dados, settings) {
 }
 
 // ── Componente ────────────────────────────────────────────────
-export default function DevolutivaModal({ group, orgId: orgIdProp, org, discId, onClose }) {
+export default function DevolutivaModal({ group, orgId: orgIdProp, org, discId, faseNome, onClose }) {
   const resolvedOrgId = orgIdProp || group?.org_id
   const avaliacao = useAvaliacao(group?.id, resolvedOrgId)
   const crud      = useAvaliacaoCrud(group?.id, resolvedOrgId)
@@ -507,9 +508,21 @@ export default function DevolutivaModal({ group, orgId: orgIdProp, org, discId, 
       setErro('')
       setEtapa('gerando')
       const dadosBrutos = coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, crud, notes, etapas)
-      const dados = discId
-        ? { ...dadosBrutos, disciplinas: dadosBrutos.disciplinas.filter(d => d.id === discId) }
-        : dadosBrutos
+      // Filtra por discId e/ou faseNome
+      let dados = dadosBrutos
+      if (discId) {
+        dados = { ...dados, disciplinas: dados.disciplinas.filter(d => d.id === discId) }
+      }
+      if (faseNome) {
+        dados = {
+          ...dados,
+          disciplinas: dados.disciplinas.map(d => ({
+            ...d,
+            fases: d.fases.filter(f => f.nome === faseNome),
+            total: d.fases.filter(f => f.nome === faseNome).reduce((a, f) => a + f.totalFase, 0),
+          })).filter(d => d.fases.length > 0),
+        }
+      }
       const resumoIA = await gerarResumoGroq(dados, settings)
       const tex      = montarTex(dados, turma, dataEntrega, resumoIA, discId, members, avInd)
       setTexContent(tex)
@@ -550,7 +563,7 @@ export default function DevolutivaModal({ group, orgId: orgIdProp, org, discId, 
         <div style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
           <div>
             <div style={{ ...mono, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--text-dim)', marginBottom: 3 }}>
-              Gerar Devolutiva{discId ? ` — ${discId.toUpperCase()}` : ''}
+              {faseNome ? `Devolutiva — ${faseNome}` : discId ? `Devolutiva — ${discId.toUpperCase()}` : 'Devolutiva Geral'}
             </div>
             <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 18, color: 'var(--text)', letterSpacing: '0.04em' }}>{group.name}</div>
           </div>
