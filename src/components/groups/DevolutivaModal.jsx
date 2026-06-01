@@ -86,29 +86,35 @@ function htmlToText(html = '') {
     .replace(/\n{3,}/g, '\n\n').trim()
 }
 
-function coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, crud, notes, etapas) {
+// CORREÇÃO: Passando baseOverrides e itemOverrides para puxar os nomes customizados e os itens editados
+function coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, crud, notes, etapas, baseOverrides, itemOverrides) {
   const disciplinas = DISCIPLINAS.map(disc => {
     const fases = crud.getFasesDisciplina(disc.id).map(fase => {
       const criterios = crud.getCriteriosFase(disc.id, fase.nome).map(cr => {
+        // Aplica overrides de nome/max (Se o usuário renomeou o critério no UI)
+        const override = baseOverrides?.[`${disc.id}-${cr.id}`]
+        const nomeFinal = override?.nome ?? cr.nome
+        const maxFinal = override?.max ?? cr.max
+
         const nivel      = nivelGrupo(disc.id, cr.id)
         const nivelInfo  = NIVEIS_AVALIACAO.find(n => n.id === nivel)
         const atraso     = atrasoGrupo(disc.id, cr.id)
         const atrasoInfo = PENALIZACOES_ATRASO.find(a => a.id === atraso)
         const nota       = notaGrupo(disc.id, cr.id) ?? 0
 
-        // Anotação vinculada
-        const notaVinc = notes.find(n => n.title === `Avaliação: ${cr.nome}`)
+        // Busca anotação pelo NOME FINAL do critério
+        const notaVinc = notes.find(n => n.title === `Avaliação: ${nomeFinal}`)
         const comentario = notaVinc?.content ? htmlToLatex(notaVinc.content) : ''
 
-        // Checks marcados — etapas salvas no config
-        const itens = cr.itens || []
-        const checksFeitos = itens.map((item, i) => {
+        // Checks marcados — puxa overrides de itens se existirem
+        const itensAtivos = itemOverrides?.[`${disc.id}-${cr.id}`] || cr.itens || []
+        const checksFeitos = itensAtivos.map((item, i) => {
           const key = `${disc.id}-${cr.id}-item-${i}`
           return { texto: item, marcado: etapas?.[key] ?? false }
         })
 
         return {
-          id: cr.id, nome: cr.nome, max: cr.max, nota,
+          id: cr.id, nome: nomeFinal, max: maxFinal, nota,
           nivelLabel:  nivelInfo?.label  || '—',
           nivelId:     nivel,
           atrasoLabel: atrasoInfo?.id === 'sem_atraso' ? '' : (atrasoInfo?.label || ''),
@@ -229,7 +235,7 @@ function legendaNiveis() {
 }
 
 
-function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, members = [], avInd = null) {
+function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, members = [], avInd = null, faseNome = null) {
   const { group, disciplinas, totalGeral } = dados
   const fmt = n => String(n.toFixed(2)).replace('.', ',')
   const hoje = new Date()
@@ -238,9 +244,10 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
 
   // título adaptado
   const discNome = discId ? (disciplinas.find(d => d.id === discId)?.nome || discId) : null
-  const tituloDoc = discNome
-    ? `Feedback Avaliativo de Projeto: ${discNome}`
-    : `Feedback Avaliativo de Projeto: Fase 1 --- Imersão`
+  let tituloDoc = `Feedback Avaliativo de Projeto`
+  if (discNome) tituloDoc += `: ${discNome}`
+  if (faseNome) tituloDoc += ` --- ${faseNome}`
+  if (!discNome && !faseNome) tituloDoc += `: Fase 1 --- Imersão` // fallback default
 
   // ── helpers de status — usa nivelId real do sistema ──────────
   function statusCmd(cr) {
@@ -327,7 +334,7 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
     return (
       `\\section{Avaliação Geral}\n\n` +
       `\\notadestaque{${fmt(d.total)}}{${fmt(d.max)}}\n\n` +
-      'A Fase~1 foi concluída. A seguir o resumo dos critérios e os comentários por critério.\n\n' +
+      'A avaliação foi concluída. A seguir o resumo dos critérios e os comentários detalhados.\n\n' +
       `\\subsection{Resumo dos Critérios}\n\n` +
       tabelaGeral + '\n\n' +
       `\\section{Comentários por Critério}\n\n` +
@@ -465,7 +472,7 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
     `\\section{Considerações Finais}`,
     ``,
     `Os ajustes indicados são de natureza metodológica e devem ser`,
-    `incorporados antes do avanço para a Fase~2 (Definição).`,
+    `incorporados para as próximas entregas.`,
     `Continuem assim.`,
     ``,
     `% ── Assinatura ───────────────────────────────────────────────`,
@@ -529,7 +536,7 @@ export default function DevolutivaModal({ group, orgId: orgIdProp, org, discId, 
   const [pushUrl,     setPushUrl]     = useState('')
 
   const { notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, loading } = avaliacao
-  const { etapas } = config
+  const { etapas, baseOverrides, itemOverrides } = config
 
   // Monta path: TurmaA/Grupo01/devolutiva-imersao-YYYYMMDD.tex
   function montarPath() {
@@ -544,7 +551,8 @@ export default function DevolutivaModal({ group, orgId: orgIdProp, org, discId, 
     const hoje = new Date()
     const data = `${hoje.getFullYear()}${String(hoje.getMonth()+1).padStart(2,'0')}${String(hoje.getDate()).padStart(2,'0')}`
 
-    return `${turmaDir}/${grupoDir}/devolutiva-imersao-${data}.tex`
+    const faseSlug = faseNome ? faseNome.toLowerCase().replace(/[^a-z0-9]/g, '') : 'geral'
+    return `${turmaDir}/${grupoDir}/devolutiva-${faseSlug}-${data}.tex`
   }
 
 
@@ -597,28 +605,38 @@ Responda apenas com o texto do resumo, sem títulos, sem markdown, sem aspas.`
       setErro('')
       setEtapa('gerando')
 
-      const dadosBrutos = coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, crud, notes, etapas)
-      // Se discId foi passado, filtra só a disciplina ativa
+      // CORREÇÃO 2: Passando baseOverrides e itemOverrides pro coletor
+      const dadosBrutos = coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, crud, notes, etapas, baseOverrides, itemOverrides)
+      
       let dados = dadosBrutos
       if (discId) dados = { ...dados, disciplinas: dados.disciplinas.filter(d => d.id === discId) }
+      
       if (faseNome) {
-        dados = { ...dados, disciplinas: dados.disciplinas.map(d => ({
-          ...d,
-          fases: d.fases.filter(f => f.nome === faseNome),
-          total: d.fases.filter(f => f.nome === faseNome).flatMap(f => f.criterios).reduce((a,c) => a+c.nota, 0),
-        })).filter(d => d.fases.length > 0) }
+        dados = { ...dados, disciplinas: dados.disciplinas.map(d => {
+          const fasesFiltradas = d.fases.filter(f => f.nome === faseNome)
+          const crits = fasesFiltradas.flatMap(f => f.criterios)
+          return {
+            ...d,
+            fases: fasesFiltradas,
+            total: crits.reduce((a,c) => a+c.nota, 0),
+            // CORREÇÃO 1: Recalculando o MAX da disciplina com base apenas na fase filtrada
+            max: crits.reduce((a,c) => a+c.max, 0), 
+          }
+        }).filter(d => d.fases.length > 0) }
       }
+
       const resumoIA = await gerarResumoGroq(dados)
-      const tex      = montarTex(dados, turma, dataEntrega, resumoIA, discId, members, avInd)
+      const tex      = montarTex(dados, turma, dataEntrega, resumoIA, discId, members, avInd, faseNome)
       setTexContent(tex)
 
       // Push pro GitHub ETE-CiceroDias/ete-docs-mod1
       const path = montarPath()
+      const faseSlug = faseNome ? faseNome.toLowerCase() : 'geral'
       const result = await pushFileToRepo({
         repo: 'ETE-CiceroDias/ete-docs-mod1',
         path,
         content: tex,
-        message: `devolutiva: ${group.name} — imersão ${new Date().toLocaleDateString('pt-BR')}`,
+        message: `devolutiva: ${group.name} — ${faseSlug} ${new Date().toLocaleDateString('pt-BR')}`,
         groupToken: undefined, // usa sempre o token global das configurações
       })
 
@@ -634,9 +652,10 @@ Responda apenas com o texto do resumo, sem títulos, sem markdown, sem aspas.`
 
   function downloadTex() {
     const grupoSlug = group.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+    const faseSlug = faseNome ? faseNome.toLowerCase().replace(/[^a-z0-9]/g, '') : 'geral'
     const a = document.createElement('a')
     a.href = URL.createObjectURL(new Blob([texContent], { type: 'text/plain' }))
-    a.download = `devolutiva-imersao-${grupoSlug}.tex`
+    a.download = `devolutiva-${faseSlug}-${grupoSlug}.tex`
     a.click()
   }
 
@@ -653,7 +672,9 @@ Responda apenas com o texto do resumo, sem títulos, sem markdown, sem aspas.`
         <div style={{ height: 3, background: 'linear-gradient(90deg, var(--red), var(--red-glow))', flexShrink: 0 }} />
         <div style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
           <div>
-            <div style={{ ...mono, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--text-dim)', marginBottom: 3 }}>Gerar Devolutiva</div>
+            <div style={{ ...mono, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--text-dim)', marginBottom: 3 }}>
+              Gerar Devolutiva {faseNome && `— ${faseNome}`}
+            </div>
             <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 18, color: 'var(--text)', letterSpacing: '0.04em' }}>{group.name}</div>
           </div>
           <button onClick={onClose} style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}><X size={16} /></button>
