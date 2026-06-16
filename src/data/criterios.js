@@ -38,14 +38,32 @@ export const PENALIZACOES_ATRASO = [
   { id: 'nao_entregou',   label: 'Não entregou',     dias: -1,   desconto: 1.00 },
 ]
 
+// ── Desconto por conduta ──────────────────────────────────────
+// Camada de penalização individual (não entra na média).
+// Conduta adequada é o esperado — não rende bônus. Apenas ocorrências
+// ruins geram corte, aplicado sobre a nota individual como o atraso.
+// 'desconto' = fração da nota individual (0.20 = -20%). Avalia padrão,
+// não episódio isolado. Sempre registrar a justificativa da ocorrência.
+export const DESCONTOS_CONDUTA = [
+  { id: 'conduta_ok',       label: 'Sem ocorrências',              desconto: 0.00, desc: 'Postura adequada — nenhum corte.' },
+  { id: 'conduta_leve',     label: 'Falha leve / pontual',         desconto: 0.10, desc: 'Deslize isolado, já contornado.' },
+  { id: 'conduta_moderada', label: 'Falha moderada / reincidente', desconto: 0.20, desc: 'Problema de postura que exigiu intervenção ou se repetiu.' },
+  { id: 'conduta_grave',    label: 'Falha grave',                  desconto: 0.40, desc: 'Desrespeito a colega/docente ou quebra de ética acadêmica.' },
+]
+
 // ── Critérios de avaliação de grupo: DT, DCU, PI ─────────────
+// REESTRUTURADO: projeto encerra na Ideação (Fase 3).
+//   • Cortadas: Protótipo de baixa fidelidade e Análise Mercadológica.
+//   • DT  → sem Pitch. Pesos rescalados p/ fechar 10 (bumps nos critérios mais pesados — ajuste se quiser).
+//   • DCU → sem Protótipo. Definição e Ideação dobradas (×2) p/ fechar 10.
+//   • PI  → deixa de cobrar artefatos; avalia a DOCUMENTAÇÃO COMO UM TODO.
 export const DISCIPLINAS = [
   {
     id: 'dt', nome: 'Design Thinking', total: 10,
     cor: '#7F77DD', corBg: 'rgba(127,119,221,0.08)', corBorder: 'rgba(127,119,221,0.3)',
     fases: [
       {
-        nome: 'Fase 1 — Imersão', total: 3.5,
+        nome: 'Fase 1 — Imersão', total: 4.0,
         obs: 'Avaliada exclusivamente por DT. É o coração do processo criativo.',
         criterios: [
           { id: 'pesquisa-desk', nome: 'Pesquisa Desk', max: 0.5, arquivos: ['imersao-pesquisa-desk_A.pdf'], itens: ['Dados secundários relevantes e atuais sobre o ODS escolhido','Fontes confiáveis: ONU, IBGE, artigos acadêmicos ou jornalísticos','Contextualiza o problema com base factual','Conexão clara entre os dados e o problema'] },
@@ -54,10 +72,9 @@ export const DISCIPLINAS = [
           {
             id: 'pesquisa-primaria',
             nome: 'Pesquisa Primária',
-            max: 1.0,
+            max: 1.5, // bump 1.0 → 1.5 (critério mais decisivo da Imersão)
             zeraSem: 'Sem pesquisa primária este critério zera integralmente.',
             arquivos: ['imersao-formulario_A.pdf','imersao-roteiro-entrevista_A.pdf'],
-            // Critério com modalidades — itens[] vazio pois os checks vêm por modalidade
             itens: [],
             modalidades: [
               {
@@ -113,30 +130,21 @@ export const DISCIPLINAS = [
         ],
       },
       {
-        nome: 'Fase 2 — Definição', total: 2.5,
+        nome: 'Fase 2 — Definição', total: 3.0,
         criterios: [
-          { id: 'persona-empatia', nome: 'Persona com Empatia Real', max: 0.75, arquivos: ['definicao-persona_A.pdf'], itens: ['A persona nasceu dos dados da imersão','Tem dor específica, não genérica','O grupo consegue explicar de onde veio cada característica'] },
+          { id: 'persona-empatia', nome: 'Persona com Empatia Real', max: 1.0, arquivos: ['definicao-persona_A.pdf'], itens: ['A persona nasceu dos dados da imersão','Tem dor específica, não genérica','O grupo consegue explicar de onde veio cada característica'] },
           { id: 'mapa-empatia', nome: 'Mapa de Empatia como Ferramenta', max: 0.5, arquivos: ['definicao-mapa-empatia_A.pdf'], itens: ['Demonstra que o grupo tentou ver o mundo pela ótica do usuário','Não é só template preenchido — há reflexão real','O conteúdo alimentou a construção da persona'] },
-          { id: 'coerencia-problema-solucao', nome: 'Enunciado do Problema (POV)', max: 0.75, arquivos: ['definicao-ponto-de-vista_A.pdf','definicao-problema_A.pdf'], itens: ['POV: [Persona] precisa de [necessidade] porque [insight]','O problema é específico e decorre da pesquisa','A solução responde diretamente à dor da persona'] },
+          { id: 'coerencia-problema-solucao', nome: 'Enunciado do Problema (POV)', max: 1.0, arquivos: ['definicao-ponto-de-vista_A.pdf','definicao-problema_A.pdf'], itens: ['POV: [Persona] precisa de [necessidade] porque [insight]','O problema é específico e decorre da pesquisa','A solução responde diretamente à dor da persona'] },
           { id: 'jornada-usuario-dt', nome: 'Jornada do Usuário (atual)', max: 0.5, arquivos: ['definicao-jornada-usuario_A.pdf'], itens: ['A jornada reflete o que foi descoberto na imersão','Identifica dores e oportunidades reais em cada etapa'] },
         ],
       },
       {
-        nome: 'Fase 3 — Ideação', total: 2.5,
+        nome: 'Fase 3 — Ideação', total: 3.0,
         criterios: [
-          { id: 'geracao-ideias', nome: 'Geração de Ideias — Quantidade e Ousadia', max: 0.75, arquivos: ['ideacao-brainstorming_A.pdf'], itens: ['O brainstorming mostra que o grupo foi além do óbvio','Tem variedade de ideias, inclusive as ousadas','A ideação divergiu antes de convergir'] },
-          { id: 'priorizacao', nome: 'Priorização com Critério', max: 0.75, arquivos: ['ideacao-priorizacao_A.pdf'], itens: ['O grupo usou critérios claros para escolher a ideia final','Há justificativa real para a solução escolhida','A escolha convergiu a partir do brainstorm — não foi aleatória'] },
+          { id: 'geracao-ideias', nome: 'Geração de Ideias — Quantidade e Ousadia', max: 1.0, arquivos: ['ideacao-brainstorming_A.pdf'], itens: ['O brainstorming mostra que o grupo foi além do óbvio','Tem variedade de ideias, inclusive as ousadas','A ideação divergiu antes de convergir'] },
+          { id: 'priorizacao', nome: 'Priorização com Critério', max: 1.0, arquivos: ['ideacao-priorizacao_A.pdf'], itens: ['O grupo usou critérios claros para escolher a ideia final','Há justificativa real para a solução escolhida','A escolha convergiu a partir do brainstorm — não foi aleatória'] },
           { id: 'jornada-futura', nome: 'Jornada do Usuário (com a solução)', max: 0.5, arquivos: ['ideacao-jornada-futura_A.pdf'], itens: ['Mostra a experiência do usuário DEPOIS da solução','Contrasta com a jornada atual mapeada na Definição','Indica o estado emocional do usuário em cada etapa'] },
           { id: 'storytelling', nome: 'Storytelling — A História do Usuário', max: 0.5, itens: ['A ideação registra a história do usuário: persona → dor → solução → impacto','A narrativa é coerente e fácil de seguir','Quem lê entende o problema antes de ver a solução'] },
-        ],
-      },
-      {
-        nome: 'Fase 5 — Pitch (lente DT)', total: 1.5,
-        obs: 'Pitch co-avaliado com PI. Aqui o DT olha a narrativa e o processo; o PI olha viabilidade e entrega.',
-        criterios: [
-          { id: 'clareza-narrativa', nome: 'Clareza da Narrativa', max: 0.5, itens: ['A narrativa conecta problema → solução de forma clara','Quem assiste entende o problema antes de ver a solução'] },
-          { id: 'storytelling-empatia', nome: 'Storytelling e Empatia', max: 0.5, itens: ['A história do usuário aparece no pitch','Há conexão com a dor real, não só apresentação técnica'] },
-          { id: 'coerencia-processo', nome: 'Coerência com o Processo', max: 0.5, itens: ['A solução é consequência da imersão e da ideação','Dá pra ver que a solução não saiu do nada'] },
         ],
       },
     ],
@@ -146,30 +154,22 @@ export const DISCIPLINAS = [
     cor: '#1D9E75', corBg: 'rgba(29,158,117,0.08)', corBorder: 'rgba(29,158,117,0.3)',
     fases: [
       {
-        nome: 'Fase 2 — Definição (lente DCU)', total: 2.5,
+        nome: 'Fase 2 — Definição (lente DCU)', total: 5.0,
+        obs: 'Pesos dobrados (×2) após a retirada do protótipo.',
         criterios: [
-          { id: 'persona-visual', nome: 'Persona — Qualidade Visual e Estrutura', max: 0.75, arquivos: ['definicao-persona_A.pdf'], itens: ['A persona é visual e bem diagramada — hierarquia clara e legível','Cor e tipografia coerentes','As informações estão organizadas com clareza'] },
-          { id: 'jornada-visual', nome: 'Jornada do Usuário — Qualidade Visual', max: 0.75, arquivos: ['definicao-jornada-usuario_A.pdf'], itens: ['Mapeia os pontos de contato: antes, durante e depois','Identifica dores e oportunidades de design','Apresentação visual clara com boa hierarquia'] },
-          { id: 'mapa-empatia-visual', nome: 'Mapa de Empatia — Apresentação Visual', max: 0.5, itens: ['Os quatro quadrantes preenchidos e organizados visualmente','A diagramação é clara — dá pra ler sem esforço','Há hierarquia visual entre os elementos'] },
-          { id: 'pov-clareza', nome: 'POV + Problema + Solução — Clareza', max: 0.5, itens: ['O POV está formulado de forma clara e direta','O problema é específico e bem descrito','A solução é coerente com o problema identificado'] },
+          { id: 'persona-visual', nome: 'Persona — Qualidade Visual e Estrutura', max: 1.5, arquivos: ['definicao-persona_A.pdf'], itens: ['A persona é visual e bem diagramada — hierarquia clara e legível','Cor e tipografia coerentes','As informações estão organizadas com clareza'] },
+          { id: 'jornada-visual', nome: 'Jornada do Usuário — Qualidade Visual', max: 1.5, arquivos: ['definicao-jornada-usuario_A.pdf'], itens: ['Mapeia os pontos de contato: antes, durante e depois','Identifica dores e oportunidades de design','Apresentação visual clara com boa hierarquia'] },
+          { id: 'mapa-empatia-visual', nome: 'Mapa de Empatia — Apresentação Visual', max: 1.0, itens: ['Os quatro quadrantes preenchidos e organizados visualmente','A diagramação é clara — dá pra ler sem esforço','Há hierarquia visual entre os elementos'] },
+          { id: 'pov-clareza', nome: 'POV + Problema + Solução — Clareza', max: 1.0, itens: ['O POV está formulado de forma clara e direta','O problema é específico e bem descrito','A solução é coerente com o problema identificado'] },
         ],
       },
       {
-        nome: 'Fase 3 — Ideação (lente DCU)', total: 2.5,
+        nome: 'Fase 3 — Ideação (lente DCU)', total: 5.0,
+        obs: 'Pesos dobrados (×2) após a retirada do protótipo.',
         criterios: [
-          { id: 'solucao-centrada-usuario', nome: 'Solução Centrada no Usuário', max: 1.0, itens: ['A solução responde diretamente às dores da persona','As decisões de ideação são justificadas pelo usuário, não por preferência do grupo','Há conexão clara entre o problema do usuário e a solução proposta'] },
-          { id: 'jornada-ux', nome: 'Jornada Futura — Qualidade UX', max: 1.0, arquivos: ['ideacao-jornada-futura_A.pdf'], itens: ['A jornada com a solução mostra como a experiência do usuário melhora','Identifica os momentos-chave da interação','Aponta onde a solução resolve as dores mapeadas'] },
-          { id: 'documentos-clareza', nome: 'Documentos de Ideação — Clareza Visual', max: 0.5, itens: ['Os documentos estão bem organizados e legíveis','Hierarquia visual clara entre seções e conteúdo'] },
-        ],
-      },
-      {
-        nome: 'Fase 4 — Protótipo de Baixa Fidelidade (lente DCU)', total: 5.0,
-        obs: 'Protótipo de papel. Avalia-se UX e organização — não estética (sem cor/tipografia).',
-        criterios: [
-          { id: 'fluxo-ai', nome: 'Fluxo e Arquitetura de Informação', max: 1.5, arquivos: ['prototipo-baixa_A.pdf'], itens: ['A navegação entre as telas faz sentido — sem becos sem saída','As telas estão na ordem do caminho que o usuário percorre','O fluxo principal está claro e completo'] },
-          { id: 'hierarquia-gestalt', nome: 'Hierarquia e Organização (Gestalt)', max: 1.5, itens: ['Aplica proximidade: o que é relacionado está agrupado','Região comum e similaridade usadas para organizar a tela','Alinhamento consistente — a tela não fica bagunçada','Hierarquia clara: o mais importante salta primeiro'] },
-          { id: 'usabilidade-clareza', nome: 'Usabilidade e Clareza das Telas', max: 1.0, itens: ['Botões e elementos interativos são reconhecíveis','As telas são legíveis e fáceis de entender','Rótulos e ações estão claros'] },
-          { id: 'cobertura-telas', nome: 'Cobertura das Telas-Chave', max: 1.0, itens: ['As telas principais da solução estão prototipadas','O protótipo cobre o que a solução promete resolver','As fotos estão nítidas e bem iluminadas'] },
+          { id: 'solucao-centrada-usuario', nome: 'Solução Centrada no Usuário', max: 2.0, itens: ['A solução responde diretamente às dores da persona','As decisões de ideação são justificadas pelo usuário, não por preferência do grupo','Há conexão clara entre o problema do usuário e a solução proposta'] },
+          { id: 'jornada-ux', nome: 'Jornada Futura — Qualidade UX', max: 2.0, arquivos: ['ideacao-jornada-futura_A.pdf'], itens: ['A jornada com a solução mostra como a experiência do usuário melhora','Identifica os momentos-chave da interação','Aponta onde a solução resolve as dores mapeadas'] },
+          { id: 'documentos-clareza', nome: 'Documentos de Ideação — Clareza Visual', max: 1.0, itens: ['Os documentos estão bem organizados e legíveis','Hierarquia visual clara entre seções e conteúdo'] },
         ],
       },
     ],
@@ -179,29 +179,13 @@ export const DISCIPLINAS = [
     cor: '#BA7517', corBg: 'rgba(186,117,23,0.08)', corBorder: 'rgba(186,117,23,0.3)',
     fases: [
       {
-        nome: 'Análise Mercadológica', total: 2.5,
+        nome: 'Documentação do Projeto (Memorial)', total: 10,
+        obs: 'PI avalia a documentação como um todo — não fragmentos. O conteúdo de cada artefato é cobrado em DT/DCU; aqui o olhar é sobre o documento enquanto entrega acadêmica integradora: como está estruturado, escrito, formatado e embasado.',
         criterios: [
-          { id: 'benchmarking-desk', nome: 'Benchmarking + Pesquisa Desk', max: 0.75, arquivos: ['pi-benchmarking_A.pdf'], itens: ['Identifica concorrentes diretos e indiretos','Tabela comparativa com pontos fortes e fracos','Pesquisa em fontes secundárias confiáveis','Aponta as lacunas do mercado'] },
-          { id: 'lean-canvas', nome: 'Lean Canvas', max: 0.75, arquivos: ['pi-lean-canvas_A.pdf'], itens: ['O quadro está preenchido: problema, proposta de valor, segmento, métricas','A proposta de valor é coerente com a solução','Demonstra que o grupo pensou na viabilidade'] },
-          { id: 'inovacao-diferencial', nome: 'Inovação / Diferencial Competitivo', max: 1.0, itens: ['Deixa claro o que torna a solução diferente do que já existe','O diferencial decorre do benchmarking — não é achismo','A solução não é a mais óbvia para aquele ODS'] },
-        ],
-      },
-      {
-        nome: 'Protótipo de Baixa Fidelidade (lente PI)', total: 5.0,
-        obs: 'Mesmo protótipo de papel da DCU. Aqui o PI olha a solução como produto.',
-        criterios: [
-          { id: 'aderencia-problema-solucao', nome: 'Aderência Problema ↔ Solução', max: 2.0, arquivos: ['prototipo-baixa_A.pdf'], itens: ['O protótipo entrega o que a solução prometeu resolver','As telas atacam diretamente a dor da persona','Não há funcionalidade solta sem relação com o problema'] },
-          { id: 'coerencia-proposta-valor', nome: 'Coerência com a Proposta de Valor', max: 1.5, itens: ['O que foi vendido na análise mercadológica aparece no produto','O protótipo reflete o Lean Canvas','A solução é viável dentro do que foi proposto'] },
-          { id: 'fluxo-completo', nome: 'Fluxo Principal Completo', max: 1.5, itens: ['O caminho essencial do usuário existe de ponta a ponta','Dá pra navegar do início até resolver o problema','Não falta nenhuma tela crítica do fluxo principal'] },
-        ],
-      },
-      {
-        nome: 'Pitch (lente PI)', total: 2.5,
-        obs: 'Pitch co-avaliado com DT. Aqui o PI olha viabilidade e entrega; o DT olha narrativa e processo. Até 10 min, no máx. 3 apresentam.',
-        criterios: [
-          { id: 'demonstracao-solucao', nome: 'Demonstração da Solução', max: 1.0, itens: ['Mostram o protótipo dentro do fluxo (fotos projetadas em sequência)','A demonstração deixa claro como a solução funciona','O usuário-tipo é levado pelo caminho principal'] },
-          { id: 'argumentacao-viabilidade', nome: 'Argumentação de Diferencial e Viabilidade', max: 1.0, itens: ['Defendem por que a solução é diferente/melhor que a concorrência','Conectam com mercado e Lean Canvas','A viabilidade é argumentada, não só afirmada'] },
-          { id: 'comunicacao-tempo', nome: 'Comunicação, Postura e Tempo', max: 0.5, itens: ['Apresentam com clareza e segurança — não leem o slide','Respeitam os 10 minutos','Até 3 apresentam, mas todos participaram da preparação'] },
+          { id: 'estrutura-organizacao', nome: 'Estrutura e Organização do Documento', max: 3.0, itens: ['Todas as seções esperadas estão presentes (capa, introdução, fases, conclusão, referências)','As seções seguem ordem lógica e o documento flui entre as fases','Há capa e sumário; a hierarquia de títulos é clara','Sem placeholders, lorem ipsum ou conteúdo de template não preenchido','O conteúdo de cada fase está na seção correta (sem Imersão/Definição trocadas)'] },
+          { id: 'linguagem-academica', nome: 'Linguagem e Qualidade Acadêmica', max: 3.0, itens: ['Registro acadêmico adequado — sem informalidade ou gírias','Texto claro, coeso e coerente do início ao fim','Ortografia e gramática revisadas','As ideias se conectam: o problema apresentado se sustenta até a solução'] },
+          { id: 'formatacao-padronizacao', nome: 'Formatação e Padronização', max: 2.0, itens: ['Formatação consistente (fontes, espaçamento, margens)','Figuras, tabelas e quadros numerados e legendados','Identidade visual coerente ao longo do documento','Segue o template / normas definidas para o projeto'] },
+          { id: 'embasamento-referencias', nome: 'Embasamento e Referências', max: 2.0, itens: ['Afirmações relevantes estão referenciadas','Bibliografia presente e formatada','Fontes confiáveis e atuais','Citações no corpo do texto correspondem às referências'] },
         ],
       },
     ],
@@ -209,6 +193,8 @@ export const DISCIPLINAS = [
 ]
 
 // ── Critérios individuais ─────────────────────────────────────
+// Conduta NÃO entra aqui — é desconto (ver DESCONTOS_CONDUTA). Estes 6
+// compõem a nota individual; a conduta apenas corta sobre o resultado.
 export const CRITERIOS_INDIVIDUAIS = [
   { id: 'proatividade',           nome: 'Proatividade',              max: 10, descricao: 'Age antes de ser cobrado. Antecipa problemas e toma iniciativa sem esperar instrução.' },
   { id: 'resolucao-problemas',    nome: 'Resolução de Problemas',    max: 10, descricao: 'Consegue identificar o problema com clareza e propor ou buscar soluções de forma estruturada.' },
