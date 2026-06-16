@@ -38,14 +38,35 @@ export function useAvaliacao(groupId, orgId) {
 
   useEffect(() => { carregar() }, [carregar])
 
+  // ── Mapa de critérios migrados entre disciplinas ─────────
+  // Quando um critério é movido de uma disciplina para outra, as notas
+  // antigas ficam no banco com a disciplina original. Este mapa define
+  // o fallback: se não achar em (disc, cid), tenta em (legacyDisc, cid).
+  const LEGACY_DISC = { 'relatorio-imersao': 'dt' }
+
   // ── Leitura ──────────────────────────────────────────────
-  const notaGrupo      = (disc, cid) => { const r = notasGrupo.find(r => r.disciplina === disc && r.criterio_id === cid); return r ? Number(r.nota) : null }
-  const nivelGrupo     = (disc, cid) => notasGrupo.find(r => r.disciplina === disc && r.criterio_id === cid)?.nivel || null
-  const atrasoGrupo    = (disc, cid) => notasGrupo.find(r => r.disciplina === disc && r.criterio_id === cid)?.atraso || 'sem_atraso'
-  const obsGrupo       = (disc, cid) => notasGrupo.find(r => r.disciplina === disc && r.criterio_id === cid)?.observacao || ''
+  const _findNota = (disc, cid) => {
+    const r = notasGrupo.find(r => r.disciplina === disc && r.criterio_id === cid)
+    if (r) return r
+    const legacyDisc = LEGACY_DISC[cid]
+    if (legacyDisc && legacyDisc !== disc) return notasGrupo.find(r => r.disciplina === legacyDisc && r.criterio_id === cid)
+    return undefined
+  }
+  const notaGrupo      = (disc, cid) => { const r = _findNota(disc, cid); return r ? Number(r.nota) : null }
+  const nivelGrupo     = (disc, cid) => _findNota(disc, cid)?.nivel || null
+  const atrasoGrupo    = (disc, cid) => _findNota(disc, cid)?.atraso || 'sem_atraso'
+  const obsGrupo       = (disc, cid) => _findNota(disc, cid)?.observacao || ''
   const notaIndividual = (mid, crit) => { const r = notasInd.find(r => r.member_id === mid && r.criterio === crit); return r ? Number(r.nota) : null }
   const obsIndividual  = (mid, crit) => notasInd.find(r => r.member_id === mid && r.criterio === crit)?.observacao || ''
-  const totalDisciplina = (disc) => notasGrupo.filter(r => r.disciplina === disc).reduce((a, r) => a + Number(r.nota), 0)
+  // Critérios que foram migrados de disciplina — excluir do total da disc original
+  const LEGACY_CRITERIOS_POR_DISC = Object.entries(LEGACY_DISC).reduce((acc, [cid, legacyDisc]) => {
+    if (!acc[legacyDisc]) acc[legacyDisc] = []
+    acc[legacyDisc].push(cid)
+    return acc
+  }, {})
+  const totalDisciplina = (disc) => notasGrupo
+    .filter(r => r.disciplina === disc && !(LEGACY_CRITERIOS_POR_DISC[disc] || []).includes(r.criterio_id))
+    .reduce((a, r) => a + Number(r.nota), 0)
   const mediaIndividual = (mid) => { const rows = notasInd.filter(r => r.member_id === mid); return rows.length ? rows.reduce((a, r) => a + Number(r.nota), 0) / rows.length : null }
 
   // ── Salvar nota — SEM debounce, update otimístico ────────
