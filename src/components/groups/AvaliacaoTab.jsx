@@ -14,7 +14,7 @@ import { useAvaliacaoIndividual,
 import { useAvaliacaoCrud }        from '../../hooks/useAvaliacaoCrud'
 import { useAvaliacaoConfig }      from '../../hooks/useAvaliacaoConfig'
 import { useNotes }                from '../../hooks/useNotes'
-import { DISCIPLINAS, NIVEIS_AVALIACAO, PENALIZACOES_ATRASO } from '../../data/criterios'
+import { DISCIPLINAS, NIVEIS_AVALIACAO, PENALIZACOES_ATRASO, DESCONTOS_CONDUTA } from '../../data/criterios'
 import NoteEditor                  from '../notes/NoteEditor'
 import DevolutivaModal             from './DevolutivaModal'
 
@@ -881,6 +881,8 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
   const [novaExtraDesc, setNovaExtraDesc] = useState('')
   const [novaExtraVal,  setNovaExtraVal]  = useState('')
   const [addingExtra,   setAddingExtra]   = useState(false)
+  const [condutaNivel,  setCondutaNivel]  = useState(null)
+  const [condutaDesc,   setCondutaDesc]   = useState('')
   const timers = useRef({})
 
   function debounceComport(mid, cid, val) {
@@ -927,7 +929,7 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
           }
           tot += getExtras(m.id).reduce((a, e) => a + Number(e.valor), 0)
           return (
-            <button key={m.id} type="button" onClick={() => setMembroAtivo(m.id)}
+            <button key={m.id} type="button" onClick={() => { setMembroAtivo(m.id); setCondutaNivel(null); setCondutaDesc('') }}
               style={{ padding: '7px 12px', borderRadius: 'var(--radius-md)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, background: m.id === membroAtivo ? 'var(--red-dim)' : 'var(--surface)', border: `1px solid ${m.id === membroAtivo ? 'var(--border-red)' : 'var(--border)'}` }}>
               <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'var(--red-dim)', border: '1px solid var(--border-red)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--ff-disp)', fontSize: 12, color: 'var(--red)', flexShrink: 0 }}>
                 {m.name?.[0]?.toUpperCase() || '?'}
@@ -1072,12 +1074,56 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
             </div>
           ))}
 
+          {/* Conduta acadêmica — opções fixas, desconto via extras */}
+          <div style={{ ...mono, fontSize: 9, letterSpacing: '0.25em', color: 'var(--text-dim)', textTransform: 'uppercase' }}>// conduta acadêmica</div>
+          <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ ...mono, fontSize: 10, color: 'var(--text-dim)' }}>Conduta adequada é o esperado. Apenas falhas geram corte na nota individual.</div>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              {DESCONTOS_CONDUTA.filter(c => c.id !== 'conduta_ok').map(c => (
+                <button key={c.id} type="button"
+                  onClick={() => setCondutaNivel(condutaNivel === c.id ? null : c.id)}
+                  style={{
+                    padding: '5px 10px', borderRadius: 'var(--radius)', ...mono, fontSize: 10,
+                    cursor: 'pointer',
+                    background: condutaNivel === c.id ? 'rgba(200,50,50,0.12)' : 'var(--surface)',
+                    color: condutaNivel === c.id ? '#c83232' : 'var(--text-dim)',
+                    border: `1px solid ${condutaNivel === c.id ? 'rgba(200,50,50,0.4)' : 'var(--border)'}`,
+                    fontWeight: condutaNivel === c.id ? 600 : 400,
+                  }}>
+                  {c.label} ({c.desconto > 0 ? `−${Number(c.desconto).toFixed(2).replace('.', ',')}` : '0'} pts)
+                </button>
+              ))}
+            </div>
+            {condutaNivel && (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input autoFocus value={condutaDesc} onChange={e => setCondutaDesc(e.target.value)}
+                  placeholder="descreva o que houve..."
+                  style={{ flex: 1, ...mono, fontSize: 11, padding: '6px 10px', borderRadius: 'var(--radius)', border: '1px solid rgba(200,50,50,0.3)', background: 'var(--surface)', color: 'var(--text)', outline: 'none' }} />
+                <button type="button" onClick={() => {
+                  if (!condutaDesc.trim()) return
+                  const nivel = DESCONTOS_CONDUTA.find(c => c.id === condutaNivel)
+                  if (!nivel) return
+                  adicionarExtra(membroAtivo, `Conduta — ${nivel.label}: ${condutaDesc.trim()}`, -nivel.desconto)
+                  setCondutaNivel(null)
+                  setCondutaDesc('')
+                }}
+                  style={{ padding: '6px 12px', borderRadius: 'var(--radius)', ...mono, fontSize: 10, background: 'rgba(200,50,50,0.08)', border: '1px solid rgba(200,50,50,0.3)', color: '#c83232', cursor: 'pointer' }}>
+                  <Check size={13} />
+                </button>
+                <button type="button" onClick={() => { setCondutaNivel(null); setCondutaDesc('') }}
+                  style={{ color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}>
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* Notas extras */}
           <div style={{ ...mono, fontSize: 9, letterSpacing: '0.25em', color: 'var(--text-dim)', textTransform: 'uppercase' }}>// nota extra</div>
           {extrasDoMembro.map(e => (
             <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)' }}>
               <span style={{ flex: 1, ...mono, fontSize: 12, color: 'var(--text-sub)' }}>{e.descricao}</span>
-              <span style={{ ...mono, fontSize: 13, color: '#5aab6e', fontWeight: 600 }}>+{Number(e.valor).toFixed(2).replace('.', ',')}</span>
+              <span style={{ ...mono, fontSize: 13, color: Number(e.valor) >= 0 ? '#5aab6e' : '#c83232', fontWeight: 600 }}>{Number(e.valor) >= 0 ? '+' : ''}{Number(e.valor).toFixed(2).replace('.', ',')}</span>
               <button type="button" onClick={() => removerExtra(e.id)} style={{ color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}
                 onMouseEnter={ev => ev.currentTarget.style.color = 'var(--red)'}
                 onMouseLeave={ev => ev.currentTarget.style.color = 'var(--text-dim)'}>
