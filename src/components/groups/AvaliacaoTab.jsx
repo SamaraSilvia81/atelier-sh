@@ -14,7 +14,7 @@ import { useAvaliacaoIndividual,
 import { useAvaliacaoCrud }        from '../../hooks/useAvaliacaoCrud'
 import { useAvaliacaoConfig }      from '../../hooks/useAvaliacaoConfig'
 import { useNotes }                from '../../hooks/useNotes'
-import { DISCIPLINAS, NIVEIS_AVALIACAO, PENALIZACOES_ATRASO, DESCONTOS_CONDUTA } from '../../data/criterios'
+import { DISCIPLINAS, NIVEIS_AVALIACAO, PENALIZACOES_ATRASO, DESCONTOS_CONDUTA, DESCONTOS_ENGAJAMENTO } from '../../data/criterios'
 import NoteEditor                  from '../notes/NoteEditor'
 import DevolutivaModal             from './DevolutivaModal'
 
@@ -881,8 +881,10 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
   const [novaExtraDesc, setNovaExtraDesc] = useState('')
   const [novaExtraVal,  setNovaExtraVal]  = useState('')
   const [addingExtra,   setAddingExtra]   = useState(false)
-  const [condutaNivel,  setCondutaNivel]  = useState(null)
-  const [condutaDesc,   setCondutaDesc]   = useState('')
+  const [condutaNivel,      setCondutaNivel]      = useState(null)
+  const [condutaDesc,       setCondutaDesc]       = useState('')
+  const [engajamentoNivel,  setEngajamentoNivel]  = useState(null)
+  const [engajamentoDesc,   setEngajamentoDesc]   = useState('')
   const timers = useRef({})
 
   function debounceComport(mid, cid, val) {
@@ -929,7 +931,7 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
           }
           tot += getExtras(m.id).reduce((a, e) => a + Number(e.valor), 0)
           return (
-            <button key={m.id} type="button" onClick={() => { setMembroAtivo(m.id); setCondutaNivel(null); setCondutaDesc('') }}
+            <button key={m.id} type="button" onClick={() => { setMembroAtivo(m.id); setCondutaNivel(null); setCondutaDesc(''); setEngajamentoNivel(null); setEngajamentoDesc('') }}
               style={{ padding: '7px 12px', borderRadius: 'var(--radius-md)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, background: m.id === membroAtivo ? 'var(--red-dim)' : 'var(--surface)', border: `1px solid ${m.id === membroAtivo ? 'var(--border-red)' : 'var(--border)'}` }}>
               <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'var(--red-dim)', border: '1px solid var(--border-red)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--ff-disp)', fontSize: 12, color: 'var(--red)', flexShrink: 0 }}>
                 {m.name?.[0]?.toUpperCase() || '?'}
@@ -1060,27 +1062,13 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
             </div>
           )}
 
-          {/* Comportamentais */}
-          <div style={{ ...mono, fontSize: 9, letterSpacing: '0.25em', color: 'var(--text-dim)', textTransform: 'uppercase' }}>// registro comportamental (opcional)</div>
-          {CRITERIOS_COMPORTAMENTAIS.map(cr => (
-            <div key={cr.id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div style={{ ...mono, fontSize: 12, color: 'var(--text-sub)' }}>{cr.nome}</div>
-              <div style={{ ...mono, fontSize: 10, color: 'var(--text-dim)' }}>{cr.desc}</div>
-              <textarea key={`${membroAtivo}-${cr.id}`} rows={2} placeholder="registro opcional..."
-                defaultValue={getComportamental(membroAtivo, cr.id)}
-                style={{ width: '100%', padding: '6px 10px', fontSize: 11, ...mono, color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-card)', resize: 'none', lineHeight: 1.5 }}
-                onChange={e => debounceComport(membroAtivo, cr.id, e.target.value)}
-              />
-            </div>
-          ))}
-
           {/* Conduta acadêmica — opções fixas, desconto via extras */}
           <div style={{ ...mono, fontSize: 9, letterSpacing: '0.25em', color: 'var(--text-dim)', textTransform: 'uppercase' }}>// conduta acadêmica</div>
           <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ ...mono, fontSize: 10, color: 'var(--text-dim)' }}>Conduta adequada é o esperado. Apenas falhas geram corte na nota individual.</div>
+            <div style={{ ...mono, fontSize: 10, color: 'var(--text-dim)' }}>Respeito no trato com colegas e docentes, ética acadêmica e postura profissional. Episódios isolados de gravidade também contam.</div>
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
               {DESCONTOS_CONDUTA.filter(c => c.id !== 'conduta_ok').map(c => (
-                <button key={c.id} type="button"
+                <button key={c.id} type="button" title={c.desc}
                   onClick={() => setCondutaNivel(condutaNivel === c.id ? null : c.id)}
                   style={{
                     padding: '5px 10px', borderRadius: 'var(--radius)', ...mono, fontSize: 10,
@@ -1094,6 +1082,11 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
                 </button>
               ))}
             </div>
+            {condutaNivel && (() => { const sel = DESCONTOS_CONDUTA.find(c => c.id === condutaNivel); return sel ? (
+              <div style={{ ...mono, fontSize: 10, color: '#c83232', padding: '6px 10px', background: 'rgba(200,50,50,0.05)', borderRadius: 'var(--radius)', borderLeft: '2px solid rgba(200,50,50,0.3)' }}>
+                {sel.desc}
+              </div>
+            ) : null })()}
             {condutaNivel && (
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                 <input autoFocus value={condutaDesc} onChange={e => setCondutaDesc(e.target.value)}
@@ -1117,6 +1110,69 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
               </div>
             )}
           </div>
+
+          {/* Engajamento e comprometimento — opções fixas, desconto via extras */}
+          <div style={{ ...mono, fontSize: 9, letterSpacing: '0.25em', color: 'var(--text-dim)', textTransform: 'uppercase' }}>// engajamento e comprometimento</div>
+          <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ ...mono, fontSize: 10, color: 'var(--text-dim)' }}>Comprometimento com o projeto: atenção em aula, acompanhamento do que está sendo feito, saber onde o projeto está.</div>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              {DESCONTOS_ENGAJAMENTO.filter(c => c.id !== 'engajamento_ok').map(c => (
+                <button key={c.id} type="button" title={c.desc}
+                  onClick={() => setEngajamentoNivel(engajamentoNivel === c.id ? null : c.id)}
+                  style={{
+                    padding: '5px 10px', borderRadius: 'var(--radius)', ...mono, fontSize: 10,
+                    cursor: 'pointer',
+                    background: engajamentoNivel === c.id ? 'rgba(200,140,40,0.12)' : 'var(--surface)',
+                    color: engajamentoNivel === c.id ? '#c8922a' : 'var(--text-dim)',
+                    border: `1px solid ${engajamentoNivel === c.id ? 'rgba(200,140,40,0.4)' : 'var(--border)'}`,
+                    fontWeight: engajamentoNivel === c.id ? 600 : 400,
+                  }}>
+                  {c.label} ({c.desconto > 0 ? `−${Number(c.desconto).toFixed(2).replace('.', ',')}` : '0'} pts)
+                </button>
+              ))}
+            </div>
+            {engajamentoNivel && (() => { const sel = DESCONTOS_ENGAJAMENTO.find(c => c.id === engajamentoNivel); return sel ? (
+              <div style={{ ...mono, fontSize: 10, color: '#c8922a', padding: '6px 10px', background: 'rgba(200,140,40,0.05)', borderRadius: 'var(--radius)', borderLeft: '2px solid rgba(200,140,40,0.3)' }}>
+                {sel.desc}
+              </div>
+            ) : null })()}
+            {engajamentoNivel && (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input autoFocus value={engajamentoDesc} onChange={e => setEngajamentoDesc(e.target.value)}
+                  placeholder="descreva o que observou..."
+                  style={{ flex: 1, ...mono, fontSize: 11, padding: '6px 10px', borderRadius: 'var(--radius)', border: '1px solid rgba(200,140,40,0.3)', background: 'var(--surface)', color: 'var(--text)', outline: 'none' }} />
+                <button type="button" onClick={() => {
+                  if (!engajamentoDesc.trim()) return
+                  const nivel = DESCONTOS_ENGAJAMENTO.find(c => c.id === engajamentoNivel)
+                  if (!nivel) return
+                  adicionarExtra(membroAtivo, `Engajamento — ${nivel.label}: ${engajamentoDesc.trim()}`, -nivel.desconto)
+                  setEngajamentoNivel(null)
+                  setEngajamentoDesc('')
+                }}
+                  style={{ padding: '6px 12px', borderRadius: 'var(--radius)', ...mono, fontSize: 10, background: 'rgba(200,140,40,0.08)', border: '1px solid rgba(200,140,40,0.3)', color: '#c8922a', cursor: 'pointer' }}>
+                  <Check size={13} />
+                </button>
+                <button type="button" onClick={() => { setEngajamentoNivel(null); setEngajamentoDesc('') }}
+                  style={{ color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}>
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Comportamentais */}
+          <div style={{ ...mono, fontSize: 9, letterSpacing: '0.25em', color: 'var(--text-dim)', textTransform: 'uppercase' }}>// registro comportamental (opcional)</div>
+          {CRITERIOS_COMPORTAMENTAIS.map(cr => (
+            <div key={cr.id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ ...mono, fontSize: 12, color: 'var(--text-sub)' }}>{cr.nome}</div>
+              <div style={{ ...mono, fontSize: 10, color: 'var(--text-dim)' }}>{cr.desc}</div>
+              <textarea key={`${membroAtivo}-${cr.id}`} rows={2} placeholder="registro opcional..."
+                defaultValue={getComportamental(membroAtivo, cr.id)}
+                style={{ width: '100%', padding: '6px 10px', fontSize: 11, ...mono, color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-card)', resize: 'none', lineHeight: 1.5 }}
+                onChange={e => debounceComport(membroAtivo, cr.id, e.target.value)}
+              />
+            </div>
+          ))}
 
           {/* Notas extras */}
           <div style={{ ...mono, fontSize: 9, letterSpacing: '0.25em', color: 'var(--text-dim)', textTransform: 'uppercase' }}>// nota extra</div>
