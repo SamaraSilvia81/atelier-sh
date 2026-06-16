@@ -205,32 +205,32 @@ export const DISCIPLINAS = [
     cor: '#BA7517', corBg: 'rgba(186,117,23,0.08)', corBorder: 'rgba(186,117,23,0.3)',
     fases: [
       {
-        nome: 'Documentação do Projeto (Memorial)', total: 4,
+        nome: 'Documentação do Projeto (Memorial)', total: 5,
         obs: 'PI avalia a documentação como um todo — não fragmentos. O conteúdo de cada artefato é cobrado em DT/DCU; aqui o olhar é sobre o documento enquanto entrega acadêmica integradora.',
         criterios: [
-          { id: 'estrutura-organizacao', nome: 'Estrutura e Organização do Documento', max: 1.5, itens: ['Todas as seções esperadas estão presentes (capa, introdução, fases, conclusão, referências)','As seções seguem ordem lógica e o documento flui entre as fases','Há capa e sumário; a hierarquia de títulos é clara','Sem placeholders, lorem ipsum ou conteúdo de template não preenchido','O conteúdo de cada fase está na seção correta (sem Imersão/Definição trocadas)'] },
-          { id: 'linguagem-academica', nome: 'Linguagem e Qualidade Acadêmica', max: 1.5, itens: ['Registro acadêmico adequado — sem informalidade ou gírias','Texto claro, coeso e coerente do início ao fim','Ortografia e gramática revisadas','As ideias se conectam: o problema apresentado se sustenta até a solução'] },
+          { id: 'estrutura-organizacao', nome: 'Estrutura e Organização do Documento', max: 2.0, itens: ['Todas as seções esperadas estão presentes (capa, introdução, fases, conclusão, referências)','As seções seguem ordem lógica e o documento flui entre as fases','Há capa e sumário; a hierarquia de títulos é clara','Sem placeholders, lorem ipsum ou conteúdo de template não preenchido','O conteúdo de cada fase está na seção correta (sem Imersão/Definição trocadas)'] },
+          { id: 'linguagem-academica', nome: 'Linguagem e Qualidade Acadêmica', max: 2.0, itens: ['Registro acadêmico adequado — sem informalidade ou gírias','Texto claro, coeso e coerente do início ao fim','Ortografia e gramática revisadas','As ideias se conectam: o problema apresentado se sustenta até a solução'] },
           { id: 'formatacao-padronizacao', nome: 'Formatação e Padronização', max: 0.5, itens: ['Formatação consistente (fontes, espaçamento, margens)','Figuras, tabelas e quadros numerados e legendados','Identidade visual coerente ao longo do documento','Segue o template / normas definidas para o projeto'] },
           { id: 'embasamento-referencias', nome: 'Embasamento e Referências', max: 0.5, itens: ['Afirmações relevantes estão referenciadas','Bibliografia presente e formatada','Fontes confiáveis e atuais','Citações no corpo do texto correspondem às referências'] },
         ],
       },
       {
-        nome: 'Relatórios por Fase', total: 2,
+        nome: 'Relatórios por Fase', total: 3,
         obs: 'Avalia os relatórios incrementais do memorial: cada fase é um acréscimo ao documento existente. PI verifica se o grupo documentou o processo de forma estruturada e cumulativa.',
         criterios: [
           { id: 'relatorio-imersao', nome: 'Relatório de Imersão', max: 1.0, arquivos: ['imersao-relatorio_A.pdf'], itens: ['Estrutura formal: introdução, resumo, metodologia, destaques, referências','Sintetiza achados da pesquisa primária e secundária','Há interpretação e conexão com o problema','Os achados alimentam a construção da persona'] },
-          { id: 'relatorio-definicao', nome: 'Relatório de Definição', max: 0.5, arquivos: ['definicao-relatorio_A.pdf'], itens: ['Documenta os artefatos da fase de Definição (persona, mapa de empatia, POV, jornada atual)','Conecta os resultados da Imersão com as decisões de Definição','Texto coeso e organizado como incremento do memorial'] },
-          { id: 'relatorio-ideacao', nome: 'Relatório de Ideação', max: 0.5, arquivos: ['ideacao-relatorio_A.pdf'], itens: ['Documenta os artefatos da fase de Ideação (brainstorming, priorização, jornada futura, solução)','Conecta a Definição com as escolhas de Ideação','Constitui o incremento final do memorial, deixando o documento completo'] },
+          { id: 'relatorio-definicao', nome: 'Relatório de Definição', max: 1.0, arquivos: ['definicao-relatorio_A.pdf'], itens: ['Documenta os artefatos da fase de Definição (persona, mapa de empatia, POV, jornada atual)','Conecta os resultados da Imersão com as decisões de Definição','Texto coeso e organizado como incremento do memorial'] },
+          { id: 'relatorio-ideacao', nome: 'Relatório de Ideação', max: 1.0, arquivos: ['ideacao-relatorio_A.pdf'], itens: ['Documenta os artefatos da fase de Ideação (brainstorming, priorização, jornada futura, solução)','Conecta a Definição com as escolhas de Ideação','Constitui o incremento final do memorial, deixando o documento completo'] },
         ],
       },
       {
-        nome: 'Gestão do Projeto (Trello)', total: 4,
+        nome: 'Gestão do Projeto (Trello)', total: 2,
         obs: 'Avalia como o grupo usou o Trello para organizar e acompanhar o projeto. Não é sobre estética do board — é sobre gestão real.',
         criterios: [
-          { id: 'board-estrutura', nome: 'Organização do Board', max: 1.0, itens: ['Listas com estrutura clara (backlog, em andamento, concluído ou equivalente)','Cards organizados nas listas corretas','Nomenclatura consistente e descritiva nos cards'] },
-          { id: 'cards-rastreabilidade', nome: 'Rastreabilidade das Tarefas', max: 1.5, itens: ['Cards com descrição suficiente para entender a tarefa','Uso de checklists para decompor entregas','Datas de entrega definidas nos cards relevantes','Cards movidos conforme o progresso real'] },
-          { id: 'distribuicao-membros', nome: 'Distribuição entre Membros', max: 0.75, itens: ['Membros atribuídos aos cards','Distribuição equilibrada — não está tudo num só membro','Dá pra ver quem fez o quê'] },
-          { id: 'frequencia-uso', nome: 'Frequência e Consistência de Uso', max: 0.75, itens: ['Atividade distribuída ao longo do projeto — não só no final','Board atualizado reflete o andamento real','Não há cards abandonados ou desatualizados'] },
+          { id: 'board-estrutura', nome: 'Organização do Board', max: 0.5, itens: ['Listas com estrutura clara (backlog, em andamento, concluído ou equivalente)','Cards organizados nas listas corretas','Nomenclatura consistente e descritiva nos cards'] },
+          { id: 'cards-rastreabilidade', nome: 'Rastreabilidade das Tarefas', max: 0.75, itens: ['Cards com descrição suficiente para entender a tarefa','Uso de checklists para decompor entregas','Datas de entrega definidas nos cards relevantes','Cards movidos conforme o progresso real'] },
+          { id: 'distribuicao-membros', nome: 'Distribuição entre Membros', max: 0.5, itens: ['Membros atribuídos aos cards','Distribuição equilibrada — não está tudo num só membro','Dá pra ver quem fez o quê'] },
+          { id: 'frequencia-uso', nome: 'Frequência e Consistência de Uso', max: 0.25, itens: ['Atividade distribuída ao longo do projeto — não só no final','Board atualizado reflete o andamento real','Não há cards abandonados ou desatualizados'] },
         ],
       },
     ],
