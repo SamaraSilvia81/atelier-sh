@@ -60,6 +60,23 @@ export const DESCONTOS_CONDUTA = [
 // e postura profissional. Avalia tanto o padrão ao longo do projeto quanto
 // episódios isolados de gravidade. Sempre registrar o que houve.
 
+// ── Desconto por engajamento ──────────────────────────────────
+// Comprometimento com o projeto: atenção em aula, acompanhamento
+// do que está sendo feito, saber onde o projeto está. Desengajamento
+// persistente prejudica o grupo e precisa ser registrado.
+export const DESCONTOS_ENGAJAMENTO = [
+  { id: 'engajamento_ok',        label: 'Engajado e atento ao longo do projeto',           desconto: 0.00,
+    desc: 'Acompanha o projeto, sabe o que está sendo feito, presta atenção nas aulas e participa das atividades.' },
+  { id: 'engajamento_parcial',   label: 'Engajamento parcial; momentos de desatenção',     desconto: 0.25,
+    desc: 'No geral acompanha, mas tem momentos de desatenção. Ex.: perde o fio de vez em quando, precisa ser relembrado do que foi combinado, mas quando chamado retoma.' },
+  { id: 'engajamento_baixo',     label: 'Frequentemente perdido; precisa ser direcionado', desconto: 0.50,
+    desc: 'Frequentemente não sabe o que está acontecendo no projeto. Ex.: não acompanha as entregas, precisa que alguém explique de novo o que já foi decidido, não presta atenção nas orientações.' },
+  { id: 'engajamento_ausente',   label: 'Desengajamento persistente ao longo do projeto',  desconto: 0.75,
+    desc: 'Não acompanha o projeto de forma consistente. Ex.: nunca sabe em que fase o grupo está, não lê o que foi produzido, depende totalmente dos colegas pra saber o que fazer.' },
+  { id: 'engajamento_zero',      label: 'Completamente ausente do processo',               desconto: 1.00,
+    desc: 'Desconectado do projeto por inteiro. Ex.: não sabe explicar o que o grupo faz, não acompanhou nenhuma etapa, presença física sem participação real. Prejudica diretamente o grupo.' },
+]
+
 // ── Critérios de avaliação de grupo: DT, DCU, PI ─────────────
 // REESTRUTURADO: projeto encerra na Ideação (Fase 3).
 //   • Cortadas: Protótipo de baixa fidelidade e Análise Mercadológica.
