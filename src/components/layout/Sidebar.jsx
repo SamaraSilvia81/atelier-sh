@@ -60,6 +60,9 @@ function SidebarContent({
         )}
       </div>
 
+      {/* Scrollable middle — org, projetos, grupos, nav */}
+      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+
       {/* Org selector */}
       <div style={{ padding: c ? '8px 4px' : '8px 10px', borderBottom: '1px solid var(--border)', position: 'relative' }}>
         {c ? (
@@ -234,6 +237,7 @@ function SidebarContent({
           {!c && 'extensão chrome'}
         </a>
       </nav>
+      </div>{/* /scrollable middle */}
 
       {/* Rodapé */}
       <div style={{ padding: c ? '8px 6px' : '8px 8px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 2 }}>
