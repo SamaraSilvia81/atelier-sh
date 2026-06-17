@@ -26,6 +26,27 @@ export function useAvaliacaoIndividual(groupId, orgId) {
   const [loading,          setLoading]          = useState(false)
   const [saving,           setSaving]           = useState(false)
   const [erro,             setErro]             = useState(null)
+  const [orgIdFallback,    setOrgIdFallback]    = useState(null)
+
+  // orgId efetivo: usa o que veio por prop; se ausente, busca direto do
+  // grupo no banco (cobre o caso de `org` ainda não ter carregado no
+  // componente pai, ou de group.org_id não estar disponível no objeto em memória)
+  const effectiveOrgId = orgId || orgIdFallback
+
+  useEffect(() => {
+    if (orgId || !groupId) return
+    let cancelled = false
+    supabase.from('groups').select('org_id').eq('id', groupId).single()
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) {
+          console.error('[useAvaliacaoIndividual] falha ao buscar org_id de fallback:', error.message)
+          return
+        }
+        if (data?.org_id) setOrgIdFallback(data.org_id)
+      })
+    return () => { cancelled = true }
+  }, [orgId, groupId])
 
   const carregar = useCallback(async () => {
     if (!groupId) return
@@ -94,15 +115,15 @@ export function useAvaliacaoIndividual(groupId, orgId) {
 
   // ── Escrita com update otimístico ──────────────────────────
   const salvarFator = useCallback(async (memberId, disciplina, fase, fator, notaCalculada) => {
-    if (!groupId || !orgId) {
-      console.error('[useAvaliacaoIndividual] salvarFator: groupId ou orgId ausente', { groupId, orgId })
+    if (!groupId || !effectiveOrgId) {
+      console.error('[useAvaliacaoIndividual] salvarFator: groupId ou orgId ausente', { groupId, orgId: effectiveOrgId })
       setErro('⚠ Não foi possível salvar — org_id ausente. Recarregue a página.')
       return
     }
 
     // UPDATE OTIMÍSTICO — atualiza UI imediatamente, sem esperar o Supabase
     const updated = {
-      org_id: orgId, group_id: groupId,
+      org_id: effectiveOrgId, group_id: groupId,
       member_id: String(memberId), disciplina, fase,
       fator, nota_calculada: notaCalculada
     }
@@ -137,39 +158,47 @@ export function useAvaliacaoIndividual(groupId, orgId) {
     } finally {
       setSaving(false)
     }
-  }, [groupId, orgId, carregar])
+  }, [groupId, effectiveOrgId, carregar])
 
   const salvarComportamental = useCallback(async (memberId, criterioId, registro) => {
-    if (!groupId || !orgId) return
+    if (!groupId || !effectiveOrgId) {
+      console.error('[useAvaliacaoIndividual] salvarComportamental: groupId ou orgId ausente', { groupId, orgId: effectiveOrgId })
+      setErro('⚠ Não foi possível salvar — org_id ausente. Recarregue a página.')
+      return
+    }
     setSaving(true)
     try {
       const { error } = await supabase.from('avaliacoes_comportamental').upsert(
-        { org_id: orgId, group_id: groupId, member_id: memberId, criterio: criterioId, registro },
+        { org_id: effectiveOrgId, group_id: groupId, member_id: memberId, criterio: criterioId, registro },
         { onConflict: 'group_id,member_id,criterio' }
       )
       if (error) throw error
       setComportamentais(prev => {
         const idx = prev.findIndex(c => c.member_id === memberId && c.criterio === criterioId)
-        const updated = { org_id: orgId, group_id: groupId, member_id: memberId, criterio: criterioId, registro }
+        const updated = { org_id: effectiveOrgId, group_id: groupId, member_id: memberId, criterio: criterioId, registro }
         if (idx >= 0) { const next = [...prev]; next[idx] = { ...prev[idx], ...updated }; return next }
         return [...prev, updated]
       })
     } catch (e) { setErro(e.message) }
     finally { setSaving(false) }
-  }, [groupId, orgId])
+  }, [groupId, effectiveOrgId])
 
   const adicionarExtra = useCallback(async (memberId, descricao, valor) => {
-    if (!groupId || !orgId) return
+    if (!groupId || !effectiveOrgId) {
+      console.error('[useAvaliacaoIndividual] adicionarExtra: groupId ou orgId ausente', { groupId, orgId: effectiveOrgId })
+      setErro('⚠ Não foi possível salvar — org_id ausente. Recarregue a página.')
+      return
+    }
     setSaving(true)
     try {
       const { data, error } = await supabase.from('avaliacoes_extra')
-        .insert({ org_id: orgId, group_id: groupId, member_id: memberId, descricao, valor })
+        .insert({ org_id: effectiveOrgId, group_id: groupId, member_id: memberId, descricao, valor })
         .select().single()
       if (error) throw error
       if (data) setExtras(prev => [...prev, data])
     } catch (e) { setErro(e.message) }
     finally { setSaving(false) }
-  }, [groupId, orgId])
+  }, [groupId, effectiveOrgId])
 
   const removerExtra = useCallback(async (id) => {
     setSaving(true)
