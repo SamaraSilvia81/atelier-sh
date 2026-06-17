@@ -1067,15 +1067,15 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
           <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ ...mono, fontSize: 10, color: 'var(--text-dim)' }}>Respeito no trato com colegas e docentes, ética acadêmica e postura profissional. Episódios isolados de gravidade também contam.</div>
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-              {DESCONTOS_CONDUTA.filter(c => c.id !== 'conduta_ok').map(c => (
+              {DESCONTOS_CONDUTA.map(c => (
                 <button key={c.id} type="button" title={c.desc}
                   onClick={() => setCondutaNivel(condutaNivel === c.id ? null : c.id)}
                   style={{
                     padding: '5px 10px', borderRadius: 'var(--radius)', ...mono, fontSize: 10,
                     cursor: 'pointer',
-                    background: condutaNivel === c.id ? 'rgba(200,50,50,0.12)' : 'var(--surface)',
-                    color: condutaNivel === c.id ? '#c83232' : 'var(--text-dim)',
-                    border: `1px solid ${condutaNivel === c.id ? 'rgba(200,50,50,0.4)' : 'var(--border)'}`,
+                    background: condutaNivel === c.id ? (c.pct === 0 ? 'rgba(90,171,110,0.12)' : 'rgba(200,50,50,0.12)') : 'var(--surface)',
+                    color: condutaNivel === c.id ? (c.pct === 0 ? '#5aab6e' : '#c83232') : 'var(--text-dim)',
+                    border: `1px solid ${condutaNivel === c.id ? (c.pct === 0 ? 'rgba(90,171,110,0.4)' : 'rgba(200,50,50,0.4)') : 'var(--border)'}`,
                     fontWeight: condutaNivel === c.id ? 600 : 400,
                   }}>
                   {c.label} {c.pct > 0 ? `(−${c.pct}%)` : ''}
@@ -1083,11 +1083,11 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
               ))}
             </div>
             {condutaNivel && (() => { const sel = DESCONTOS_CONDUTA.find(c => c.id === condutaNivel); return sel ? (
-              <div style={{ ...mono, fontSize: 10, color: '#c83232', padding: '6px 10px', background: 'rgba(200,50,50,0.05)', borderRadius: 'var(--radius)', borderLeft: '2px solid rgba(200,50,50,0.3)' }}>
+              <div style={{ ...mono, fontSize: 10, color: sel.pct === 0 ? '#5aab6e' : '#c83232', padding: '6px 10px', background: sel.pct === 0 ? 'rgba(90,171,110,0.05)' : 'rgba(200,50,50,0.05)', borderRadius: 'var(--radius)', borderLeft: `2px solid ${sel.pct === 0 ? 'rgba(90,171,110,0.3)' : 'rgba(200,50,50,0.3)'}` }}>
                 {sel.desc}
               </div>
             ) : null })()}
-            {condutaNivel && (
+            {condutaNivel && (() => { const sel = DESCONTOS_CONDUTA.find(c => c.id === condutaNivel); return sel && sel.pct > 0; })() && (
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                 <input autoFocus value={condutaDesc} onChange={e => setCondutaDesc(e.target.value)}
                   placeholder="descreva o que houve (opcional)..."
@@ -1117,15 +1117,15 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
           <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ ...mono, fontSize: 10, color: 'var(--text-dim)' }}>Comprometimento com o projeto: atenção em aula, acompanhamento do que está sendo feito, saber onde o projeto está.</div>
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-              {DESCONTOS_ENGAJAMENTO.filter(c => c.id !== 'engajamento_ok').map(c => (
+              {DESCONTOS_ENGAJAMENTO.map(c => (
                 <button key={c.id} type="button" title={c.desc}
                   onClick={() => setEngajamentoNivel(engajamentoNivel === c.id ? null : c.id)}
                   style={{
                     padding: '5px 10px', borderRadius: 'var(--radius)', ...mono, fontSize: 10,
                     cursor: 'pointer',
-                    background: engajamentoNivel === c.id ? 'rgba(200,140,40,0.12)' : 'var(--surface)',
-                    color: engajamentoNivel === c.id ? '#c8922a' : 'var(--text-dim)',
-                    border: `1px solid ${engajamentoNivel === c.id ? 'rgba(200,140,40,0.4)' : 'var(--border)'}`,
+                    background: engajamentoNivel === c.id ? (c.pct === 0 ? 'rgba(90,171,110,0.12)' : 'rgba(200,140,40,0.12)') : 'var(--surface)',
+                    color: engajamentoNivel === c.id ? (c.pct === 0 ? '#5aab6e' : '#c8922a') : 'var(--text-dim)',
+                    border: `1px solid ${engajamentoNivel === c.id ? (c.pct === 0 ? 'rgba(90,171,110,0.4)' : 'rgba(200,140,40,0.4)') : 'var(--border)'}`,
                     fontWeight: engajamentoNivel === c.id ? 600 : 400,
                   }}>
                   {c.label} {c.pct > 0 ? `(−${c.pct}%)` : ''}
@@ -1133,11 +1133,11 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
               ))}
             </div>
             {engajamentoNivel && (() => { const sel = DESCONTOS_ENGAJAMENTO.find(c => c.id === engajamentoNivel); return sel ? (
-              <div style={{ ...mono, fontSize: 10, color: '#c8922a', padding: '6px 10px', background: 'rgba(200,140,40,0.05)', borderRadius: 'var(--radius)', borderLeft: '2px solid rgba(200,140,40,0.3)' }}>
+              <div style={{ ...mono, fontSize: 10, color: sel.pct === 0 ? '#5aab6e' : '#c8922a', padding: '6px 10px', background: sel.pct === 0 ? 'rgba(90,171,110,0.05)' : 'rgba(200,140,40,0.05)', borderRadius: 'var(--radius)', borderLeft: `2px solid ${sel.pct === 0 ? 'rgba(90,171,110,0.3)' : 'rgba(200,140,40,0.3)'}` }}>
                 {sel.desc}
               </div>
             ) : null })()}
-            {engajamentoNivel && (
+            {engajamentoNivel && (() => { const sel = DESCONTOS_ENGAJAMENTO.find(c => c.id === engajamentoNivel); return sel && sel.pct > 0; })() && (
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                 <input autoFocus value={engajamentoDesc} onChange={e => setEngajamentoDesc(e.target.value)}
                   placeholder="descreva o que observou (opcional)..."
