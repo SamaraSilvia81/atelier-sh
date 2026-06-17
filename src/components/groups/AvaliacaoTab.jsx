@@ -938,7 +938,7 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
               </div>
               <div>
                 <div style={{ ...mono, fontSize: 12, color: m.id === membroAtivo ? 'var(--red)' : 'var(--text-muted)' }}>{m.name}</div>
-                {tot > 0 && <div style={{ ...mono, fontSize: 10, color: statusCor(tot, 26) }}>{tot.toFixed(2).replace('.', ',')} pts</div>}
+                {tot > 0 && <div style={{ ...mono, fontSize: 10, color: statusCor(tot, 30) }}>{tot.toFixed(2).replace('.', ',')} / 30 pts</div>}
               </div>
             </button>
           )
@@ -950,8 +950,8 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
           {/* Total individual */}
           <div style={{ padding: '10px 14px', background: 'var(--surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ ...mono, fontSize: 11, color: 'var(--text-muted)' }}>total — {membro.name}</span>
-            <span style={{ ...mono, fontSize: 16, color: statusCor(totalInd + totalExtras, 26), fontWeight: 600 }}>
-              {(totalInd + totalExtras).toFixed(2).replace('.', ',')} pts
+            <span style={{ ...mono, fontSize: 16, color: statusCor(totalInd + totalExtras, 30), fontWeight: 600 }}>
+              {(totalInd + totalExtras).toFixed(2).replace('.', ',')} <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-dim)' }}>/ 30 pts</span>
             </span>
           </div>
 
@@ -1087,17 +1087,23 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
                 {sel.desc}
               </div>
             ) : null })()}
-            {condutaNivel && (() => { const sel = DESCONTOS_CONDUTA.find(c => c.id === condutaNivel); return sel && sel.pct > 0; })() && (
+            {condutaNivel && (
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <input autoFocus value={condutaDesc} onChange={e => setCondutaDesc(e.target.value)}
-                  placeholder="descreva o que houve (opcional)..."
-                  style={{ flex: 1, ...mono, fontSize: 11, padding: '6px 10px', borderRadius: 'var(--radius)', border: '1px solid rgba(200,50,50,0.3)', background: 'var(--surface)', color: 'var(--text)', outline: 'none' }} />
+                {(() => { const sel = DESCONTOS_CONDUTA.find(c => c.id === condutaNivel); return sel && sel.pct > 0 ? (
+                  <input autoFocus value={condutaDesc} onChange={e => setCondutaDesc(e.target.value)}
+                    placeholder="descreva o que houve (opcional)..."
+                    style={{ flex: 1, ...mono, fontSize: 11, padding: '6px 10px', borderRadius: 'var(--radius)', border: '1px solid rgba(200,50,50,0.3)', background: 'var(--surface)', color: 'var(--text)', outline: 'none' }} />
+                ) : null })()}
                 <button type="button" onClick={() => {
                   const nivel = DESCONTOS_CONDUTA.find(c => c.id === condutaNivel)
                   if (!nivel) return
-                  const valorPts = -((nivel.pct / 100) * 30)
-                  const descFinal = condutaDesc.trim() ? `Conduta (−${nivel.pct}%) — ${nivel.label}: ${condutaDesc.trim()}` : `Conduta (−${nivel.pct}%) — ${nivel.label}`
-                  adicionarExtra(membroAtivo, descFinal, Number(valorPts.toFixed(2)))
+                  if (nivel.pct > 0) {
+                    const valorPts = -((nivel.pct / 100) * 30)
+                    const descFinal = condutaDesc.trim() ? `Conduta (−${nivel.pct}%) — ${nivel.label}: ${condutaDesc.trim()}` : `Conduta (−${nivel.pct}%) — ${nivel.label}`
+                    adicionarExtra(membroAtivo, descFinal, Number(valorPts.toFixed(2)))
+                  } else {
+                    adicionarExtra(membroAtivo, `Conduta — ${nivel.label}`, 0)
+                  }
                   setCondutaNivel(null)
                   setCondutaDesc('')
                 }}
@@ -1137,17 +1143,23 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
                 {sel.desc}
               </div>
             ) : null })()}
-            {engajamentoNivel && (() => { const sel = DESCONTOS_ENGAJAMENTO.find(c => c.id === engajamentoNivel); return sel && sel.pct > 0; })() && (
+            {engajamentoNivel && (
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <input autoFocus value={engajamentoDesc} onChange={e => setEngajamentoDesc(e.target.value)}
-                  placeholder="descreva o que observou (opcional)..."
-                  style={{ flex: 1, ...mono, fontSize: 11, padding: '6px 10px', borderRadius: 'var(--radius)', border: '1px solid rgba(200,140,40,0.3)', background: 'var(--surface)', color: 'var(--text)', outline: 'none' }} />
+                {(() => { const sel = DESCONTOS_ENGAJAMENTO.find(c => c.id === engajamentoNivel); return sel && sel.pct > 0 ? (
+                  <input autoFocus value={engajamentoDesc} onChange={e => setEngajamentoDesc(e.target.value)}
+                    placeholder="descreva o que observou (opcional)..."
+                    style={{ flex: 1, ...mono, fontSize: 11, padding: '6px 10px', borderRadius: 'var(--radius)', border: '1px solid rgba(200,140,40,0.3)', background: 'var(--surface)', color: 'var(--text)', outline: 'none' }} />
+                ) : null })()}
                 <button type="button" onClick={() => {
                   const nivel = DESCONTOS_ENGAJAMENTO.find(c => c.id === engajamentoNivel)
                   if (!nivel) return
-                  const valorPts = -((nivel.pct / 100) * 30)
-                  const descFinal = engajamentoDesc.trim() ? `Engajamento (−${nivel.pct}%) — ${nivel.label}: ${engajamentoDesc.trim()}` : `Engajamento (−${nivel.pct}%) — ${nivel.label}`
-                  adicionarExtra(membroAtivo, descFinal, Number(valorPts.toFixed(2)))
+                  if (nivel.pct > 0) {
+                    const valorPts = -((nivel.pct / 100) * 30)
+                    const descFinal = engajamentoDesc.trim() ? `Engajamento (−${nivel.pct}%) — ${nivel.label}: ${engajamentoDesc.trim()}` : `Engajamento (−${nivel.pct}%) — ${nivel.label}`
+                    adicionarExtra(membroAtivo, descFinal, Number(valorPts.toFixed(2)))
+                  } else {
+                    adicionarExtra(membroAtivo, `Engajamento — ${nivel.label}`, 0)
+                  }
                   setEngajamentoNivel(null)
                   setEngajamentoDesc('')
                 }}
