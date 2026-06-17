@@ -89,8 +89,8 @@ export const DISCIPLINAS = [
     cor: '#7F77DD', corBg: 'rgba(127,119,221,0.08)', corBorder: 'rgba(127,119,221,0.3)',
     fases: [
       {
-        nome: 'Fase 1 — Imersão', total: 3.5,
-        obs: 'Avaliada exclusivamente por DT. É o coração do processo criativo.',
+        nome: 'Fase 1 — Imersão', total: 3.0,
+        obs: 'Avaliada exclusivamente por DT. É o coração do processo criativo. O relatório de imersão é avaliado em PI.',
         criterios: [
           { id: 'pesquisa-desk', nome: 'Pesquisa Desk', max: 0.5, arquivos: ['imersao-pesquisa-desk_A.pdf'], itens: ['Dados secundários relevantes e atuais sobre o ODS escolhido','Fontes confiáveis: ONU, IBGE, artigos acadêmicos ou jornalísticos','Contextualiza o problema com base factual','Conexão clara entre os dados e o problema'] },
           { id: 'matriz-alinhamento', nome: 'Matriz de Alinhamento', max: 0.5, arquivos: ['imersao-matriz-alinhamento_A.pdf'], itens: ['Preenchida com perguntas reais do grupo sobre o problema','Reflete o que o grupo sabe e precisa descobrir','Serviu de base para planejar a pesquisa primária'] },
@@ -98,7 +98,7 @@ export const DISCIPLINAS = [
           {
             id: 'pesquisa-primaria',
             nome: 'Pesquisa Primária',
-            max: 1.0,
+            max: 1.5,
             zeraSem: 'Sem pesquisa primária este critério zera integralmente.',
             arquivos: ['imersao-formulario_A.pdf','imersao-roteiro-entrevista_A.pdf'],
             itens: [],
@@ -152,15 +152,14 @@ export const DISCIPLINAS = [
               },
             ],
           },
-          { id: 'relatorio-imersao', nome: 'Relatório de Imersão', max: 1.0, arquivos: ['imersao-relatorio_A.pdf'], itens: ['Estrutura formal: introdução, resumo, metodologia, destaques, referências','Sintetiza achados da pesquisa primária e secundária','Há interpretação e conexão com o problema','Os achados alimentam a construção da persona'] },
         ],
       },
       {
-        nome: 'Fase 2 — Definição', total: 2.5,
+        nome: 'Fase 2 — Definição', total: 3.0,
         criterios: [
-          { id: 'persona-empatia', nome: 'Persona com Empatia Real', max: 0.75, arquivos: ['definicao-persona_A.pdf'], itens: ['A persona nasceu dos dados da imersão','Tem dor específica, não genérica','O grupo consegue explicar de onde veio cada característica'] },
+          { id: 'persona-empatia', nome: 'Persona com Empatia Real', max: 1.0, arquivos: ['definicao-persona_A.pdf'], itens: ['A persona nasceu dos dados da imersão','Tem dor específica, não genérica','O grupo consegue explicar de onde veio cada característica'] },
           { id: 'mapa-empatia', nome: 'Mapa de Empatia como Ferramenta', max: 0.5, arquivos: ['definicao-mapa-empatia_A.pdf'], itens: ['Demonstra que o grupo tentou ver o mundo pela ótica do usuário','Não é só template preenchido — há reflexão real','O conteúdo alimentou a construção da persona'] },
-          { id: 'coerencia-problema-solucao', nome: 'Enunciado do Problema (POV)', max: 0.75, arquivos: ['definicao-ponto-de-vista_A.pdf','definicao-problema_A.pdf'], itens: ['POV: [Persona] precisa de [necessidade] porque [insight]','O problema é específico e decorre da pesquisa','A solução responde diretamente à dor da persona'] },
+          { id: 'coerencia-problema-solucao', nome: 'Enunciado do Problema (POV)', max: 1.0, arquivos: ['definicao-ponto-de-vista_A.pdf','definicao-problema_A.pdf'], itens: ['POV: [Persona] precisa de [necessidade] porque [insight]','O problema é específico e decorre da pesquisa','A solução responde diretamente à dor da persona'] },
           { id: 'jornada-usuario-dt', nome: 'Jornada do Usuário (atual)', max: 0.5, arquivos: ['definicao-jornada-usuario_A.pdf'], itens: ['A jornada reflete o que foi descoberto na imersão','Identifica dores e oportunidades reais em cada etapa'] },
         ],
       },
@@ -206,22 +205,43 @@ export const DISCIPLINAS = [
     cor: '#BA7517', corBg: 'rgba(186,117,23,0.08)', corBorder: 'rgba(186,117,23,0.3)',
     fases: [
       {
-        nome: 'Documentação do Projeto (Memorial)', total: 6,
+        nome: 'Documentação do Projeto (Memorial)', total: 4,
         obs: 'PI avalia a documentação como um todo — não fragmentos. O conteúdo de cada artefato é cobrado em DT/DCU; aqui o olhar é sobre o documento enquanto entrega acadêmica integradora.',
         criterios: [
-          { id: 'estrutura-organizacao', nome: 'Estrutura e Organização do Documento', max: 2.0, itens: ['Todas as seções esperadas estão presentes (capa, introdução, fases, conclusão, referências)','As seções seguem ordem lógica e o documento flui entre as fases','Há capa e sumário; a hierarquia de títulos é clara','Sem placeholders, lorem ipsum ou conteúdo de template não preenchido','O conteúdo de cada fase está na seção correta (sem Imersão/Definição trocadas)'] },
-          { id: 'linguagem-academica', nome: 'Linguagem e Qualidade Acadêmica', max: 2.0, itens: ['Registro acadêmico adequado — sem informalidade ou gírias','Texto claro, coeso e coerente do início ao fim','Ortografia e gramática revisadas','As ideias se conectam: o problema apresentado se sustenta até a solução'] },
-          { id: 'formatacao-padronizacao', nome: 'Formatação e Padronização', max: 1.0, itens: ['Formatação consistente (fontes, espaçamento, margens)','Figuras, tabelas e quadros numerados e legendados','Identidade visual coerente ao longo do documento','Segue o template / normas definidas para o projeto'] },
-          { id: 'embasamento-referencias', nome: 'Embasamento e Referências', max: 1.0, itens: ['Afirmações relevantes estão referenciadas','Bibliografia presente e formatada','Fontes confiáveis e atuais','Citações no corpo do texto correspondem às referências'] },
+          { id: 'estrutura-organizacao', nome: 'Estrutura e Organização do Documento', max: 1.5, itens: ['Todas as seções esperadas estão presentes (capa, introdução, fases, conclusão, referências)','As seções seguem ordem lógica e o documento flui entre as fases','Há capa e sumário; a hierarquia de títulos é clara','Sem placeholders, lorem ipsum ou conteúdo de template não preenchido','O conteúdo de cada fase está na seção correta (sem Imersão/Definição trocadas)'] },
+          { id: 'linguagem-academica', nome: 'Linguagem e Qualidade Acadêmica', max: 1.5, itens: ['Registro acadêmico adequado — sem informalidade ou gírias','Texto claro, coeso e coerente do início ao fim','Ortografia e gramática revisadas','As ideias se conectam: o problema apresentado se sustenta até a solução'] },
+          { id: 'formatacao-padronizacao', nome: 'Formatação e Padronização', max: 0.5, itens: ['Formatação consistente (fontes, espaçamento, margens)','Figuras, tabelas e quadros numerados e legendados','Identidade visual coerente ao longo do documento','Segue o template / normas definidas para o projeto'] },
+          { id: 'embasamento-referencias', nome: 'Embasamento e Referências', max: 0.5, itens: ['Afirmações relevantes estão referenciadas','Bibliografia presente e formatada','Fontes confiáveis e atuais','Citações no corpo do texto correspondem às referências'] },
         ],
       },
       {
-        nome: 'Gestão do Projeto (Trello)', total: 4,
+        nome: 'Relatório de Imersão', total: 1,
+        obs: 'Primeiro incremento do memorial. Avalia a seção de Imersão como entrega documental.',
+        criterios: [
+          { id: 'relatorio-imersao', nome: 'Relatório de Imersão', max: 1.0, arquivos: ['imersao-relatorio_A.pdf'], itens: ['Estrutura formal: introdução, resumo, metodologia, destaques, referências','Sintetiza achados da pesquisa primária e secundária','Há interpretação e conexão com o problema','Os achados alimentam a construção da persona'] },
+        ],
+      },
+      {
+        nome: 'Relatório de Definição', total: 1,
+        obs: 'Segundo incremento do memorial. Avalia a seção de Definição como acréscimo ao documento existente.',
+        criterios: [
+          { id: 'relatorio-definicao', nome: 'Relatório de Definição', max: 1.0, itens: ['A seção de Definição está integrada ao documento — não é um arquivo solto','Persona, mapa de empatia e POV estão documentados com clareza','Há coerência entre o que foi descoberto na Imersão e o que foi definido','A narrativa do documento cresce de forma cumulativa'] },
+        ],
+      },
+      {
+        nome: 'Relatório de Ideação', total: 1,
+        obs: 'Terceiro e último incremento do memorial. Avalia a seção de Ideação e o fechamento do documento.',
+        criterios: [
+          { id: 'relatorio-ideacao', nome: 'Relatório de Ideação', max: 1.0, itens: ['A seção de Ideação está integrada ao documento','Brainstorm, priorização e solução escolhida estão documentados','O enunciado da solução aparece de forma clara','O documento final está completo e coeso do início ao fim'] },
+        ],
+      },
+      {
+        nome: 'Gestão do Projeto (Trello)', total: 3,
         obs: 'Avalia como o grupo usou o Trello para organizar e acompanhar o projeto. Não é sobre estética do board — é sobre gestão real.',
         criterios: [
-          { id: 'board-estrutura', nome: 'Organização do Board', max: 1.0, itens: ['Listas com estrutura clara (backlog, em andamento, concluído ou equivalente)','Cards organizados nas listas corretas','Nomenclatura consistente e descritiva nos cards'] },
-          { id: 'cards-rastreabilidade', nome: 'Rastreabilidade das Tarefas', max: 1.5, itens: ['Cards com descrição suficiente para entender a tarefa','Uso de checklists para decompor entregas','Datas de entrega definidas nos cards relevantes','Cards movidos conforme o progresso real'] },
-          { id: 'distribuicao-membros', nome: 'Distribuição entre Membros', max: 0.75, itens: ['Membros atribuídos aos cards','Distribuição equilibrada — não está tudo num só membro','Dá pra ver quem fez o quê'] },
+          { id: 'board-estrutura', nome: 'Organização do Board', max: 0.75, itens: ['Listas com estrutura clara (backlog, em andamento, concluído ou equivalente)','Cards organizados nas listas corretas','Nomenclatura consistente e descritiva nos cards'] },
+          { id: 'cards-rastreabilidade', nome: 'Rastreabilidade das Tarefas', max: 1.0, itens: ['Cards com descrição suficiente para entender a tarefa','Uso de checklists para decompor entregas','Datas de entrega definidas nos cards relevantes','Cards movidos conforme o progresso real'] },
+          { id: 'distribuicao-membros', nome: 'Distribuição entre Membros', max: 0.5, itens: ['Membros atribuídos aos cards','Distribuição equilibrada — não está tudo num só membro','Dá pra ver quem fez o quê'] },
           { id: 'frequencia-uso', nome: 'Frequência e Consistência de Uso', max: 0.75, itens: ['Atividade distribuída ao longo do projeto — não só no final','Board atualizado reflete o andamento real','Não há cards abandonados ou desatualizados'] },
         ],
       },
