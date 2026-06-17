@@ -45,15 +45,15 @@ export const PENALIZACOES_ATRASO = [
 // 'desconto' = fração da nota individual (0.20 = -20%). Avalia padrão,
 // não episódio isolado. Sempre registrar a justificativa da ocorrência.
 export const DESCONTOS_CONDUTA = [
-  { id: 'conduta_ok',          label: 'Postura respeitosa e ética, sem ressalvas',      desconto: 0.00,
+  { id: 'conduta_ok',          label: 'Postura respeitosa e ética, sem ressalvas',      pct: 0,
     desc: 'Conduta adequada — nenhum corte. O aluno trata colegas e docentes com respeito, cumpre combinados e mantém postura profissional.' },
-  { id: 'conduta_deslize',     label: 'Boa postura; deslizes pontuais já resolvidos',    desconto: 0.25,
+  { id: 'conduta_deslize',     label: 'Boa postura; deslizes pontuais já resolvidos',    pct: 1,
     desc: 'Episódio pontual e leve, já resolvido no momento. Ex.: tom inadequado numa discussão, interrupção desrespeitosa, comentário fora de lugar. Foi chamado à atenção e corrigiu.' },
-  { id: 'conduta_intervencao', label: 'Falhas de conduta que exigiram intervenção',      desconto: 0.50,
+  { id: 'conduta_intervencao', label: 'Falhas de conduta que exigiram intervenção',      pct: 2,
     desc: 'Comportamento que exigiu intervenção formal do docente. Ex.: recusa a colaborar com o grupo, atitude hostil com colega, atrapalhar aula deliberadamente, descumprir combinado após ser avisado.' },
-  { id: 'conduta_recorrente',  label: 'Problemas recorrentes de postura',                desconto: 0.75,
+  { id: 'conduta_recorrente',  label: 'Problemas recorrentes de postura',                pct: 3,
     desc: 'Padrão que se repete mesmo após intervenções. Ex.: desrespeito recorrente em sala, descompromisso sistemático com o grupo, postura que prejudica o trabalho dos colegas repetidamente.' },
-  { id: 'conduta_grave',       label: 'Conduta desrespeitosa ou antiética reincidente',  desconto: 1.00,
+  { id: 'conduta_grave',       label: 'Conduta desrespeitosa ou antiética reincidente',  pct: 5,
     desc: 'Falta grave. Ex.: desrespeito direto ao docente, assédio ou intimidação de colega, plágio, falsificação de entrega, conduta que compromete a integridade acadêmica do projeto.' },
 ]
 // Descrição geral: Respeito no trato com colegas e docentes, ética acadêmica
@@ -65,15 +65,15 @@ export const DESCONTOS_CONDUTA = [
 // do que está sendo feito, saber onde o projeto está. Desengajamento
 // persistente prejudica o grupo e precisa ser registrado.
 export const DESCONTOS_ENGAJAMENTO = [
-  { id: 'engajamento_ok',        label: 'Engajado e atento ao longo do projeto',           desconto: 0.00,
+  { id: 'engajamento_ok',        label: 'Engajado e atento ao longo do projeto',           pct: 0,
     desc: 'Acompanha o projeto, sabe o que está sendo feito, presta atenção nas aulas e participa das atividades.' },
-  { id: 'engajamento_parcial',   label: 'Engajamento parcial; momentos de desatenção',     desconto: 0.25,
+  { id: 'engajamento_parcial',   label: 'Engajamento parcial; momentos de desatenção',     pct: 1,
     desc: 'No geral acompanha, mas tem momentos de desatenção. Ex.: perde o fio de vez em quando, precisa ser relembrado do que foi combinado, mas quando chamado retoma.' },
-  { id: 'engajamento_baixo',     label: 'Frequentemente perdido; precisa ser direcionado', desconto: 0.50,
+  { id: 'engajamento_baixo',     label: 'Frequentemente perdido; precisa ser direcionado', pct: 2,
     desc: 'Frequentemente não sabe o que está acontecendo no projeto. Ex.: não acompanha as entregas, precisa que alguém explique de novo o que já foi decidido, não presta atenção nas orientações.' },
-  { id: 'engajamento_ausente',   label: 'Desengajamento persistente ao longo do projeto',  desconto: 0.75,
+  { id: 'engajamento_ausente',   label: 'Desengajamento persistente ao longo do projeto',  pct: 3,
     desc: 'Não acompanha o projeto de forma consistente. Ex.: nunca sabe em que fase o grupo está, não lê o que foi produzido, depende totalmente dos colegas pra saber o que fazer.' },
-  { id: 'engajamento_zero',      label: 'Completamente ausente do processo',               desconto: 1.00,
+  { id: 'engajamento_zero',      label: 'Completamente ausente do processo',               pct: 5,
     desc: 'Desconectado do projeto por inteiro. Ex.: não sabe explicar o que o grupo faz, não acompanhou nenhuma etapa, presença física sem participação real. Prejudica diretamente o grupo.' },
 ]
 
@@ -89,8 +89,8 @@ export const DISCIPLINAS = [
     cor: '#7F77DD', corBg: 'rgba(127,119,221,0.08)', corBorder: 'rgba(127,119,221,0.3)',
     fases: [
       {
-        nome: 'Fase 1 — Imersão', total: 3.0,
-        obs: 'Avaliada exclusivamente por DT. É o coração do processo criativo. O Relatório de Imersão é cobrado em PI.',
+        nome: 'Fase 1 — Imersão', total: 3.5,
+        obs: 'Avaliada exclusivamente por DT. É o coração do processo criativo.',
         criterios: [
           { id: 'pesquisa-desk', nome: 'Pesquisa Desk', max: 0.5, arquivos: ['imersao-pesquisa-desk_A.pdf'], itens: ['Dados secundários relevantes e atuais sobre o ODS escolhido','Fontes confiáveis: ONU, IBGE, artigos acadêmicos ou jornalísticos','Contextualiza o problema com base factual','Conexão clara entre os dados e o problema'] },
           { id: 'matriz-alinhamento', nome: 'Matriz de Alinhamento', max: 0.5, arquivos: ['imersao-matriz-alinhamento_A.pdf'], itens: ['Preenchida com perguntas reais do grupo sobre o problema','Reflete o que o grupo sabe e precisa descobrir','Serviu de base para planejar a pesquisa primária'] },
@@ -98,7 +98,7 @@ export const DISCIPLINAS = [
           {
             id: 'pesquisa-primaria',
             nome: 'Pesquisa Primária',
-            max: 1.5,
+            max: 1.0,
             zeraSem: 'Sem pesquisa primária este critério zera integralmente.',
             arquivos: ['imersao-formulario_A.pdf','imersao-roteiro-entrevista_A.pdf'],
             itens: [],
@@ -152,14 +152,15 @@ export const DISCIPLINAS = [
               },
             ],
           },
+          { id: 'relatorio-imersao', nome: 'Relatório de Imersão', max: 1.0, arquivos: ['imersao-relatorio_A.pdf'], itens: ['Estrutura formal: introdução, resumo, metodologia, destaques, referências','Sintetiza achados da pesquisa primária e secundária','Há interpretação e conexão com o problema','Os achados alimentam a construção da persona'] },
         ],
       },
       {
-        nome: 'Fase 2 — Definição', total: 3.0,
+        nome: 'Fase 2 — Definição', total: 2.5,
         criterios: [
-          { id: 'persona-empatia', nome: 'Persona com Empatia Real', max: 1.0, arquivos: ['definicao-persona_A.pdf'], itens: ['A persona nasceu dos dados da imersão','Tem dor específica, não genérica','O grupo consegue explicar de onde veio cada característica'] },
+          { id: 'persona-empatia', nome: 'Persona com Empatia Real', max: 0.75, arquivos: ['definicao-persona_A.pdf'], itens: ['A persona nasceu dos dados da imersão','Tem dor específica, não genérica','O grupo consegue explicar de onde veio cada característica'] },
           { id: 'mapa-empatia', nome: 'Mapa de Empatia como Ferramenta', max: 0.5, arquivos: ['definicao-mapa-empatia_A.pdf'], itens: ['Demonstra que o grupo tentou ver o mundo pela ótica do usuário','Não é só template preenchido — há reflexão real','O conteúdo alimentou a construção da persona'] },
-          { id: 'coerencia-problema-solucao', nome: 'Enunciado do Problema (POV)', max: 1.0, arquivos: ['definicao-ponto-de-vista_A.pdf','definicao-problema_A.pdf'], itens: ['POV: [Persona] precisa de [necessidade] porque [insight]','O problema é específico e decorre da pesquisa','A solução responde diretamente à dor da persona'] },
+          { id: 'coerencia-problema-solucao', nome: 'Enunciado do Problema (POV)', max: 0.75, arquivos: ['definicao-ponto-de-vista_A.pdf','definicao-problema_A.pdf'], itens: ['POV: [Persona] precisa de [necessidade] porque [insight]','O problema é específico e decorre da pesquisa','A solução responde diretamente à dor da persona'] },
           { id: 'jornada-usuario-dt', nome: 'Jornada do Usuário (atual)', max: 0.5, arquivos: ['definicao-jornada-usuario_A.pdf'], itens: ['A jornada reflete o que foi descoberto na imersão','Identifica dores e oportunidades reais em cada etapa'] },
         ],
       },
@@ -205,32 +206,23 @@ export const DISCIPLINAS = [
     cor: '#BA7517', corBg: 'rgba(186,117,23,0.08)', corBorder: 'rgba(186,117,23,0.3)',
     fases: [
       {
-        nome: 'Documentação do Projeto (Memorial)', total: 5,
+        nome: 'Documentação do Projeto (Memorial)', total: 6,
         obs: 'PI avalia a documentação como um todo — não fragmentos. O conteúdo de cada artefato é cobrado em DT/DCU; aqui o olhar é sobre o documento enquanto entrega acadêmica integradora.',
         criterios: [
           { id: 'estrutura-organizacao', nome: 'Estrutura e Organização do Documento', max: 2.0, itens: ['Todas as seções esperadas estão presentes (capa, introdução, fases, conclusão, referências)','As seções seguem ordem lógica e o documento flui entre as fases','Há capa e sumário; a hierarquia de títulos é clara','Sem placeholders, lorem ipsum ou conteúdo de template não preenchido','O conteúdo de cada fase está na seção correta (sem Imersão/Definição trocadas)'] },
           { id: 'linguagem-academica', nome: 'Linguagem e Qualidade Acadêmica', max: 2.0, itens: ['Registro acadêmico adequado — sem informalidade ou gírias','Texto claro, coeso e coerente do início ao fim','Ortografia e gramática revisadas','As ideias se conectam: o problema apresentado se sustenta até a solução'] },
-          { id: 'formatacao-padronizacao', nome: 'Formatação e Padronização', max: 0.5, itens: ['Formatação consistente (fontes, espaçamento, margens)','Figuras, tabelas e quadros numerados e legendados','Identidade visual coerente ao longo do documento','Segue o template / normas definidas para o projeto'] },
-          { id: 'embasamento-referencias', nome: 'Embasamento e Referências', max: 0.5, itens: ['Afirmações relevantes estão referenciadas','Bibliografia presente e formatada','Fontes confiáveis e atuais','Citações no corpo do texto correspondem às referências'] },
+          { id: 'formatacao-padronizacao', nome: 'Formatação e Padronização', max: 1.0, itens: ['Formatação consistente (fontes, espaçamento, margens)','Figuras, tabelas e quadros numerados e legendados','Identidade visual coerente ao longo do documento','Segue o template / normas definidas para o projeto'] },
+          { id: 'embasamento-referencias', nome: 'Embasamento e Referências', max: 1.0, itens: ['Afirmações relevantes estão referenciadas','Bibliografia presente e formatada','Fontes confiáveis e atuais','Citações no corpo do texto correspondem às referências'] },
         ],
       },
       {
-        nome: 'Relatórios por Fase', total: 3,
-        obs: 'Avalia os relatórios incrementais do memorial: cada fase é um acréscimo ao documento existente. PI verifica se o grupo documentou o processo de forma estruturada e cumulativa.',
-        criterios: [
-          { id: 'relatorio-imersao', nome: 'Relatório de Imersão', max: 1.0, arquivos: ['imersao-relatorio_A.pdf'], itens: ['Estrutura formal: introdução, resumo, metodologia, destaques, referências','Sintetiza achados da pesquisa primária e secundária','Há interpretação e conexão com o problema','Os achados alimentam a construção da persona'] },
-          { id: 'relatorio-definicao', nome: 'Relatório de Definição', max: 1.0, arquivos: ['definicao-relatorio_A.pdf'], itens: ['Documenta os artefatos da fase de Definição (persona, mapa de empatia, POV, jornada atual)','Conecta os resultados da Imersão com as decisões de Definição','Texto coeso e organizado como incremento do memorial'] },
-          { id: 'relatorio-ideacao', nome: 'Relatório de Ideação', max: 1.0, arquivos: ['ideacao-relatorio_A.pdf'], itens: ['Documenta os artefatos da fase de Ideação (brainstorming, priorização, jornada futura, solução)','Conecta a Definição com as escolhas de Ideação','Constitui o incremento final do memorial, deixando o documento completo'] },
-        ],
-      },
-      {
-        nome: 'Gestão do Projeto (Trello)', total: 2,
+        nome: 'Gestão do Projeto (Trello)', total: 4,
         obs: 'Avalia como o grupo usou o Trello para organizar e acompanhar o projeto. Não é sobre estética do board — é sobre gestão real.',
         criterios: [
-          { id: 'board-estrutura', nome: 'Organização do Board', max: 0.5, itens: ['Listas com estrutura clara (backlog, em andamento, concluído ou equivalente)','Cards organizados nas listas corretas','Nomenclatura consistente e descritiva nos cards'] },
-          { id: 'cards-rastreabilidade', nome: 'Rastreabilidade das Tarefas', max: 0.75, itens: ['Cards com descrição suficiente para entender a tarefa','Uso de checklists para decompor entregas','Datas de entrega definidas nos cards relevantes','Cards movidos conforme o progresso real'] },
-          { id: 'distribuicao-membros', nome: 'Distribuição entre Membros', max: 0.5, itens: ['Membros atribuídos aos cards','Distribuição equilibrada — não está tudo num só membro','Dá pra ver quem fez o quê'] },
-          { id: 'frequencia-uso', nome: 'Frequência e Consistência de Uso', max: 0.25, itens: ['Atividade distribuída ao longo do projeto — não só no final','Board atualizado reflete o andamento real','Não há cards abandonados ou desatualizados'] },
+          { id: 'board-estrutura', nome: 'Organização do Board', max: 1.0, itens: ['Listas com estrutura clara (backlog, em andamento, concluído ou equivalente)','Cards organizados nas listas corretas','Nomenclatura consistente e descritiva nos cards'] },
+          { id: 'cards-rastreabilidade', nome: 'Rastreabilidade das Tarefas', max: 1.5, itens: ['Cards com descrição suficiente para entender a tarefa','Uso de checklists para decompor entregas','Datas de entrega definidas nos cards relevantes','Cards movidos conforme o progresso real'] },
+          { id: 'distribuicao-membros', nome: 'Distribuição entre Membros', max: 0.75, itens: ['Membros atribuídos aos cards','Distribuição equilibrada — não está tudo num só membro','Dá pra ver quem fez o quê'] },
+          { id: 'frequencia-uso', nome: 'Frequência e Consistência de Uso', max: 0.75, itens: ['Atividade distribuída ao longo do projeto — não só no final','Board atualizado reflete o andamento real','Não há cards abandonados ou desatualizados'] },
         ],
       },
     ],

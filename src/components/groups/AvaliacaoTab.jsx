@@ -1067,24 +1067,6 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
           <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ ...mono, fontSize: 10, color: 'var(--text-dim)' }}>Respeito no trato com colegas e docentes, ética acadêmica e postura profissional. Episódios isolados de gravidade também contam.</div>
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-              {/* Item positivo (não aplica desconto, apenas registra) */}
-              {(() => {
-                const ok = DESCONTOS_CONDUTA.find(c => c.id === 'conduta_ok')
-                return ok ? (
-                  <button key={ok.id} type="button" title={ok.desc}
-                    onClick={() => setCondutaNivel(condutaNivel === ok.id ? null : ok.id)}
-                    style={{
-                      padding: '5px 10px', borderRadius: 'var(--radius)', ...mono, fontSize: 10,
-                      cursor: 'pointer',
-                      background: condutaNivel === ok.id ? 'rgba(50,160,80,0.12)' : 'var(--surface)',
-                      color: condutaNivel === ok.id ? '#32a050' : 'var(--text-dim)',
-                      border: `1px solid ${condutaNivel === ok.id ? 'rgba(50,160,80,0.4)' : 'var(--border)'}`,
-                      fontWeight: condutaNivel === ok.id ? 600 : 400,
-                    }}>
-                    {ok.label} ✓
-                  </button>
-                ) : null
-              })()}
               {DESCONTOS_CONDUTA.filter(c => c.id !== 'conduta_ok').map(c => (
                 <button key={c.id} type="button" title={c.desc}
                   onClick={() => setCondutaNivel(condutaNivel === c.id ? null : c.id)}
@@ -1096,25 +1078,26 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
                     border: `1px solid ${condutaNivel === c.id ? 'rgba(200,50,50,0.4)' : 'var(--border)'}`,
                     fontWeight: condutaNivel === c.id ? 600 : 400,
                   }}>
-                  {c.label} ({c.desconto > 0 ? `−${Number(c.desconto).toFixed(2).replace('.', ',')}` : '0'} pts)
+                  {c.label} {c.pct > 0 ? `(−${c.pct}%)` : ''}
                 </button>
               ))}
             </div>
             {condutaNivel && (() => { const sel = DESCONTOS_CONDUTA.find(c => c.id === condutaNivel); return sel ? (
-              <div style={{ ...mono, fontSize: 10, color: condutaNivel === 'conduta_ok' ? '#32a050' : '#c83232', padding: '6px 10px', background: condutaNivel === 'conduta_ok' ? 'rgba(50,160,80,0.05)' : 'rgba(200,50,50,0.05)', borderRadius: 'var(--radius)', borderLeft: `2px solid ${condutaNivel === 'conduta_ok' ? 'rgba(50,160,80,0.3)' : 'rgba(200,50,50,0.3)'}` }}>
+              <div style={{ ...mono, fontSize: 10, color: '#c83232', padding: '6px 10px', background: 'rgba(200,50,50,0.05)', borderRadius: 'var(--radius)', borderLeft: '2px solid rgba(200,50,50,0.3)' }}>
                 {sel.desc}
               </div>
             ) : null })()}
-            {condutaNivel && condutaNivel !== 'conduta_ok' && (
+            {condutaNivel && (
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                 <input autoFocus value={condutaDesc} onChange={e => setCondutaDesc(e.target.value)}
-                  placeholder="descreva o que houve..."
+                  placeholder="descreva o que houve (opcional)..."
                   style={{ flex: 1, ...mono, fontSize: 11, padding: '6px 10px', borderRadius: 'var(--radius)', border: '1px solid rgba(200,50,50,0.3)', background: 'var(--surface)', color: 'var(--text)', outline: 'none' }} />
                 <button type="button" onClick={() => {
-                  if (!condutaDesc.trim()) return
                   const nivel = DESCONTOS_CONDUTA.find(c => c.id === condutaNivel)
                   if (!nivel) return
-                  adicionarExtra(membroAtivo, `Conduta — ${nivel.label}: ${condutaDesc.trim()}`, -nivel.desconto)
+                  const valorPts = -((nivel.pct / 100) * 30)
+                  const descFinal = condutaDesc.trim() ? `Conduta (−${nivel.pct}%) — ${nivel.label}: ${condutaDesc.trim()}` : `Conduta (−${nivel.pct}%) — ${nivel.label}`
+                  adicionarExtra(membroAtivo, descFinal, Number(valorPts.toFixed(2)))
                   setCondutaNivel(null)
                   setCondutaDesc('')
                 }}
@@ -1134,24 +1117,6 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
           <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ ...mono, fontSize: 10, color: 'var(--text-dim)' }}>Comprometimento com o projeto: atenção em aula, acompanhamento do que está sendo feito, saber onde o projeto está.</div>
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-              {/* Item positivo (não aplica desconto, apenas registra) */}
-              {(() => {
-                const ok = DESCONTOS_ENGAJAMENTO.find(c => c.id === 'engajamento_ok')
-                return ok ? (
-                  <button key={ok.id} type="button" title={ok.desc}
-                    onClick={() => setEngajamentoNivel(engajamentoNivel === ok.id ? null : ok.id)}
-                    style={{
-                      padding: '5px 10px', borderRadius: 'var(--radius)', ...mono, fontSize: 10,
-                      cursor: 'pointer',
-                      background: engajamentoNivel === ok.id ? 'rgba(50,160,80,0.12)' : 'var(--surface)',
-                      color: engajamentoNivel === ok.id ? '#32a050' : 'var(--text-dim)',
-                      border: `1px solid ${engajamentoNivel === ok.id ? 'rgba(50,160,80,0.4)' : 'var(--border)'}`,
-                      fontWeight: engajamentoNivel === ok.id ? 600 : 400,
-                    }}>
-                    {ok.label} ✓
-                  </button>
-                ) : null
-              })()}
               {DESCONTOS_ENGAJAMENTO.filter(c => c.id !== 'engajamento_ok').map(c => (
                 <button key={c.id} type="button" title={c.desc}
                   onClick={() => setEngajamentoNivel(engajamentoNivel === c.id ? null : c.id)}
@@ -1163,25 +1128,26 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
                     border: `1px solid ${engajamentoNivel === c.id ? 'rgba(200,140,40,0.4)' : 'var(--border)'}`,
                     fontWeight: engajamentoNivel === c.id ? 600 : 400,
                   }}>
-                  {c.label} ({c.desconto > 0 ? `−${Number(c.desconto).toFixed(2).replace('.', ',')}` : '0'} pts)
+                  {c.label} {c.pct > 0 ? `(−${c.pct}%)` : ''}
                 </button>
               ))}
             </div>
             {engajamentoNivel && (() => { const sel = DESCONTOS_ENGAJAMENTO.find(c => c.id === engajamentoNivel); return sel ? (
-              <div style={{ ...mono, fontSize: 10, color: engajamentoNivel === 'engajamento_ok' ? '#32a050' : '#c8922a', padding: '6px 10px', background: engajamentoNivel === 'engajamento_ok' ? 'rgba(50,160,80,0.05)' : 'rgba(200,140,40,0.05)', borderRadius: 'var(--radius)', borderLeft: `2px solid ${engajamentoNivel === 'engajamento_ok' ? 'rgba(50,160,80,0.3)' : 'rgba(200,140,40,0.3)'}` }}>
+              <div style={{ ...mono, fontSize: 10, color: '#c8922a', padding: '6px 10px', background: 'rgba(200,140,40,0.05)', borderRadius: 'var(--radius)', borderLeft: '2px solid rgba(200,140,40,0.3)' }}>
                 {sel.desc}
               </div>
             ) : null })()}
-            {engajamentoNivel && engajamentoNivel !== 'engajamento_ok' && (
+            {engajamentoNivel && (
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                 <input autoFocus value={engajamentoDesc} onChange={e => setEngajamentoDesc(e.target.value)}
-                  placeholder="descreva o que observou..."
+                  placeholder="descreva o que observou (opcional)..."
                   style={{ flex: 1, ...mono, fontSize: 11, padding: '6px 10px', borderRadius: 'var(--radius)', border: '1px solid rgba(200,140,40,0.3)', background: 'var(--surface)', color: 'var(--text)', outline: 'none' }} />
                 <button type="button" onClick={() => {
-                  if (!engajamentoDesc.trim()) return
                   const nivel = DESCONTOS_ENGAJAMENTO.find(c => c.id === engajamentoNivel)
                   if (!nivel) return
-                  adicionarExtra(membroAtivo, `Engajamento — ${nivel.label}: ${engajamentoDesc.trim()}`, -nivel.desconto)
+                  const valorPts = -((nivel.pct / 100) * 30)
+                  const descFinal = engajamentoDesc.trim() ? `Engajamento (−${nivel.pct}%) — ${nivel.label}: ${engajamentoDesc.trim()}` : `Engajamento (−${nivel.pct}%) — ${nivel.label}`
+                  adicionarExtra(membroAtivo, descFinal, Number(valorPts.toFixed(2)))
                   setEngajamentoNivel(null)
                   setEngajamentoDesc('')
                 }}
