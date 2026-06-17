@@ -181,12 +181,11 @@ export const DISCIPLINAS = [
     fases: [
       {
         nome: 'Fase 2 — Definição (lente DCU)', total: 5.0,
-        obs: 'Pesos dobrados (×2) após a retirada do protótipo.',
+        obs: 'Pesos rebalanceados após a retirada do critério de POV + Problema + Solução (Fase 2 não cobra mais esse critério).',
         criterios: [
-          { id: 'persona-visual', nome: 'Persona — Qualidade Visual e Estrutura', max: 1.5, arquivos: ['definicao-persona_A.pdf'], itens: ['A persona é visual e bem diagramada — hierarquia clara e legível','Cor e tipografia coerentes','As informações estão organizadas com clareza'] },
+          { id: 'persona-visual', nome: 'Persona — Qualidade Visual e Estrutura', max: 2.0, arquivos: ['definicao-persona_A.pdf'], itens: ['A persona é visual e bem diagramada — hierarquia clara e legível','Cor e tipografia coerentes','As informações estão organizadas com clareza'] },
           { id: 'jornada-visual', nome: 'Jornada do Usuário — Qualidade Visual', max: 1.5, arquivos: ['definicao-jornada-usuario_A.pdf'], itens: ['Mapeia os pontos de contato: antes, durante e depois','Identifica dores e oportunidades de design','Apresentação visual clara com boa hierarquia'] },
-          { id: 'mapa-empatia-visual', nome: 'Mapa de Empatia — Apresentação Visual', max: 1.0, itens: ['Os quatro quadrantes preenchidos e organizados visualmente','A diagramação é clara — dá pra ler sem esforço','Há hierarquia visual entre os elementos'] },
-          { id: 'pov-clareza', nome: 'POV + Problema + Solução — Clareza', max: 1.0, itens: ['O POV está formulado de forma clara e direta','O problema é específico e bem descrito','A solução é coerente com o problema identificado'] },
+          { id: 'mapa-empatia-visual', nome: 'Mapa de Empatia — Apresentação Visual', max: 1.5, itens: ['Os quatro quadrantes preenchidos e organizados visualmente','A diagramação é clara — dá pra ler sem esforço','Há hierarquia visual entre os elementos'] },
         ],
       },
       {
@@ -215,10 +214,10 @@ export const DISCIPLINAS = [
         ],
       },
       {
-        nome: 'Relatório de Imersão', total: 1,
+        nome: 'Relatório de Imersão', total: 2,
         obs: 'Primeiro incremento do memorial. Avalia a seção de Imersão como entrega documental.',
         criterios: [
-          { id: 'relatorio-imersao', nome: 'Relatório de Imersão', max: 1.0, arquivos: ['imersao-relatorio_A.pdf'], itens: ['Estrutura formal: introdução, resumo, metodologia, destaques, referências','Sintetiza achados da pesquisa primária e secundária','Há interpretação e conexão com o problema','Os achados alimentam a construção da persona'] },
+          { id: 'relatorio-imersao', nome: 'Relatório de Imersão', max: 2.0, arquivos: ['imersao-relatorio_A.pdf'], itens: ['Estrutura formal: introdução, resumo, metodologia, destaques, referências','Sintetiza achados da pesquisa primária e secundária','Há interpretação e conexão com o problema','Os achados alimentam a construção da persona'] },
         ],
       },
       {
@@ -236,13 +235,13 @@ export const DISCIPLINAS = [
         ],
       },
       {
-        nome: 'Gestão do Projeto (Trello)', total: 3,
+        nome: 'Gestão do Projeto (Trello)', total: 2,
         obs: 'Avalia como o grupo usou o Trello para organizar e acompanhar o projeto. Não é sobre estética do board — é sobre gestão real.',
         criterios: [
-          { id: 'board-estrutura', nome: 'Organização do Board', max: 0.75, itens: ['Listas com estrutura clara (backlog, em andamento, concluído ou equivalente)','Cards organizados nas listas corretas','Nomenclatura consistente e descritiva nos cards'] },
-          { id: 'cards-rastreabilidade', nome: 'Rastreabilidade das Tarefas', max: 1.0, itens: ['Cards com descrição suficiente para entender a tarefa','Uso de checklists para decompor entregas','Datas de entrega definidas nos cards relevantes','Cards movidos conforme o progresso real'] },
-          { id: 'distribuicao-membros', nome: 'Distribuição entre Membros', max: 0.5, itens: ['Membros atribuídos aos cards','Distribuição equilibrada — não está tudo num só membro','Dá pra ver quem fez o quê'] },
-          { id: 'frequencia-uso', nome: 'Frequência e Consistência de Uso', max: 0.75, itens: ['Atividade distribuída ao longo do projeto — não só no final','Board atualizado reflete o andamento real','Não há cards abandonados ou desatualizados'] },
+          { id: 'board-estrutura', nome: 'Organização do Board', max: 0.5, itens: ['Listas com estrutura clara (backlog, em andamento, concluído ou equivalente)','Cards organizados nas listas corretas','Nomenclatura consistente e descritiva nos cards'] },
+          { id: 'cards-rastreabilidade', nome: 'Rastreabilidade das Tarefas', max: 0.75, itens: ['Cards com descrição suficiente para entender a tarefa','Uso de checklists para decompor entregas','Datas de entrega definidas nos cards relevantes','Cards movidos conforme o progresso real'] },
+          { id: 'distribuicao-membros', nome: 'Distribuição entre Membros', max: 0.25, itens: ['Membros atribuídos aos cards','Distribuição equilibrada — não está tudo num só membro','Dá pra ver quem fez o quê'] },
+          { id: 'frequencia-uso', nome: 'Frequência e Consistência de Uso', max: 0.5, itens: ['Atividade distribuída ao longo do projeto — não só no final','Board atualizado reflete o andamento real','Não há cards abandonados ou desatualizados'] },
         ],
       },
     ],
