@@ -1,6 +1,23 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
+// ─────────────────────────────────────────────────────────────
+// Status de correção automático (usado quando status_override = false)
+//   notaFinal == null         → null  (ainda não reavaliado)
+//   notaFinal <= notaInicial  → 'nao_corrigido'
+//   notaFinal >= notaMax      → 'corrigido'
+//   caso contrário            → 'parcial' (subiu, mas não foi até o teto)
+// ─────────────────────────────────────────────────────────────
+export function calcStatusCorrecao(notaInicial, notaFinal, notaMax) {
+  if (notaFinal == null) return null
+  const ini = Number(notaInicial) || 0
+  const fin = Number(notaFinal)   || 0
+  const max = Number(notaMax)     || 0
+  if (fin <= ini) return 'nao_corrigido'
+  if (max > 0 && fin >= max - 0.001) return 'corrigido'
+  return 'parcial'
+}
+
 export function useAvaliacao(groupId, orgId) {
   const [notasGrupo, setNotasGrupo] = useState([])
   const [notasInd,   setNotasInd]   = useState([])
@@ -45,32 +62,67 @@ export function useAvaliacao(groupId, orgId) {
   const LEGACY_DISC = { 'relatorio-imersao': 'dt' }
 
   // ── Leitura ──────────────────────────────────────────────
-  const _findNota = (disc, cid) => {
-    const r = notasGrupo.find(r => r.disciplina === disc && r.criterio_id === cid)
+  // Todas as leituras aceitam `rodada` (default 'inicial'), então as
+  // chamadas antigas de 2 argumentos continuam lendo a primeira avaliação.
+  const _findNota = (disc, cid, rodada = 'inicial') => {
+    const r = notasGrupo.find(r => r.disciplina === disc && r.criterio_id === cid && (r.rodada || 'inicial') === rodada)
     if (r) return r
     const legacyDisc = LEGACY_DISC[cid]
-    if (legacyDisc && legacyDisc !== disc) return notasGrupo.find(r => r.disciplina === legacyDisc && r.criterio_id === cid)
+    if (legacyDisc && legacyDisc !== disc) return notasGrupo.find(r => r.disciplina === legacyDisc && r.criterio_id === cid && (r.rodada || 'inicial') === rodada)
     return undefined
   }
-  const notaGrupo      = (disc, cid) => { const r = _findNota(disc, cid); return r ? Number(r.nota) : null }
-  const nivelGrupo     = (disc, cid) => _findNota(disc, cid)?.nivel || null
-  const atrasoGrupo    = (disc, cid) => _findNota(disc, cid)?.atraso || 'sem_atraso'
-  const obsGrupo       = (disc, cid) => _findNota(disc, cid)?.observacao || ''
+  const notaGrupo      = (disc, cid, rodada = 'inicial') => { const r = _findNota(disc, cid, rodada); return r ? Number(r.nota) : null }
+  const nivelGrupo     = (disc, cid, rodada = 'inicial') => _findNota(disc, cid, rodada)?.nivel || null
+  const atrasoGrupo    = (disc, cid, rodada = 'inicial') => _findNota(disc, cid, rodada)?.atraso || 'sem_atraso'
+  const obsGrupo       = (disc, cid, rodada = 'inicial') => _findNota(disc, cid, rodada)?.observacao || ''
+  // Status de correção da rodada final (valor salvo, com ou sem override)
+  const statusGrupo    = (disc, cid) => _findNota(disc, cid, 'final')?.status_correcao || null
+  const statusOverride = (disc, cid) => _findNota(disc, cid, 'final')?.status_override || false
+  const temFinal       = (disc, cid) => !!_findNota(disc, cid, 'final')
+
   const notaIndividual = (mid, crit) => { const r = notasInd.find(r => r.member_id === mid && r.criterio === crit); return r ? Number(r.nota) : null }
   const obsIndividual  = (mid, crit) => notasInd.find(r => r.member_id === mid && r.criterio === crit)?.observacao || ''
+
   // Critérios que foram migrados de disciplina — excluir do total da disc original
   const LEGACY_CRITERIOS_POR_DISC = Object.entries(LEGACY_DISC).reduce((acc, [cid, legacyDisc]) => {
     if (!acc[legacyDisc]) acc[legacyDisc] = []
     acc[legacyDisc].push(cid)
     return acc
   }, {})
-  const totalDisciplina = (disc) => notasGrupo
-    .filter(r => r.disciplina === disc && !(LEGACY_CRITERIOS_POR_DISC[disc] || []).includes(r.criterio_id))
-    .reduce((a, r) => a + Number(r.nota), 0)
+
+  // ── Total por disciplina, respeitando a rodada vigente por fase ──
+  // rodadaVigente: mapa { `${disc}::${fase}`: 'inicial' | 'final' }.
+  // Para cada critério, se a fase está vigente em 'final' E existe linha
+  // final, usa a final; senão cai pra inicial (nunca derruba o total).
+  // Sem mapa (default {}), tudo resolve pra inicial = comportamento antigo.
+  const totalDisciplina = (disc, rodadaVigente = {}) => {
+    const linhas = notasGrupo.filter(r =>
+      r.disciplina === disc &&
+      !(LEGACY_CRITERIOS_POR_DISC[disc] || []).includes(r.criterio_id)
+    )
+    // Agrupa por critério, guardando inicial e final
+    const porCriterio = {}
+    for (const r of linhas) {
+      const rod = r.rodada || 'inicial'
+      if (!porCriterio[r.criterio_id]) porCriterio[r.criterio_id] = { fase: r.fase }
+      porCriterio[r.criterio_id][rod] = r
+    }
+    let total = 0
+    for (const cid in porCriterio) {
+      const g = porCriterio[cid]
+      const vigente = rodadaVigente[`${disc}::${g.fase}`] || 'inicial'
+      const escolhida = (vigente === 'final' && g.final) ? g.final : (g.inicial || g.final)
+      if (escolhida) total += Number(escolhida.nota)
+    }
+    return total
+  }
+
   const mediaIndividual = (mid) => { const rows = notasInd.filter(r => r.member_id === mid); return rows.length ? rows.reduce((a, r) => a + Number(r.nota), 0) / rows.length : null }
 
   // ── Salvar nota — SEM debounce, update otimístico ────────
-  const salvarNotaGrupo = useCallback(async ({ disciplina, fase, criterioId, nota, notaMax, observacao, nivel, atraso }) => {
+  // Agora com `rodada` (default 'inicial') e os campos de status.
+  // onConflict inclui a rodada, casando com a UNIQUE nova da v14.
+  const salvarNotaGrupo = useCallback(async ({ disciplina, fase, criterioId, nota, notaMax, observacao, nivel, atraso, rodada = 'inicial', statusCorrecao, statusOverride: statusOv }) => {
     if (!groupId || !orgId) {
       console.error('[useAvaliacao] groupId ou orgId ausente', { groupId, orgId })
       setErro('Grupo ou organização não identificado — tente recarregar a página.')
@@ -85,11 +137,17 @@ export function useAvaliacao(groupId, orgId) {
       observacao: observacao || null,
       nivel: nivel || null,
       atraso: atraso || null,
+      rodada,
+    }
+    // status só é gravado na rodada final
+    if (rodada === 'final') {
+      if (statusCorrecao !== undefined) payload.status_correcao = statusCorrecao
+      if (statusOv !== undefined)       payload.status_override = !!statusOv
     }
 
-    // Optimistic update — UI muda imediatamente
+    // Optimistic update — UI muda imediatamente (casa por disc + critério + rodada)
     setNotasGrupo(prev => {
-      const idx = prev.findIndex(r => r.disciplina === disciplina && r.criterio_id === criterioId)
+      const idx = prev.findIndex(r => r.disciplina === disciplina && r.criterio_id === criterioId && (r.rodada || 'inicial') === rodada)
       if (idx >= 0) {
         const next = [...prev]; next[idx] = { ...prev[idx], ...payload }; return next
       }
@@ -102,13 +160,13 @@ export function useAvaliacao(groupId, orgId) {
     try {
       const { error } = await supabase
         .from('avaliacoes_grupo')
-        .upsert(payload, { onConflict: 'group_id,disciplina,criterio_id' })
+        .upsert(payload, { onConflict: 'group_id,disciplina,criterio_id,rodada' })
 
       if (error) {
         console.error('[useAvaliacao] upsert erro:', error)
         throw error
       }
-      console.log('[useAvaliacao] ✓ salvo:', disciplina, criterioId, notaFinal, nivel)
+      console.log('[useAvaliacao] ✓ salvo:', disciplina, criterioId, rodada, notaFinal, nivel)
     } catch (e) {
       const msg = e?.message || e?.details || JSON.stringify(e)
       console.error('[useAvaliacao] FALHA ao salvar:', msg, payload)
@@ -116,6 +174,8 @@ export function useAvaliacao(groupId, orgId) {
         setErro('⚠ Tabela não existe — execute supabase_migration_v15_fix_rls.sql no Supabase.')
       } else if (msg?.includes('policy') || msg?.includes('permission') || msg?.includes('denied')) {
         setErro('⚠ Permissão negada — execute supabase_migration_v15_fix_rls.sql para corrigir RLS.')
+      } else if (msg?.includes('ON CONFLICT') || msg?.includes('constraint')) {
+        setErro('⚠ Constraint da rodada ausente — execute supabase_migration_v14.sql no Supabase.')
       } else {
         setErro(`Erro ao salvar: ${msg}`)
       }
@@ -150,6 +210,7 @@ export function useAvaliacao(groupId, orgId) {
     loading, saving, erro,
     notasGrupo, notasInd,
     notaGrupo, obsGrupo, nivelGrupo, atrasoGrupo,
+    statusGrupo, statusOverride, temFinal,
     notaIndividual, obsIndividual,
     totalDisciplina, mediaIndividual,
     salvarNotaGrupo, salvarNotaIndividual,
