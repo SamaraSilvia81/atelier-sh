@@ -25,7 +25,7 @@ const FATORES_DEFAULT = Object.entries(FATORES).map(([id, f]) => ({ id, ...f }))
 //   niveis_custom, fatores_custom, base_overrides, item_overrides, fase_nome_edit
 //
 // ESCOPO GRUPO (group_id = <uuid>) — dados únicos por grupo
-//   etapas, fase_datas
+//   etapas, fase_datas, rodada_vigente
 // ─────────────────────────────────────────────────────────────
 
 export function useAvaliacaoConfig(groupId, orgId) {
@@ -40,11 +40,12 @@ export function useAvaliacaoConfig(groupId, orgId) {
   const [faseNomeEdit,  setFaseNomeEditRaw]  = useState({})
   const [etapas,        setEtapasRaw]        = useState({})
   const [faseDatas,     setFaseDatasRaw]     = useState({})
+  const [rodadaVigente, setRodadaVigenteRaw] = useState({})
 
   const debounceOrgRef = useRef(null)
   const debounceGrpRef = useRef(null)
   const stateRef = useRef({})
-  stateRef.current = { niveisCustom, fatoresCustom, baseOverrides, itemOverrides, faseNomeEdit, etapas, faseDatas }
+  stateRef.current = { niveisCustom, fatoresCustom, baseOverrides, itemOverrides, faseNomeEdit, etapas, faseDatas, rodadaVigente }
 
   // ── Carregar ──────────────────────────────────────────────
   const carregar = useCallback(async () => {
@@ -81,11 +82,11 @@ export function useAvaliacaoConfig(groupId, orgId) {
         if (orgData.fase_nome_edit) setFaseNomeEditRaw(orgData.fase_nome_edit)
       }
 
-      // 2. Config específica do grupo (etapas + datas)
+      // 2. Config específica do grupo (etapas + datas + rodada vigente)
       if (groupId) {
         const { data: grpData, error: grpErr } = await supabase
           .from('avaliacoes_config')
-          .select('etapas, fase_datas')
+          .select('etapas, fase_datas, rodada_vigente')
           .eq('org_id', orgId)
           .eq('group_id', groupId)
           .maybeSingle()
@@ -93,8 +94,9 @@ export function useAvaliacaoConfig(groupId, orgId) {
         if (grpErr) throw grpErr
 
         if (grpData) {
-          if (grpData.etapas)     setEtapasRaw(grpData.etapas || {})
-          if (grpData.fase_datas) setFaseDatasRaw(grpData.fase_datas || {})
+          if (grpData.etapas)         setEtapasRaw(grpData.etapas || {})
+          if (grpData.fase_datas)     setFaseDatasRaw(grpData.fase_datas || {})
+          if (grpData.rodada_vigente) setRodadaVigenteRaw(grpData.rodada_vigente || {})
         }
       }
     } catch (e) {
@@ -102,6 +104,8 @@ export function useAvaliacaoConfig(groupId, orgId) {
       console.error('[useAvaliacaoConfig] carregar erro:', msg)
       if (msg?.includes('42P01') || msg?.includes('does not exist')) {
         setErro('Tabela avaliacoes_config não existe — execute supabase_migration_v14.sql no Supabase.')
+      } else if (msg?.includes('rodada_vigente')) {
+        setErro('Coluna rodada_vigente ausente — execute supabase_migration_v14b.sql no Supabase.')
       } else {
         setErro(`Erro ao carregar config: ${msg}`)
       }
@@ -183,10 +187,11 @@ export function useAvaliacaoConfig(groupId, orgId) {
       try {
         const s = stateRef.current
         const payload = {
-          org_id:     orgId,
-          group_id:   groupId,
-          etapas:     patch.etapas    ?? s.etapas,
-          fase_datas: patch.faseDatas ?? s.faseDatas,
+          org_id:         orgId,
+          group_id:       groupId,
+          etapas:         patch.etapas         ?? s.etapas,
+          fase_datas:     patch.faseDatas      ?? s.faseDatas,
+          rodada_vigente: patch.rodadaVigente  ?? s.rodadaVigente,
         }
         const { error } = await supabase
           .from('avaliacoes_config')
@@ -262,6 +267,23 @@ export function useAvaliacaoConfig(groupId, orgId) {
     })
   }, [persistirGrupo])
 
+  // Rodada vigente por fase — chave `${disc}::${faseNome}`.
+  // Ausência da chave = 'inicial' (default seguro). Você pode apontar
+  // qualquer fase pra 'inicial' ou 'final' a qualquer momento.
+  const updateRodadaVigente = useCallback((disc, faseNome, rodada) => {
+    const key = `${disc}::${faseNome}`
+    setRodadaVigenteRaw(prev => {
+      const next = { ...prev, [key]: rodada }
+      persistirGrupo({ rodadaVigente: next })
+      return next
+    })
+  }, [persistirGrupo])
+
+  const rodadaVigenteDe = useCallback(
+    (disc, faseNome) => rodadaVigente[`${disc}::${faseNome}`] || 'inicial',
+    [rodadaVigente]
+  )
+
   return {
     loading, saving, erro,
     // Escopo org — globais para todos os grupos
@@ -273,6 +295,7 @@ export function useAvaliacaoConfig(groupId, orgId) {
     // Escopo grupo — únicos por grupo
     etapas,        setEtapas,
     faseDatas, updateFaseDatas,
+    rodadaVigente, updateRodadaVigente, rodadaVigenteDe,
     recarregar: carregar,
   }
 }
