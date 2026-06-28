@@ -928,7 +928,7 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
   let totalInd = 0
   for (const disc of DISCIPLINAS) {
     for (const fase of disc.fases) {
-      const nf = fase.criterios.reduce((a, cr) => a + (notaGrupo(disc.id, cr.id) ?? 0), 0)
+      const nf = fase.criterios.filter(c2 => !c2.isExtra).reduce((a, cr) => a + (notaGrupo(disc.id, cr.id) ?? 0), 0)
       totalInd += getNotaIndividual(membroAtivo, disc.id, fase.nome, nf) || 0
     }
   }
@@ -951,7 +951,7 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
           let tot = 0
           for (const disc of DISCIPLINAS) {
             for (const fase of disc.fases) {
-              const nf = fase.criterios.reduce((a, cr) => a + (notaGrupo(disc.id, cr.id) ?? 0), 0)
+              const nf = fase.criterios.filter(c2 => !c2.isExtra).reduce((a, cr) => a + (notaGrupo(disc.id, cr.id) ?? 0), 0)
               tot += getNotaIndividual(m.id, disc.id, fase.nome, nf) || 0
             }
           }
@@ -989,7 +989,7 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
                 <span style={{ ...mono, fontSize: 10, color: disc.cor, letterSpacing: '0.15em', textTransform: 'uppercase' }}>{disc.id} — {disc.nome}</span>
               </div>
               {disc.fases.map(fase => {
-                const notaFase = fase.criterios.reduce((a, cr) => a + (notaGrupo(disc.id, cr.id) ?? 0), 0)
+                const notaFase = fase.criterios.filter(c2 => !c2.isExtra).reduce((a, cr) => a + (notaGrupo(disc.id, cr.id) ?? 0), 0)
                 const fatorAtual = getFator(membroAtivo, disc.id, fase.nome)
                 const notaInd = getNotaIndividual(membroAtivo, disc.id, fase.nome, notaFase)
 
@@ -1409,10 +1409,17 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
 
   // ids dos critérios marcados como extra, agrupados por disciplina. Cada extra
   // compensa a disciplina onde está arquivado (em qualquer fase), com teto = total.
-  const extraIdsPorDisc = crud.customCriterios.reduce((m, c) => {
-    if (c.is_extra) (m[c.disciplina] = m[c.disciplina] || []).push(c.criterio_id)
+  // Cobre tanto critérios BASE (criterios.js, isExtra: true) quanto CUSTOM (is_extra).
+  const extraIdsPorDisc = (() => {
+    const m = {}
+    for (const d of DISCIPLINAS)
+      for (const f of d.fases)
+        for (const cr of f.criterios)
+          if (cr.isExtra) (m[d.id] = m[d.id] || []).push(cr.id)
+    for (const c of crud.customCriterios)
+      if (c.is_extra) (m[c.disciplina] = m[c.disciplina] || []).push(c.criterio_id)
     return m
-  }, {})
+  })()
 
   const total = totalDisciplina(discAtiva, rodadaVigente, extraIdsPorDisc[discAtiva] || [], disc?.total)
 

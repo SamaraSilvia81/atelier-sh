@@ -173,6 +173,13 @@ export const DISCIPLINAS = [
           { id: 'enunciado-solucao', nome: 'Enunciado da Solução', max: 1.0, itens: ['Segue a estrutura de três partes: afirmação propositiva + público beneficiado + transformação esperada','A afirmação propositiva deixa claro o que será criado — responde à afirmação diagnóstica do problema','O público beneficiado é o mesmo recorte humano do enunciado do problema — não inventou público novo','A transformação esperada responde às manifestações concretas do problema: cada perda tem uma transformação correspondente'] },
         ],
       },
+      {
+        nome: 'Fase 4 — Roadmap / Próximos Passos', total: 1.0,
+        obs: 'Bônus compensatório — recupera nota perdida em DT, sem passar de 10. Formato livre (texto, planilha, gráfico).',
+        criterios: [
+          { id: 'roadmap-proximos-passos', nome: 'Roadmap — Próximos Passos', max: 1.0, isExtra: true, itens: ['Há uma seção explícita de continuidade, titulada como "Roadmap", "Próximos Passos" ou "Trabalhos Futuros"','Informa o que vem depois da ideação — o que ainda falta construir, validar ou aprofundar','Os próximos passos são coerentes com a solução proposta na ideação (não genéricos)','A forma escolhida (texto, planilha, gráfico/linha do tempo) comunica a sequência com clareza'] },
+        ],
+      },
     ],
   },
   {
@@ -195,6 +202,13 @@ export const DISCIPLINAS = [
           { id: 'solucao-centrada-usuario', nome: 'Solução Centrada no Usuário', max: 2.0, itens: ['A solução responde diretamente às dores da persona','As decisões de ideação são justificadas pelo usuário, não por preferência do grupo','Há conexão clara entre o problema do usuário e a solução proposta'] },
           { id: 'jornada-ux', nome: 'Jornada Futura — Qualidade UX', max: 2.0, arquivos: ['ideacao-jornada-futura_A.pdf'], itens: ['A jornada com a solução mostra como a experiência do usuário melhora','Identifica os momentos-chave da interação','Aponta onde a solução resolve as dores mapeadas'] },
           { id: 'documentos-clareza', nome: 'Documentos de Ideação — Clareza Visual', max: 1.0, itens: ['Os documentos estão bem organizados e legíveis','Hierarquia visual clara entre seções e conteúdo'] },
+        ],
+      },
+      {
+        nome: 'Fase 4 — Prévia do Protótipo', total: 1.5,
+        obs: 'Bônus compensatório — recupera nota perdida em DCU, sem passar de 10.',
+        criterios: [
+          { id: 'previa-prototipo', nome: 'Prévia do Protótipo', max: 1.5, isExtra: true, itens: ['Protótipo navegável: o fluxo principal está clicável (Figma ou similar)','As telas-chave do fluxo crítico estão cobertas','Aplica princípios de UI: consistência, feedback ao usuário, prevenção de erro','Aderência ao DCU: as decisões de interface se justificam pela pesquisa com o usuário, não por preferência do grupo','Link do protótipo disponível + evidência (capturas como figuras no relatório)'] },
         ],
       },
     ],
@@ -242,6 +256,13 @@ export const DISCIPLINAS = [
           { id: 'cards-rastreabilidade', nome: 'Rastreabilidade das Tarefas', max: 0.75, itens: ['Cards com descrição suficiente para entender a tarefa','Uso de checklists para decompor entregas','Datas de entrega definidas nos cards relevantes','Cards movidos conforme o progresso real'] },
           { id: 'distribuicao-membros', nome: 'Distribuição entre Membros', max: 0.25, itens: ['Membros atribuídos aos cards','Distribuição equilibrada — não está tudo num só membro','Dá pra ver quem fez o quê'] },
           { id: 'frequencia-uso', nome: 'Frequência e Consistência de Uso', max: 0.5, itens: ['Atividade distribuída ao longo do projeto — não só no final','Board atualizado reflete o andamento real','Não há cards abandonados ou desatualizados'] },
+        ],
+      },
+      {
+        nome: 'Análise Mercadológica', total: 2.0,
+        obs: 'Bônus compensatório — recupera nota perdida em PI, sem passar de 10.',
+        criterios: [
+          { id: 'analise-mercadologica', nome: 'Análise Mercadológica', max: 2.0, isExtra: true, itens: ['Benchmarking: concorrentes diretos e indiretos + tabela comparativa (fortes, fracos, oferta)','Pesquisa desk de concorrência: fontes secundárias (sites, relatórios, lojas de app, redes) → lacunas do mercado','Lean Canvas preenchido (problema, proposta de valor, segmento, métricas…)','Diferencial competitivo / inovação a partir do benchmarking','Relatório (estrutura Overleaf): contexto de mercado, concorrentes, Lean Canvas e diferencial','Lean Canvas e tabela de benchmarking como figuras referenciadas no texto','Referências reais em ABNT (concorrentes/relatórios consultados — não só Figma)','Lean Canvas como artefato visual (cópia do template Figma ou foto à mão com boa luz)','Imagens da concorrência (sites/plataformas) como evidência'] },
         ],
       },
     ],
