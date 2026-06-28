@@ -19,6 +19,10 @@ function esc(str = '') {
     .replace(/\}/g, '\\}').replace(/~/g, '\\textasciitilde{}')
     .replace(/\^/g, '\\textasciicircum{}')
     .replace(/</g, '\\textless{}').replace(/>/g, '\\textgreater{}')
+    // aspas tipográficas curvas → LaTeX seguro
+    .replace(/[\u201C\u201D]/g, "''")   // " "  → ''
+    .replace(/[\u2018\u2019]/g, "'")    // ' '  → '
+    .replace(/"/g, "''")                // aspas retas duplas → ''
 }
 
 function escInline(str = '') {
@@ -44,6 +48,7 @@ function htmlToLatex(html = '') {
       .replace(/<[^>]*>/g, '')
       .replace(/&amp;/g, '\\&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
       .replace(/&nbsp;/g, '~').replace(/&quot;/g, "''")
+      .replace(/[\u201C\u201D]/g, "''").replace(/[\u2018\u2019]/g, "'")
       .replace(/([%#])/g, '\\$1')
   }
 
@@ -74,6 +79,7 @@ function htmlToLatex(html = '') {
     .replace(/<[^>]*>/g, '')
     .replace(/&amp;/g, '\\&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
     .replace(/&nbsp;/g, '~').replace(/&quot;/g, "''")
+    .replace(/[\u201C\u201D]/g, "''").replace(/[\u2018\u2019]/g, "'")
     .replace(/\n{3,}/g, '\n\n').trim()
 }
 
@@ -300,7 +306,7 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
         '\\begin{itemize}[leftmargin=14pt,itemsep=1pt,topsep=3pt,parsep=0pt]\n' +
         cr.checksFeitos.map(c =>
           c.marcado
-            ? `  \\item[\\textcolor{cgood}{$\\checkmark$}] {\\small\\textcolor{cgood}{${esc(c.texto)}}}`
+            ? `  \\item[\\textcolor{cgood}{\\ding{51}}] {\\small\\textcolor{cgood}{${esc(c.texto)}}}`
             : `  \\item[$\\square$] {\\small\\textcolor{cmuted}{${esc(c.texto)}}}`
         ).join('\n') + '\n' +
         '\\end{itemize}'
@@ -344,9 +350,9 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
         return (
           `\\subsection{${esc(f.nome)}}\n\n` +
           `\\notadestaque{${fmt(totalFase)}}{${fmt(maxFase)}}\n\n` +
-          `\\subsubsection*{Resumo dos Critérios}\n\n` +
+          `\\medskip\\noindent{\\small\\textbf{Resumo dos Critérios}}\\par\\smallskip\n\n` +
           tabelaResumo(f.criterios) + '\n\n' +
-          `\\subsubsection*{Comentários}\n\n` +
+          `\\medskip\\noindent{\\small\\textbf{Comentários}}\\par\\smallskip\n\n` +
           f.criterios.map(secaoCriterio).join('\n\n')
         )
       }).join('\n\n')
@@ -400,6 +406,7 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
     `\\makeatother`,
     ``,
     `% ── Pacotes ─────────────────────────────────────────────────`,
+    `\\usepackage{pifont}`,
     `\\usepackage[portuguese]{babel}`,
     `\\usepackage{microtype}`,
     `\\usepackage{booktabs}`,
@@ -452,14 +459,14 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
     `\\thispagestyle{empty}`,
     `\\AddToShipoutPictureBG*{%`,
     `  \\AtPageLowerLeft{%`,
-    `    \\IfFileExists{capa.png}{%`,
-    `      \\includegraphics[width=\\paperwidth,height=\\paperheight]{capa.png}%`,
+    `    \\IfFileExists{capa-${discId || 'dt'}.png}{%`,
+    `      \\includegraphics[width=\\paperwidth,height=\\paperheight]{capa-${discId || 'dt'}.png}%`,
     `    }{%`,
-    `      \\IfFileExists{../../capa.png}{%`,
-    `        \\includegraphics[width=\\paperwidth,height=\\paperheight]{../../capa.png}%`,
+    `      \\IfFileExists{../../capa-${discId || 'dt'}.png}{%`,
+    `        \\includegraphics[width=\\paperwidth,height=\\paperheight]{../../capa-${discId || 'dt'}.png}%`,
     `      }{%`,
     `        \\parbox[b][\\paperheight]{\\paperwidth}{%`,
-    `          \\vspace*{10cm}\\begin{center}{\\large\\color{gray}[capa.png não encontrada]}\\end{center}%`,
+    `          \\vspace*{10cm}\\begin{center}{\\large\\color{gray}[capa-${discId || 'dt'}.png não encontrada]}\\end{center}%`,
     `        }%`,
     `      }%`,
     `    }%`,
@@ -586,7 +593,7 @@ export default function DevolutivaModal({ group, orgId: orgIdProp, org, discId, 
     const hoje = new Date()
     const data = `${hoje.getFullYear()}${String(hoje.getMonth()+1).padStart(2,'0')}${String(hoje.getDate()).padStart(2,'0')}`
 
-    const faseSlug = faseNome ? faseNome.toLowerCase().replace(/[^a-z0-9]/g, '') : 'completa'
+    const faseSlug = faseNome ? faseNome.toLowerCase().replace(/[^a-z0-9]/g, '') : (discId || 'geral')
     return `${turmaDir}/${grupoDir}/devolutiva-${faseSlug}-${data}.tex`
   }
 
@@ -666,7 +673,7 @@ Responda apenas com o texto do resumo, sem títulos, sem markdown, sem aspas.`
 
       // Push pro GitHub ETE-CiceroDias/ete-docs-mod1
       const path = montarPath()
-      const faseSlug = faseNome ? faseNome.toLowerCase() : 'completa'
+      const faseSlug = faseNome ? faseNome.toLowerCase() : (discId || 'geral')
       const result = await pushFileToRepo({
         repo: 'ETE-CiceroDias/ete-docs-mod1',
         path,
@@ -687,7 +694,7 @@ Responda apenas com o texto do resumo, sem títulos, sem markdown, sem aspas.`
 
   function downloadTex() {
     const grupoSlug = group.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-    const faseSlug = faseNome ? faseNome.toLowerCase().replace(/[^a-z0-9]/g, '') : 'completa'
+    const faseSlug = faseNome ? faseNome.toLowerCase().replace(/[^a-z0-9]/g, '') : (discId || 'geral')
     const a = document.createElement('a')
     a.href = URL.createObjectURL(new Blob([texContent], { type: 'text/plain' }))
     a.download = `devolutiva-${faseSlug}-${grupoSlug}.tex`
