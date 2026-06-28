@@ -2,20 +2,17 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
 // ─────────────────────────────────────────────────────────────
-// Status de correção automático
-//   notaFinal == null                  → null  (ainda não reavaliado)
-//   notaInicial já estava no máximo    → null  (nada a corrigir)
-//   notaFinal <= notaInicial           → 'nao_corrigido'
-//   notaFinal >= notaMax               → 'corrigido'
-//   notaFinal > notaInicial (mas < max)→ 'parcial'
+// Status de correção automático (usado quando status_override = false)
+//   notaFinal == null         → null  (ainda não reavaliado)
+//   notaFinal <= notaInicial  → 'nao_corrigido'
+//   notaFinal >= notaMax      → 'corrigido'
+//   caso contrário            → 'parcial' (subiu, mas não foi até o teto)
 // ─────────────────────────────────────────────────────────────
 export function calcStatusCorrecao(notaInicial, notaFinal, notaMax) {
   if (notaFinal == null) return null
   const ini = Number(notaInicial) || 0
   const fin = Number(notaFinal)   || 0
   const max = Number(notaMax)     || 0
-  // Se já estava no teto na 1ª impressão, não há o que corrigir
-  if (max > 0 && ini >= max - 0.001) return null
   if (fin <= ini) return 'nao_corrigido'
   if (max > 0 && fin >= max - 0.001) return 'corrigido'
   return 'parcial'
@@ -98,26 +95,52 @@ export function useAvaliacao(groupId, orgId) {
   // Para cada critério, se a fase está vigente em 'final' E existe linha
   // final, usa a final; senão cai pra inicial (nunca derruba o total).
   // Sem mapa (default {}), tudo resolve pra inicial = comportamento antigo.
-  const totalDisciplina = (disc, rodadaVigente = {}) => {
+  // Notas vigentes da disciplina, por critério, já resolvendo a rodada
+  // vigente de cada fase (final se vigente E existir, senão inicial).
+  const _notasVigentes = (disc, rodadaVigente = {}) => {
     const linhas = notasGrupo.filter(r =>
       r.disciplina === disc &&
       !(LEGACY_CRITERIOS_POR_DISC[disc] || []).includes(r.criterio_id)
     )
-    // Agrupa por critério, guardando inicial e final
     const porCriterio = {}
     for (const r of linhas) {
       const rod = r.rodada || 'inicial'
       if (!porCriterio[r.criterio_id]) porCriterio[r.criterio_id] = { fase: r.fase }
       porCriterio[r.criterio_id][rod] = r
     }
-    let total = 0
+    const out = {}
     for (const cid in porCriterio) {
       const g = porCriterio[cid]
       const vigente = rodadaVigente[`${disc}::${g.fase}`] || 'inicial'
       const escolhida = (vigente === 'final' && g.final) ? g.final : (g.inicial || g.final)
-      if (escolhida) total += Number(escolhida.nota)
+      if (escolhida) out[cid] = Number(escolhida.nota)
     }
-    return total
+    return out
+  }
+
+  // Decompõe a nota da disciplina em base + extra (COMPENSATÓRIO, teto = total).
+  // Os critérios marcados is_extra (extraIds) não somam direto: só preenchem a
+  // folga até o teto → base + min(extra, teto − base). Nunca passa do teto.
+  // Funciona com extras em qualquer fase (a fase não importa pro cálculo).
+  const breakdownDisciplina = (disc, rodadaVigente = {}, extraIds = [], teto = 10) => {
+    const notas = _notasVigentes(disc, rodadaVigente)
+    const ex = new Set(extraIds)
+    let base = 0, extra = 0
+    for (const cid in notas) {
+      if (ex.has(cid)) extra += notas[cid]
+      else            base  += notas[cid]
+    }
+    const aplicado = Math.min(extra, Math.max(0, teto - base))
+    return { base, extra, aplicado, transbordo: extra - aplicado, total: base + aplicado }
+  }
+
+  // Total da disciplina. Chamada antiga de 2 args = soma tudo (comportamento
+  // anterior, sem teto). Com extraIds/teto, aplica a compensação.
+  const totalDisciplina = (disc, rodadaVigente = {}, extraIds = [], teto = null) => {
+    if (teto == null && !extraIds.length) {
+      return Object.values(_notasVigentes(disc, rodadaVigente)).reduce((a, n) => a + n, 0)
+    }
+    return breakdownDisciplina(disc, rodadaVigente, extraIds, teto ?? 10).total
   }
 
   const mediaIndividual = (mid) => { const rows = notasInd.filter(r => r.member_id === mid); return rows.length ? rows.reduce((a, r) => a + Number(r.nota), 0) / rows.length : null }
@@ -215,7 +238,7 @@ export function useAvaliacao(groupId, orgId) {
     notaGrupo, obsGrupo, nivelGrupo, atrasoGrupo,
     statusGrupo, statusOverride, temFinal,
     notaIndividual, obsIndividual,
-    totalDisciplina, mediaIndividual,
+    totalDisciplina, breakdownDisciplina, mediaIndividual,
     salvarNotaGrupo, salvarNotaIndividual,
     recarregar: carregar,
   }

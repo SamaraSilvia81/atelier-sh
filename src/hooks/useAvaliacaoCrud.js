@@ -31,7 +31,7 @@ export function useAvaliacaoCrud(groupId, orgId) {
       c => c.disciplina === disciplinaId && c.fase_nome === faseNome
     ).map(c => ({
       id: c.criterio_id, nome: c.criterio_nome,
-      max: Number(c.nota_max), isCustom: true, dbId: c.id,
+      max: Number(c.nota_max), isCustom: true, isExtra: !!c.is_extra, dbId: c.id,
     }))
     return [...base, ...custom]
   }
@@ -56,13 +56,13 @@ export function useAvaliacaoCrud(groupId, orgId) {
   }
 
   // Adicionar critério custom numa fase
-  const adicionarCriterio = useCallback(async (disciplina, faseNome, nome, notaMax) => {
+  const adicionarCriterio = useCallback(async (disciplina, faseNome, nome, notaMax, isExtra = false) => {
     if (!groupId || !orgId) return
     setSaving(true)
     const criterioId = `custom-${Date.now()}`
     const ordem = customCriterios.filter(c => c.disciplina === disciplina && c.fase_nome === faseNome).length
     const { data, error } = await supabase.from('avaliacoes_criterios_custom')
-      .insert({ org_id: orgId, group_id: groupId, disciplina, fase_nome: faseNome, criterio_id: criterioId, criterio_nome: nome, nota_max: notaMax, ordem })
+      .insert({ org_id: orgId, group_id: groupId, disciplina, fase_nome: faseNome, criterio_id: criterioId, criterio_nome: nome, nota_max: notaMax, ordem, is_extra: isExtra })
       .select().single()
     if (!error && data) setCustomCriterios(prev => [...prev, data])
     setSaving(false)

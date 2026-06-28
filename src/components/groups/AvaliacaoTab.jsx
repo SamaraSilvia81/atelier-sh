@@ -7,7 +7,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { ChevronDown, ChevronRight, AlertTriangle, FileText, X,
-  Plus, Trash2, Pencil, Check, User, Users, Info, Calendar, Download } from 'lucide-react'
+  Plus, Trash2, Pencil, Check, User, Users, Info, Calendar, Download, Star } from 'lucide-react'
 import { useAvaliacao, calcStatusCorrecao } from '../../hooks/useAvaliacao'
 import { useAvaliacaoIndividual,
          FATORES, CRITERIOS_COMPORTAMENTAIS } from '../../hooks/useAvaliacaoIndividual'
@@ -667,22 +667,12 @@ function CriterioRow({
           </span>
         )}
 
-        {rodadaView === 'final' && notaAntes !== null && (() => {
-          const notaAgora = notaCalculada ?? notaAtual
-          const iguais = notaAgora !== null && Math.abs(Number(notaAntes) - Number(notaAgora)) < 0.001
-          if (iguais) return (
-            <span title="mesma nota da primeira avaliação"
-              style={{ ...mono, fontSize: 9, color: 'var(--text-dim)', opacity: 0.6, whiteSpace: 'nowrap' }}>
-              igual à 1ª
-            </span>
-          )
-          return (
-            <span title="nota da primeira avaliação"
-              style={{ ...mono, fontSize: 9, color: 'var(--text-dim)', textDecoration: 'line-through', opacity: 0.7, whiteSpace: 'nowrap' }}>
-              antes {Number(notaAntes).toFixed(2).replace('.', ',')}
-            </span>
-          )
-        })()}
+        {rodadaView === 'final' && notaAntes !== null && (
+          <span title="nota da primeira avaliação"
+            style={{ ...mono, fontSize: 9, color: 'var(--text-dim)', textDecoration: 'line-through', opacity: 0.7, whiteSpace: 'nowrap' }}>
+            antes {Number(notaAntes).toFixed(2).replace('.', ',')}
+          </span>
+        )}
 
         {/* Nota calculada ou manual */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -700,23 +690,19 @@ function CriterioRow({
           )}
         </div>
 
-        {/* Status de correção — automático, só na rodada final, só se houver o que corrigir */}
-        {rodadaView === 'final' && (() => {
-          const st = calcStatusCorrecao(notaAntes, notaCalculada ?? notaAtual, cr.max)
-          if (!st) return null
-          const meta = STATUS_META[st]
-          if (!meta) return null
-          return (
-            <span style={{ ...mono, fontSize: 9, padding: '2px 8px', borderRadius: 'var(--radius)', background: meta.bg, color: meta.cor, border: `1px solid ${meta.cor}44`, whiteSpace: 'nowrap', letterSpacing: '0.06em' }}>
-              {meta.lbl}
-            </span>
-          )
-        })()}
-
         <button type="button" onClick={() => setNotaAberta(v => !v)} title="anotação vinculada"
           style={{ color: notaAberta ? 'var(--red)' : 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 2, flexShrink: 0 }}>
           <FileText size={13} />
         </button>
+
+        {editMode && cr.isCustom && (
+          <button type="button"
+            onClick={() => onEditCustom && onEditCustom(cr.dbId, { is_extra: !cr.isExtra })}
+            title={cr.isExtra ? 'é extra — clique pra voltar a normal' : 'marcar como extra (compensa a disciplina, teto 10)'}
+            style={{ color: cr.isExtra ? 'var(--red)' : 'var(--text-dim)', background: cr.isExtra ? 'var(--red-dim)' : 'none', border: `1px solid ${cr.isExtra ? 'var(--border-red)' : 'transparent'}`, borderRadius: 'var(--radius)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3, padding: '2px 5px', fontFamily: 'var(--ff-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+            <Star size={11} fill={cr.isExtra ? 'currentColor' : 'none'} />{cr.isExtra ? ' extra' : ''}
+          </button>
+        )}
 
         {editMode && cr.isCustom && (
           <button type="button" onClick={() => onRemoveCustom(cr.dbId)}
@@ -1306,25 +1292,6 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
     rodadaVigente, updateRodadaVigente, rodadaVigenteDe,
   } = config
 
-  // Nota do grupo para o painel individual: respeita rodadaVigente por fase
-  // Precisa saber a fase do criterio para decidir qual rodada usar.
-  // Monta um lookup disc->crId->faseNome a partir do crud (fases dinamicas incluidas).
-  const notaGrupoParaInd = useCallback((disc, crId) => {
-    // Busca a fase a que pertence esse criterio nessa disciplina
-    const todasFases = crud.getFasesDisciplina(disc)
-    let faseNome = null
-    for (const fase of todasFases) {
-      const crits = crud.getCriteriosFase(disc, fase.nome)
-      if (crits.some(cr => cr.id === crId)) { faseNome = fase.nome; break }
-    }
-    const vig = faseNome ? (rodadaVigente[`${disc}::${faseNome}`] || 'inicial') : 'inicial'
-    if (vig === 'final') {
-      const f = avGrupo.notaGrupo(disc, crId, 'final')
-      return f !== null ? f : avGrupo.notaGrupo(disc, crId, 'inicial')
-    }
-    return avGrupo.notaGrupo(disc, crId, 'inicial')
-  }, [crud, rodadaVigente, avGrupo])
-
   const [modo,          setModo]          = useState('grupo')
   const [rodadaView,    setRodadaView]    = useState('inicial')
 
@@ -1360,6 +1327,7 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
   const [addingCrit,    setAddingCrit]    = useState(null)
   const [novaCrNome,    setNovaCrNome]    = useState('')
   const [novaCrMax,     setNovaCrMax]     = useState('1')
+  const [novaCrExtra,   setNovaCrExtra]   = useState(false)
   const [editandoFase,  setEditandoFase]  = useState(null)
   const [editandoNivel, setEditandoNivel] = useState(null)
   const [editandoFator, setEditandoFator] = useState(null)
@@ -1438,7 +1406,15 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
   }
 
   const disc = DISCIPLINAS.find(d => d.id === discAtiva)
-  const total = totalDisciplina(discAtiva, rodadaVigente)
+
+  // ids dos critérios marcados como extra, agrupados por disciplina. Cada extra
+  // compensa a disciplina onde está arquivado (em qualquer fase), com teto = total.
+  const extraIdsPorDisc = crud.customCriterios.reduce((m, c) => {
+    if (c.is_extra) (m[c.disciplina] = m[c.disciplina] || []).push(c.criterio_id)
+    return m
+  }, {})
+
+  const total = totalDisciplina(discAtiva, rodadaVigente, extraIdsPorDisc[discAtiva] || [], disc?.total)
 
   // Sensors para drag and drop — declarados aqui para respeitar regras de hooks
   const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
@@ -1462,7 +1438,7 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
         {/* ── Totais — scroll horizontal em telas pequenas */}
         <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
           {DISCIPLINAS.map(d => {
-            const t = totalDisciplina(d.id, rodadaVigente)
+            const t = totalDisciplina(d.id, rodadaVigente, extraIdsPorDisc[d.id] || [], d.total)
             return (
              <div key={d.id} style={{ width: 155, flexShrink: 0, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: `1px solid ${d.cor}40`, background: `${d.cor}0d` }}>
                 <div style={{ fontSize: 9, letterSpacing: '0.18em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 4 }}>{d.id.toUpperCase()} — {d.nome.split(' ')[0]}</div>
@@ -1634,9 +1610,17 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
                 ? [...ordemCrit.map(id => criteriosFaseRaw.find(cr => cr.id === id)).filter(Boolean),
                    ...criteriosFaseRaw.filter(cr => !ordemCrit.includes(cr.id))]
                 : criteriosFaseRaw
-              const totalFase = criteriosFase.reduce((a, cr) => a + (notaGrupoView(discAtiva, cr.id) ?? 0), 0)
+              // Separa normais de extras. Extra não entra no denominador da fase.
+              const criteriosNormais = criteriosFase.filter(cr => !cr.isExtra)
+              const criteriosExtras  = criteriosFase.filter(cr =>  cr.isExtra)
+              // Fase 100% extra (ex.: "Fase 4 — Roadmap"): o header vira bônus,
+              // a lista mostra os próprios extras. Fase mista: extras vão num
+              // sub-bloco abaixo dos normais.
+              const ehFaseExtra  = criteriosNormais.length === 0 && criteriosExtras.length > 0
+              const criteriosConta = ehFaseExtra ? criteriosExtras : criteriosNormais
+              const totalFase = criteriosConta.reduce((a, cr) => a + (notaGrupoView(discAtiva, cr.id) ?? 0), 0)
               const faseTemFinal = criteriosFase.some(cr => avGrupo.temFinal(discAtiva, cr.id))
-              const maxFase = criteriosFase.reduce((a, cr) => a + cr.max, 0) || fase.total || 1
+              const maxFase = criteriosConta.reduce((a, cr) => a + cr.max, 0) || fase.total || 1
               const nomeExibido = faseNomeEdit[fase.nome] ?? fase.nome
 
               return (
@@ -1684,6 +1668,12 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
                       )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, paddingLeft: 10 }}>
+                      {ehFaseExtra && (
+                        <span title={`bônus compensatório — recupera nota em ${discAtiva.toUpperCase()}, sem passar do teto`}
+                          style={{ ...mono, fontSize: 8, padding: '1px 6px', borderRadius: 'var(--radius)', border: `1px solid ${disc.corBorder}`, background: disc.corBg, color: disc.cor, letterSpacing: '0.1em', textTransform: 'uppercase', flexShrink: 0 }}>
+                          extra · compensa {discAtiva.toUpperCase()}
+                        </span>
+                      )}
                       <Barra valor={totalFase} max={maxFase} cor={disc.cor} height={4} />
                       <span style={{ fontSize: 11, color: disc.cor, fontWeight: 600, whiteSpace: 'nowrap' }}>
                         {totalFase.toFixed(2).replace('.', ',')} / {maxFase.toFixed(2).replace('.', ',')} pts
@@ -1770,7 +1760,7 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
                     collisionDetection={closestCenter}
                     onDragEnd={({ active, over }) => {
                       if (!over || active.id === over.id) return
-                      const ids = criteriosFase.map(cr => cr.id)
+                      const ids = criteriosConta.map(cr => cr.id)
                       const oldIdx = ids.indexOf(active.id)
                       const newIdx = ids.indexOf(over.id)
                       if (oldIdx === -1 || newIdx === -1) return
@@ -1778,9 +1768,9 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
                       setItemOverrides(prev => ({ ...prev, [`${discAtiva}-${fase.nome}-ordem`]: novaOrdem }))
                     }}
                   >
-                  <SortableContext items={criteriosFase.map(cr => cr.id)} strategy={verticalListSortingStrategy}>
+                  <SortableContext items={criteriosConta.map(cr => cr.id)} strategy={verticalListSortingStrategy}>
                   <div style={{ paddingLeft: editMode ? 18 : 0 }}>
-                  {criteriosFase.map(cr => (
+                  {criteriosConta.map(cr => (
                     <SortableItem key={cr.id} id={cr.id} editMode={editMode}>
                     <CriterioRow key={`${cr.id}-${rodadaView}`}
                       cr={cr} discId={discAtiva} faseNome={fase.nome}
@@ -1809,9 +1799,43 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
                   </DndContext>
                   )}
 
+                  {/* Sub-bloco de extras numa fase mista (extras convivendo com normais).
+                      Fase 100%-extra já renderiza os extras na lista principal acima. */}
+                  {aberta && !ehFaseExtra && criteriosExtras.length > 0 && (
+                    <div style={{ borderTop: '1px dashed var(--border)', marginTop: 2, paddingTop: 6 }}>
+                      <div style={{ ...mono, fontSize: 9, letterSpacing: '0.2em', color: disc.cor, textTransform: 'uppercase', padding: '2px 14px 4px' }}>
+                        // extra — compensa {discAtiva.toUpperCase()} (teto {disc.total})
+                      </div>
+                      <div style={{ paddingLeft: editMode ? 18 : 0 }}>
+                      {criteriosExtras.map(cr => (
+                        <CriterioRow key={`${cr.id}-${rodadaView}`}
+                          cr={cr} discId={discAtiva} faseNome={fase.nome}
+                          notaGrupo={notaGrupoView} nivelGrupo={nivelGrupoView} atrasoGrupo={atrasoGrupoView}
+                          onSave={autoSave} editMode={editMode}
+                          onRemoveCustom={crud.removerCriterio}
+                          onEditCustom={(dbId, changes) => crud.editarCriterio(dbId, changes)}
+                          onEditBase={handleEditBase}
+                          groupId={group?.id} orgId={resolvedOrgId}
+                          itensOverride={itemOverrides[`${discAtiva}-${cr.id}`] ?? null}
+                          onSetItens={handleSetItens}
+                          etapas={etapas} setEtapas={setEtapas}
+                          itemOverrides={itemOverrides} setItemOverrides={setItemOverrides}
+                          niveisCustom={niveisCustom}
+                          rodadaView={rodadaView}
+                          notaAntes={avGrupo.notaGrupo(discAtiva, cr.id, 'inicial')}
+                          statusSalvo={avGrupo.statusGrupo(discAtiva, cr.id)}
+                          statusOverrideSalvo={avGrupo.statusOverride(discAtiva, cr.id)}
+                          onCycleStatus={(st) => setStatusManual(discAtiva, fase.nome, cr.id, cr.max, st)}
+                        />
+                      ))}
+                      </div>
+                    </div>
+                  )}
+
                   {aberta && editMode && (
                     <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border)' }}>
                       {addingCrit === fase.nome ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                           <input autoFocus value={novaCrNome} onChange={e => setNovaCrNome(e.target.value)}
                             placeholder="nome do critério..."
@@ -1819,15 +1843,22 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
                           <input type="number" min={0} step={0.05} value={novaCrMax} onChange={e => setNovaCrMax(e.target.value)}
                             placeholder="pts"
                             style={{ width: 64, ...mono, fontSize: 11, padding: '5px 8px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', textAlign: 'center', outline: 'none' }} />
-                          <button type="button" onClick={() => { crud.adicionarCriterio(discAtiva, fase.nome, novaCrNome, Number(novaCrMax)); setAddingCrit(null); setNovaCrNome(''); setNovaCrMax('1') }}
+                          <button type="button" onClick={() => { crud.adicionarCriterio(discAtiva, fase.nome, novaCrNome, Number(novaCrMax), novaCrExtra); setAddingCrit(null); setNovaCrNome(''); setNovaCrMax('1'); setNovaCrExtra(false) }}
                             disabled={!novaCrNome.trim()}
                             style={{ padding: '5px 10px', borderRadius: 'var(--radius)', ...mono, fontSize: 10, background: 'var(--red-dim)', border: '1px solid var(--border-red)', color: 'var(--red)', cursor: 'pointer' }}>
                             <Check size={12} />
                           </button>
-                          <button type="button" onClick={() => { setAddingCrit(null); setNovaCrNome(''); setNovaCrMax('1') }}
+                          <button type="button" onClick={() => { setAddingCrit(null); setNovaCrNome(''); setNovaCrMax('1'); setNovaCrExtra(false) }}
                             style={{ color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}>
                             <X size={13} />
                           </button>
+                        </div>
+                        <label title="extra = bônus compensatório: não soma no /10, só recupera nota perdida nesta disciplina (teto no total)"
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, ...mono, fontSize: 10, color: novaCrExtra ? 'var(--red)' : 'var(--text-dim)', cursor: 'pointer', paddingLeft: 2 }}>
+                          <input type="checkbox" checked={novaCrExtra} onChange={e => setNovaCrExtra(e.target.checked)}
+                            style={{ accentColor: 'var(--red)', cursor: 'pointer' }} />
+                          <Star size={11} fill={novaCrExtra ? 'currentColor' : 'none'} /> critério extra (compensa {discAtiva.toUpperCase()}, não entra no /10)
+                        </label>
                         </div>
                       ) : (
                         <button type="button" onClick={() => setAddingCrit(fase.nome)}
@@ -1878,7 +1909,7 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
         {/* ── INDIVIDUAL */}
         {modo === 'individual' && (
           <IndividualPanel
-            members={members} notaGrupo={notaGrupoParaInd}
+            members={members} notaGrupo={notaGrupo}
             hooks={avInd} editMode={editMode}
             fatoresCustom={fatoresCustom} setFatoresCustom={setFatoresCustom}
             editandoFator={editandoFator} setEditandoFator={setEditandoFator}
