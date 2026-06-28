@@ -2,17 +2,20 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
 // ─────────────────────────────────────────────────────────────
-// Status de correção automático (usado quando status_override = false)
-//   notaFinal == null         → null  (ainda não reavaliado)
-//   notaFinal <= notaInicial  → 'nao_corrigido'
-//   notaFinal >= notaMax      → 'corrigido'
-//   caso contrário            → 'parcial' (subiu, mas não foi até o teto)
+// Status de correção automático
+//   notaFinal == null                  → null  (ainda não reavaliado)
+//   notaInicial já estava no máximo    → null  (nada a corrigir)
+//   notaFinal <= notaInicial           → 'nao_corrigido'
+//   notaFinal >= notaMax               → 'corrigido'
+//   notaFinal > notaInicial (mas < max)→ 'parcial'
 // ─────────────────────────────────────────────────────────────
 export function calcStatusCorrecao(notaInicial, notaFinal, notaMax) {
   if (notaFinal == null) return null
   const ini = Number(notaInicial) || 0
   const fin = Number(notaFinal)   || 0
   const max = Number(notaMax)     || 0
+  // Se já estava no teto na 1ª impressão, não há o que corrigir
+  if (max > 0 && ini >= max - 0.001) return null
   if (fin <= ini) return 'nao_corrigido'
   if (max > 0 && fin >= max - 0.001) return 'corrigido'
   return 'parcial'

@@ -690,6 +690,19 @@ function CriterioRow({
           )}
         </div>
 
+        {/* Status de correção — automático, só na rodada final, só se houver o que corrigir */}
+        {rodadaView === 'final' && (() => {
+          const st = calcStatusCorrecao(notaAntes, notaCalculada ?? notaAtual, cr.max)
+          if (!st) return null
+          const meta = STATUS_META[st]
+          if (!meta) return null
+          return (
+            <span style={{ ...mono, fontSize: 9, padding: '2px 8px', borderRadius: 'var(--radius)', background: meta.bg, color: meta.cor, border: `1px solid ${meta.cor}44`, whiteSpace: 'nowrap', letterSpacing: '0.06em' }}>
+              {meta.lbl}
+            </span>
+          )
+        })()}
+
         <button type="button" onClick={() => setNotaAberta(v => !v)} title="anotação vinculada"
           style={{ color: notaAberta ? 'var(--red)' : 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 2, flexShrink: 0 }}>
           <FileText size={13} />
@@ -1836,7 +1849,7 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
         {/* ── INDIVIDUAL */}
         {modo === 'individual' && (
           <IndividualPanel
-            members={members} notaGrupo={notaGrupo}
+            members={members} notaGrupo={notaGrupoView}
             hooks={avInd} editMode={editMode}
             fatoresCustom={fatoresCustom} setFatoresCustom={setFatoresCustom}
             editandoFator={editandoFator} setEditandoFator={setEditandoFator}
