@@ -667,12 +667,22 @@ function CriterioRow({
           </span>
         )}
 
-        {rodadaView === 'final' && notaAntes !== null && (
-          <span title="nota da primeira avaliação"
-            style={{ ...mono, fontSize: 9, color: 'var(--text-dim)', textDecoration: 'line-through', opacity: 0.7, whiteSpace: 'nowrap' }}>
-            antes {Number(notaAntes).toFixed(2).replace('.', ',')}
-          </span>
-        )}
+        {rodadaView === 'final' && notaAntes !== null && (() => {
+          const notaAgora = notaCalculada ?? notaAtual
+          const iguais = notaAgora !== null && Math.abs(Number(notaAntes) - Number(notaAgora)) < 0.001
+          if (iguais) return (
+            <span title="mesma nota da primeira avaliação"
+              style={{ ...mono, fontSize: 9, color: 'var(--text-dim)', opacity: 0.6, whiteSpace: 'nowrap' }}>
+              igual à 1ª
+            </span>
+          )
+          return (
+            <span title="nota da primeira avaliação"
+              style={{ ...mono, fontSize: 9, color: 'var(--text-dim)', textDecoration: 'line-through', opacity: 0.7, whiteSpace: 'nowrap' }}>
+              antes {Number(notaAntes).toFixed(2).replace('.', ',')}
+            </span>
+          )
+        })()}
 
         {/* Nota calculada ou manual */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1296,6 +1306,25 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
     rodadaVigente, updateRodadaVigente, rodadaVigenteDe,
   } = config
 
+  // Nota do grupo para o painel individual: respeita rodadaVigente por fase
+  // Precisa saber a fase do criterio para decidir qual rodada usar.
+  // Monta um lookup disc->crId->faseNome a partir do crud (fases dinamicas incluidas).
+  const notaGrupoParaInd = useCallback((disc, crId) => {
+    // Busca a fase a que pertence esse criterio nessa disciplina
+    const todasFases = crud.getFasesDisciplina(disc)
+    let faseNome = null
+    for (const fase of todasFases) {
+      const crits = crud.getCriteriosFase(disc, fase.nome)
+      if (crits.some(cr => cr.id === crId)) { faseNome = fase.nome; break }
+    }
+    const vig = faseNome ? (rodadaVigente[`${disc}::${faseNome}`] || 'inicial') : 'inicial'
+    if (vig === 'final') {
+      const f = avGrupo.notaGrupo(disc, crId, 'final')
+      return f !== null ? f : avGrupo.notaGrupo(disc, crId, 'inicial')
+    }
+    return avGrupo.notaGrupo(disc, crId, 'inicial')
+  }, [crud, rodadaVigente, avGrupo])
+
   const [modo,          setModo]          = useState('grupo')
   const [rodadaView,    setRodadaView]    = useState('inicial')
 
@@ -1849,7 +1878,7 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
         {/* ── INDIVIDUAL */}
         {modo === 'individual' && (
           <IndividualPanel
-            members={members} notaGrupo={notaGrupoView}
+            members={members} notaGrupo={notaGrupoParaInd}
             hooks={avInd} editMode={editMode}
             fatoresCustom={fatoresCustom} setFatoresCustom={setFatoresCustom}
             editandoFator={editandoFator} setEditandoFator={setEditandoFator}
