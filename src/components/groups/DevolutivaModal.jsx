@@ -96,16 +96,15 @@ function coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina
         const nomeFinal = override?.nome ?? cr.nome
         const maxFinal = override?.max ?? cr.max
 
+        // Sempre usa nota/nível/atraso FINAL quando disponível
         const temFin     = av?.temFinal?.(disc.id, cr.id) || false
         const rod        = temFin ? 'final' : 'inicial'
         const nivel      = av ? av.nivelGrupo(disc.id, cr.id, rod) : nivelGrupo(disc.id, cr.id)
         const nivelInfo  = NIVEIS_AVALIACAO.find(n => n.id === nivel)
         const atraso     = av ? av.atrasoGrupo(disc.id, cr.id, rod) : atrasoGrupo(disc.id, cr.id)
         const atrasoInfo = PENALIZACOES_ATRASO.find(a => a.id === atraso)
-        const nota         = (av ? av.notaGrupo(disc.id, cr.id, rod) : notaGrupo(disc.id, cr.id)) ?? 0
-        const notaInicial  = av ? (av.notaGrupo(disc.id, cr.id, 'inicial') ?? 0) : nota
-        const notaFinal    = temFin ? nota : null
-        const statusCorr   = temFin ? (av?.statusGrupo?.(disc.id, cr.id) || null) : null
+        // nota = sempre a nota final (se existir), senão inicial
+        const nota       = (av ? av.notaGrupo(disc.id, cr.id, rod) : notaGrupo(disc.id, cr.id)) ?? 0
 
         // Busca anotação pelo NOME FINAL do critério
         const notaVinc = notes.find(n => n.title === `Avaliação: ${nomeFinal}`)
@@ -120,7 +119,6 @@ function coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina
 
         return {
           id: cr.id, nome: nomeFinal, max: maxFinal, nota,
-          notaInicial, notaFinal, statusCorr, temComparativo: temFin,
           nivelLabel:  nivelInfo?.label  || '—',
           nivelId:     nivel,
           atrasoLabel: atrasoInfo?.id === 'sem_atraso' ? '' : (atrasoInfo?.label || ''),
@@ -251,9 +249,9 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
   // título adaptado
   const discNome = discId ? (disciplinas.find(d => d.id === discId)?.nome || discId) : null
   let tituloDoc = `Feedback Avaliativo de Projeto`
-  if (discNome) tituloDoc += `: ${discNome}`
-  if (faseNome) tituloDoc += ` --- ${faseNome}`
-  if (!discNome && !faseNome) tituloDoc += `: Fase 1 --- Imersão` // fallback default
+  if (discNome && !faseNome) tituloDoc += `: ${discNome} --- Avaliação Completa`
+  else if (discNome && faseNome) tituloDoc += `: ${discNome} --- ${faseNome}`
+  else if (!discNome && !faseNome) tituloDoc += `: Avaliação Completa`
 
   // ── helpers de status — usa nivelId real do sistema ──────────
   function statusCmd(cr) {
@@ -270,37 +268,8 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
     return { cmd: 'statuswarn', label: cr.nivelLabel || 'Não entregue' }
   }
 
-  // ── tabela resumo de uma fase ──────────────────────────────
-  function statusCorrTex(s) {
-    if (s === 'corrigido')     return '\\statusok{Corrigido}'
-    if (s === 'parcial')       return '\\statuswarn{Parcial}'
-    if (s === 'nao_corrigido') return '\\statuswarn{Não corrigido}'
-    return '---'
-  }
+  // ── tabela resumo — sempre nota final, sem comparativo ─────
   function tabelaResumo(criterios) {
-    if (criterios.some(c => c.temComparativo)) {
-      const linhasC = criterios.map(cr => {
-        const ini = fmt(cr.notaInicial ?? 0)
-        const fin = cr.notaFinal != null ? `\\textbf{${fmt(cr.notaFinal)}}` : '---'
-        const { cmd, label } = statusCmd(cr)
-        return `${esc(cr.nome)} & ${ini} & ${fin} & \\${cmd}{${label}} & ${fmt(cr.max)} \\\\`
-      }).join('\n')
-      const totIni = criterios.reduce((a, c) => a + (c.notaInicial ?? 0), 0)
-      const totFin = criterios.reduce((a, c) => a + (c.notaFinal != null ? c.notaFinal : (c.notaInicial ?? 0)), 0)
-      const maxC   = criterios.reduce((a, c) => a + c.max, 0)
-      return (
-        '\\rowcolors{2}{crow}{white}\n' +
-        '\\begin{tabular}{@{} L{2.0cm} C{0.8cm} C{0.8cm} C{2.4cm} C{0.8cm} @{}}\n' +
-        '\\toprule\n' +
-        '\\textbf{Critério} & \\textbf{1ª} & \\textbf{Final} & \\textbf{Status} & \\textbf{Máx.} \\\\\n' +
-        '\\midrule\n' +
-        linhasC + '\n' +
-        '\\midrule\n' +
-        `\\textbf{Total} & ${fmt(totIni)} & \\textbf{\\color{cred}${fmt(totFin)}} & & \\textbf{${fmt(maxC)}} \\\\\n` +
-        '\\bottomrule\n' +
-        '\\end{tabular}'
-      )
-    }
     const linhas = criterios.map(cr => {
       const { cmd, label } = statusCmd(cr)
       return `${esc(cr.nome)} & \\${cmd}{${label}} & \\textbf{${fmt(cr.nota)}} & ${fmt(cr.max)} \\\\`
@@ -354,17 +323,43 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
     )
   }
 
-  // ── monta todas as sections (uma por disciplina) ───────────
+  // ── monta todas as sections ────────────────────────────────
+  // faseNome === null  → modo disciplina inteira: uma section por fase
+  // faseNome !== null  → modo fase única: igual ao comportamento anterior
   const secoes = disciplinas.map(d => {
-    // coleta todos os critérios de todas as fases da disciplina
+    if (faseNome === null) {
+      // Nota total da disciplina
+      const todosCriterios = d.fases.flatMap(f => f.criterios)
+      const totalDisc = todosCriterios.reduce((a, c) => a + c.nota, 0)
+      const maxDisc   = todosCriterios.reduce((a, c) => a + c.max, 0)
+
+      const cabecalho =
+        `\\section{Avaliação — ${esc(d.nome)}}\n\n` +
+        `\\notadestaque{${fmt(totalDisc)}}{${fmt(maxDisc)}}\n\n` +
+        `A seguir o detalhamento por fase da disciplina.\n\n`
+
+      const fasesSections = d.fases.map(f => {
+        const totalFase = f.criterios.reduce((a, c) => a + c.nota, 0)
+        const maxFase   = f.criterios.reduce((a, c) => a + c.max, 0)
+        return (
+          `\\subsection{${esc(f.nome)}}\n\n` +
+          `\\notadestaque{${fmt(totalFase)}}{${fmt(maxFase)}}\n\n` +
+          `\\subsubsection*{Resumo dos Critérios}\n\n` +
+          tabelaResumo(f.criterios) + '\n\n' +
+          `\\subsubsection*{Comentários}\n\n` +
+          f.criterios.map(secaoCriterio).join('\n\n')
+        )
+      }).join('\n\n')
+
+      return cabecalho + fasesSections
+    }
+
+    // Modo fase única (botão por fase — comportamento original)
     const todosCriterios = d.fases.flatMap(f => f.criterios)
-
     const tabelaGeral = tabelaResumo(todosCriterios)
-
-    const detalhesFases = d.fases.map(f => {
-      const secoesDosCriterios = f.criterios.map(secaoCriterio).join('\n\n')
-      return secoesDosCriterios
-    }).join('\n\n')
+    const detalhesFases = d.fases.map(f =>
+      f.criterios.map(secaoCriterio).join('\n\n')
+    ).join('\n\n')
 
     return (
       `\\section{Avaliação Geral}\n\n` +
@@ -591,7 +586,7 @@ export default function DevolutivaModal({ group, orgId: orgIdProp, org, discId, 
     const hoje = new Date()
     const data = `${hoje.getFullYear()}${String(hoje.getMonth()+1).padStart(2,'0')}${String(hoje.getDate()).padStart(2,'0')}`
 
-    const faseSlug = faseNome ? faseNome.toLowerCase().replace(/[^a-z0-9]/g, '') : 'geral'
+    const faseSlug = faseNome ? faseNome.toLowerCase().replace(/[^a-z0-9]/g, '') : 'completa'
     return `${turmaDir}/${grupoDir}/devolutiva-${faseSlug}-${data}.tex`
   }
 
@@ -671,7 +666,7 @@ Responda apenas com o texto do resumo, sem títulos, sem markdown, sem aspas.`
 
       // Push pro GitHub ETE-CiceroDias/ete-docs-mod1
       const path = montarPath()
-      const faseSlug = faseNome ? faseNome.toLowerCase() : 'geral'
+      const faseSlug = faseNome ? faseNome.toLowerCase() : 'completa'
       const result = await pushFileToRepo({
         repo: 'ETE-CiceroDias/ete-docs-mod1',
         path,
@@ -692,7 +687,7 @@ Responda apenas com o texto do resumo, sem títulos, sem markdown, sem aspas.`
 
   function downloadTex() {
     const grupoSlug = group.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-    const faseSlug = faseNome ? faseNome.toLowerCase().replace(/[^a-z0-9]/g, '') : 'geral'
+    const faseSlug = faseNome ? faseNome.toLowerCase().replace(/[^a-z0-9]/g, '') : 'completa'
     const a = document.createElement('a')
     a.href = URL.createObjectURL(new Blob([texContent], { type: 'text/plain' }))
     a.download = `devolutiva-${faseSlug}-${grupoSlug}.tex`
@@ -713,7 +708,7 @@ Responda apenas com o texto do resumo, sem títulos, sem markdown, sem aspas.`
         <div style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
           <div>
             <div style={{ ...mono, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--text-dim)', marginBottom: 3 }}>
-              Gerar Devolutiva {faseNome && `— ${faseNome}`}
+              Gerar Devolutiva {faseNome ? `— ${faseNome}` : '— Disciplina Completa'}
             </div>
             <div style={{ fontFamily: 'var(--ff-disp)', fontSize: 18, color: 'var(--text)', letterSpacing: '0.04em' }}>{group.name}</div>
           </div>

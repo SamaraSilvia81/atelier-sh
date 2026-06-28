@@ -1507,7 +1507,7 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
           </div>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             {saving && <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>›_ salvando...</span>}
-            <button type="button" onClick={() => setShowDevolutiva(true)}
+            <button type="button" onClick={() => setDevolutivaTarget({ discId: discAtiva, faseNome: null })}
               style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-dim)', fontSize: 10, cursor: 'pointer' }}>
               <Download size={11} /> devolutiva PDF
             </button>
