@@ -629,16 +629,6 @@ function CriterioRow({
 
   const cor = statusCor(notaCalculada ?? notaAtual, cr.max)
 
-  // Rodada final: marca "antes" + chip de status (auto, com override manual)
-  const notaExibida = notaCalculada !== null ? notaCalculada : notaAtual
-  const statusAuto  = calcStatusCorrecao(notaAntes, notaExibida, cr.max)
-  const statusChip  = statusOverrideSalvo ? statusSalvo : statusAuto
-  const cicloStatus = () => {
-    const atual = statusOverrideSalvo ? statusSalvo : null
-    const i = STATUS_CICLO.indexOf(atual)
-    onCycleStatus && onCycleStatus(STATUS_CICLO[(i + 1) % STATUS_CICLO.length])
-  }
-
   return (
     <div style={{ borderTop: '1px solid var(--border)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
       {cr.zeraSem && (
@@ -699,17 +689,6 @@ function CriterioRow({
             />
           )}
         </div>
-
-        {rodadaView === 'final' && (
-          <button type="button" onClick={cicloStatus}
-            title="status da correção — automático por padrão, clique pra fixar/alternar"
-            style={{ ...mono, fontSize: 9, padding: '2px 8px', borderRadius: 20, cursor: 'pointer', border: 'none', flexShrink: 0,
-              background: statusChip ? STATUS_META[statusChip].bg : 'var(--surface)',
-              color: statusChip ? STATUS_META[statusChip].cor : 'var(--text-dim)',
-              outline: statusOverrideSalvo && statusChip ? `1px solid ${STATUS_META[statusChip].cor}` : 'none' }}>
-            {statusChip ? STATUS_META[statusChip].lbl : '—'}{!statusOverrideSalvo && statusChip ? ' ·auto' : ''}
-          </button>
-        )}
 
         <button type="button" onClick={() => setNotaAberta(v => !v)} title="anotação vinculada"
           style={{ color: notaAberta ? 'var(--red)' : 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 2, flexShrink: 0 }}>
@@ -1367,13 +1346,6 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
         atraso:     atraso !== undefined ? atraso : atrasoGrupoView(disciplina, criterioId),
         rodada:     rodadaView,
       }
-      // Na rodada final, status automático pela diferença — a menos que
-      // você já tenha fixado um status na mão (override) pra esse critério.
-      if (rodadaView === 'final' && !avGrupo.statusOverride(disciplina, criterioId)) {
-        const notaIni = avGrupo.notaGrupo(disciplina, criterioId, 'inicial')
-        payload.statusCorrecao = calcStatusCorrecao(notaIni, notaFinal, notaMax)
-        payload.statusOverride = false
-      }
       salvarNotaGrupo(payload)
     }
 
@@ -1521,6 +1493,12 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
         </div>
 
         {/* ── GRUPO */}
+        {modo === 'grupo' && rodadaView === 'final' && (
+          <div style={{ ...mono, fontSize: 10, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 6, padding: '2px 2px', lineHeight: 1.5 }}>
+            <Info size={11} style={{ flexShrink: 0, color: 'var(--red)' }} />
+            <span>Você está vendo a <strong style={{ color: 'var(--red)' }}>avaliação final</strong>. A 1ª impressão fica intacta. O que entra no total do card é decidido por fase no seletor <strong>1ª | fin</strong>.</span>
+          </div>
+        )}
         {modo === 'grupo' && disc && (
           <>
             {/* Painel de edição de níveis — só em editMode */}
@@ -1615,6 +1593,7 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
                    ...criteriosFaseRaw.filter(cr => !ordemCrit.includes(cr.id))]
                 : criteriosFaseRaw
               const totalFase = criteriosFase.reduce((a, cr) => a + (notaGrupoView(discAtiva, cr.id) ?? 0), 0)
+              const faseTemFinal = criteriosFase.some(cr => avGrupo.temFinal(discAtiva, cr.id))
               const maxFase = criteriosFase.reduce((a, cr) => a + cr.max, 0) || fase.total || 1
               const nomeExibido = faseNomeEdit[fase.nome] ?? fase.nome
 
@@ -1656,6 +1635,10 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
 
                       {fase.isCustom && editMode && (
                         <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 'var(--radius)', border: '1px solid var(--border-red)', color: 'var(--red)', background: 'var(--red-dim)', flexShrink: 0 }}>custom</span>
+                      )}
+                      {rodadaView === 'final' && !faseTemFinal && (
+                        <span title="esta fase ainda não foi reavaliada — os valores são um espelho da 1ª impressão"
+                          style={{ ...mono, fontSize: 8, padding: '1px 6px', borderRadius: 'var(--radius)', border: '1px dashed var(--border)', color: 'var(--text-dim)', background: 'transparent', flexShrink: 0, letterSpacing: '0.08em', textTransform: 'uppercase' }}>espelho da 1ª</span>
                       )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, paddingLeft: 10 }}>

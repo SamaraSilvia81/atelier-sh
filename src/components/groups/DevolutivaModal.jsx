@@ -87,7 +87,7 @@ function htmlToText(html = '') {
 }
 
 // CORREÇÃO: Passando baseOverrides e itemOverrides para puxar os nomes customizados e os itens editados
-function coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, crud, notes, etapas, baseOverrides, itemOverrides) {
+function coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, crud, notes, etapas, baseOverrides, itemOverrides, av) {
   const disciplinas = DISCIPLINAS.map(disc => {
     const fases = crud.getFasesDisciplina(disc.id).map(fase => {
       const criterios = crud.getCriteriosFase(disc.id, fase.nome).map(cr => {
@@ -96,11 +96,16 @@ function coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina
         const nomeFinal = override?.nome ?? cr.nome
         const maxFinal = override?.max ?? cr.max
 
-        const nivel      = nivelGrupo(disc.id, cr.id)
+        const temFin     = av?.temFinal?.(disc.id, cr.id) || false
+        const rod        = temFin ? 'final' : 'inicial'
+        const nivel      = av ? av.nivelGrupo(disc.id, cr.id, rod) : nivelGrupo(disc.id, cr.id)
         const nivelInfo  = NIVEIS_AVALIACAO.find(n => n.id === nivel)
-        const atraso     = atrasoGrupo(disc.id, cr.id)
+        const atraso     = av ? av.atrasoGrupo(disc.id, cr.id, rod) : atrasoGrupo(disc.id, cr.id)
         const atrasoInfo = PENALIZACOES_ATRASO.find(a => a.id === atraso)
-        const nota       = notaGrupo(disc.id, cr.id) ?? 0
+        const nota         = (av ? av.notaGrupo(disc.id, cr.id, rod) : notaGrupo(disc.id, cr.id)) ?? 0
+        const notaInicial  = av ? (av.notaGrupo(disc.id, cr.id, 'inicial') ?? 0) : nota
+        const notaFinal    = temFin ? nota : null
+        const statusCorr   = temFin ? (av?.statusGrupo?.(disc.id, cr.id) || null) : null
 
         // Busca anotação pelo NOME FINAL do critério
         const notaVinc = notes.find(n => n.title === `Avaliação: ${nomeFinal}`)
@@ -115,6 +120,7 @@ function coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina
 
         return {
           id: cr.id, nome: nomeFinal, max: maxFinal, nota,
+          notaInicial, notaFinal, statusCorr, temComparativo: temFin,
           nivelLabel:  nivelInfo?.label  || '—',
           nivelId:     nivel,
           atrasoLabel: atrasoInfo?.id === 'sem_atraso' ? '' : (atrasoInfo?.label || ''),
@@ -129,7 +135,7 @@ function coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina
         maxFase:   criterios.reduce((a, c) => a + c.max,  0),
       }
     })
-    return { id: disc.id, nome: disc.nome, total: totalDisciplina(disc.id), max: disc.total, fases }
+    return { id: disc.id, nome: disc.nome, total: fases.reduce((a, f) => a + f.totalFase, 0), max: disc.total, fases }
   })
   return { group, disciplinas, totalGeral: disciplinas.reduce((a, d) => a + d.total, 0) }
 }
@@ -265,7 +271,36 @@ function montarTex(dados, turma, dataEntrega, resumoIA = null, discId = null, me
   }
 
   // ── tabela resumo de uma fase ──────────────────────────────
+  function statusCorrTex(s) {
+    if (s === 'corrigido')     return '\\statusok{Corrigido}'
+    if (s === 'parcial')       return '\\statuswarn{Parcial}'
+    if (s === 'nao_corrigido') return '\\statuswarn{Não corrigido}'
+    return '---'
+  }
   function tabelaResumo(criterios) {
+    if (criterios.some(c => c.temComparativo)) {
+      const linhasC = criterios.map(cr => {
+        const ini = fmt(cr.notaInicial ?? 0)
+        const fin = cr.notaFinal != null ? `\\textbf{${fmt(cr.notaFinal)}}` : '---'
+        const { cmd, label } = statusCmd(cr)
+        return `${esc(cr.nome)} & ${ini} & ${fin} & \\${cmd}{${label}} & ${fmt(cr.max)} \\\\`
+      }).join('\n')
+      const totIni = criterios.reduce((a, c) => a + (c.notaInicial ?? 0), 0)
+      const totFin = criterios.reduce((a, c) => a + (c.notaFinal != null ? c.notaFinal : (c.notaInicial ?? 0)), 0)
+      const maxC   = criterios.reduce((a, c) => a + c.max, 0)
+      return (
+        '\\rowcolors{2}{crow}{white}\n' +
+        '\\begin{tabular}{@{} L{2.0cm} C{0.8cm} C{0.8cm} C{2.4cm} C{0.8cm} @{}}\n' +
+        '\\toprule\n' +
+        '\\textbf{Critério} & \\textbf{1ª} & \\textbf{Final} & \\textbf{Status} & \\textbf{Máx.} \\\\\n' +
+        '\\midrule\n' +
+        linhasC + '\n' +
+        '\\midrule\n' +
+        `\\textbf{Total} & ${fmt(totIni)} & \\textbf{\\color{cred}${fmt(totFin)}} & & \\textbf{${fmt(maxC)}} \\\\\n` +
+        '\\bottomrule\n' +
+        '\\end{tabular}'
+      )
+    }
     const linhas = criterios.map(cr => {
       const { cmd, label } = statusCmd(cr)
       return `${esc(cr.nome)} & \\${cmd}{${label}} & \\textbf{${fmt(cr.nota)}} & ${fmt(cr.max)} \\\\`
@@ -611,7 +646,7 @@ Responda apenas com o texto do resumo, sem títulos, sem markdown, sem aspas.`
       setEtapa('gerando')
 
       // CORREÇÃO 2: Passando baseOverrides e itemOverrides pro coletor
-      const dadosBrutos = coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, crud, notes, etapas, baseOverrides, itemOverrides)
+      const dadosBrutos = coletarDados(group, notaGrupo, nivelGrupo, atrasoGrupo, totalDisciplina, crud, notes, etapas, baseOverrides, itemOverrides, avaliacao)
       
       let dados = dadosBrutos
       if (discId) dados = { ...dados, disciplinas: dados.disciplinas.filter(d => d.id === discId) }
