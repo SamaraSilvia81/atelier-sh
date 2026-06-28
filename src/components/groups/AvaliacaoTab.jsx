@@ -8,7 +8,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { ChevronDown, ChevronRight, AlertTriangle, FileText, X,
   Plus, Trash2, Pencil, Check, User, Users, Info, Calendar, Download } from 'lucide-react'
-import { useAvaliacao }            from '../../hooks/useAvaliacao'
+import { useAvaliacao, calcStatusCorrecao } from '../../hooks/useAvaliacao'
 import { useAvaliacaoIndividual,
          FATORES, CRITERIOS_COMPORTAMENTAIS } from '../../hooks/useAvaliacaoIndividual'
 import { useAvaliacaoCrud }        from '../../hooks/useAvaliacaoCrud'
@@ -26,6 +26,14 @@ const statusCor = (n, m) => {
   return p >= 80 ? '#5aab6e' : p >= 50 ? '#c8922a' : 'var(--red)'
 }
 const mono = { fontFamily: 'var(--ff-mono)' }
+
+// Status de correção (rodada final) — visual + ciclo do override manual
+const STATUS_META = {
+  corrigido:     { lbl: 'corrigido',     cor: '#5aab6e', bg: 'rgba(90,171,110,0.12)' },
+  parcial:       { lbl: 'parcial',       cor: '#c8922a', bg: 'rgba(200,146,42,0.12)' },
+  nao_corrigido: { lbl: 'não corrigido', cor: '#c83232', bg: 'rgba(200,50,50,0.10)' },
+}
+const STATUS_CICLO = ['corrigido', 'parcial', 'nao_corrigido', null] // null = volta pro automático
 
 function calcNota(notaMax, nivelId, atrasoId) {
   const nivel  = NIVEIS_AVALIACAO.find(n => n.id === nivelId)
@@ -556,6 +564,8 @@ function CriterioRow({
   etapas, setEtapas,
   itemOverrides, setItemOverrides,
   niveisCustom: niveis,   // lista customizável de níveis
+  rodadaView = 'inicial', notaAntes = null,
+  statusSalvo = null, statusOverrideSalvo = false, onCycleStatus,
 }) {
   const niveisAtivos = niveis || NIVEIS_AVALIACAO
   const [detAberto,  setDetAberto]  = useState(false)
@@ -619,6 +629,16 @@ function CriterioRow({
 
   const cor = statusCor(notaCalculada ?? notaAtual, cr.max)
 
+  // Rodada final: marca "antes" + chip de status (auto, com override manual)
+  const notaExibida = notaCalculada !== null ? notaCalculada : notaAtual
+  const statusAuto  = calcStatusCorrecao(notaAntes, notaExibida, cr.max)
+  const statusChip  = statusOverrideSalvo ? statusSalvo : statusAuto
+  const cicloStatus = () => {
+    const atual = statusOverrideSalvo ? statusSalvo : null
+    const i = STATUS_CICLO.indexOf(atual)
+    onCycleStatus && onCycleStatus(STATUS_CICLO[(i + 1) % STATUS_CICLO.length])
+  }
+
   return (
     <div style={{ borderTop: '1px solid var(--border)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
       {cr.zeraSem && (
@@ -657,6 +677,13 @@ function CriterioRow({
           </span>
         )}
 
+        {rodadaView === 'final' && notaAntes !== null && (
+          <span title="nota da primeira avaliação"
+            style={{ ...mono, fontSize: 9, color: 'var(--text-dim)', textDecoration: 'line-through', opacity: 0.7, whiteSpace: 'nowrap' }}>
+            antes {Number(notaAntes).toFixed(2).replace('.', ',')}
+          </span>
+        )}
+
         {/* Nota calculada ou manual */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           {notaCalculada !== null ? (
@@ -672,6 +699,17 @@ function CriterioRow({
             />
           )}
         </div>
+
+        {rodadaView === 'final' && (
+          <button type="button" onClick={cicloStatus}
+            title="status da correção — automático por padrão, clique pra fixar/alternar"
+            style={{ ...mono, fontSize: 9, padding: '2px 8px', borderRadius: 20, cursor: 'pointer', border: 'none', flexShrink: 0,
+              background: statusChip ? STATUS_META[statusChip].bg : 'var(--surface)',
+              color: statusChip ? STATUS_META[statusChip].cor : 'var(--text-dim)',
+              outline: statusOverrideSalvo && statusChip ? `1px solid ${STATUS_META[statusChip].cor}` : 'none' }}>
+            {statusChip ? STATUS_META[statusChip].lbl : '—'}{!statusOverrideSalvo && statusChip ? ' ·auto' : ''}
+          </button>
+        )}
 
         <button type="button" onClick={() => setNotaAberta(v => !v)} title="anotação vinculada"
           style={{ color: notaAberta ? 'var(--red)' : 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 2, flexShrink: 0 }}>
@@ -1263,9 +1301,34 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
     faseNomeEdit,  setFaseNomeEdit,
     etapas,        setEtapas,
     faseDatas, updateFaseDatas,
+    rodadaVigente, updateRodadaVigente, rodadaVigenteDe,
   } = config
 
   const [modo,          setModo]          = useState('grupo')
+  const [rodadaView,    setRodadaView]    = useState('inicial')
+
+  // Leitores que respeitam a rodada ativa do toggle. Em 'final', se ainda
+  // não houver linha final pro critério, cai pra 'inicial' (pré-preenche
+  // tudo da primeira avaliação, sem nunca alterá-la).
+  const notaGrupoView = (d, c) => {
+    if (rodadaView === 'final') {
+      const f = avGrupo.notaGrupo(d, c, 'final')
+      return f !== null ? f : avGrupo.notaGrupo(d, c, 'inicial')
+    }
+    return avGrupo.notaGrupo(d, c, 'inicial')
+  }
+  const nivelGrupoView = (d, c) => {
+    if (rodadaView === 'final') return avGrupo.nivelGrupo(d, c, 'final') ?? avGrupo.nivelGrupo(d, c, 'inicial')
+    return avGrupo.nivelGrupo(d, c, 'inicial')
+  }
+  const atrasoGrupoView = (d, c) => {
+    if (rodadaView === 'final') return avGrupo.temFinal(d, c) ? avGrupo.atrasoGrupo(d, c, 'final') : avGrupo.atrasoGrupo(d, c, 'inicial')
+    return avGrupo.atrasoGrupo(d, c, 'inicial')
+  }
+  const obsGrupoView = (d, c) => {
+    if (rodadaView === 'final') return avGrupo.temFinal(d, c) ? avGrupo.obsGrupo(d, c, 'final') : avGrupo.obsGrupo(d, c, 'inicial')
+    return avGrupo.obsGrupo(d, c, 'inicial')
+  }
   const [discAtiva,     setDiscAtiva]     = useState('dt')
   const [fasesAbertas,  setFasesAbertas]  = useState({})
   const [editMode,      setEditMode]      = useState(false)
@@ -1294,15 +1357,24 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
     const doSave = () => {
       const notaFinal = nota !== undefined && nota !== null && nota !== ''
         ? Math.min(Math.max(parseFloat(nota) || 0, 0), notaMax)
-        : (notaGrupo(disciplina, criterioId) ?? 0)
-      salvarNotaGrupo({
+        : (notaGrupoView(disciplina, criterioId) ?? 0)
+      const payload = {
         disciplina, fase, criterioId,
         nota:       notaFinal,
         notaMax,
-        observacao: obs !== undefined ? obs : avGrupo.obsGrupo?.(disciplina, criterioId),
-        nivel:      nivel !== undefined ? nivel : nivelGrupo(disciplina, criterioId),
-        atraso:     atraso !== undefined ? atraso : atrasoGrupo(disciplina, criterioId),
-      })
+        observacao: obs !== undefined ? obs : obsGrupoView(disciplina, criterioId),
+        nivel:      nivel !== undefined ? nivel : nivelGrupoView(disciplina, criterioId),
+        atraso:     atraso !== undefined ? atraso : atrasoGrupoView(disciplina, criterioId),
+        rodada:     rodadaView,
+      }
+      // Na rodada final, status automático pela diferença — a menos que
+      // você já tenha fixado um status na mão (override) pra esse critério.
+      if (rodadaView === 'final' && !avGrupo.statusOverride(disciplina, criterioId)) {
+        const notaIni = avGrupo.notaGrupo(disciplina, criterioId, 'inicial')
+        payload.statusCorrecao = calcStatusCorrecao(notaIni, notaFinal, notaMax)
+        payload.statusOverride = false
+      }
+      salvarNotaGrupo(payload)
     }
 
     if (delay === 0) {
@@ -1312,8 +1384,25 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
     }
   }
 
-  function handleEditBase(discId, criterioId, nome, max) {
-    setBaseOverrides(prev => ({
+  // Fixa/alterna o status da correção na mão (override). status=null volta
+  // pro automático. Regrava a linha final preservando nota/nível/atraso/obs.
+  function setStatusManual(disciplina, fase, criterioId, notaMax, status) {
+    const notaAtual = notaGrupoView(disciplina, criterioId) ?? 0
+    const notaIni   = avGrupo.notaGrupo(disciplina, criterioId, 'inicial')
+    salvarNotaGrupo({
+      disciplina, fase, criterioId,
+      nota:       notaAtual,
+      notaMax,
+      observacao: obsGrupoView(disciplina, criterioId),
+      nivel:      nivelGrupoView(disciplina, criterioId),
+      atraso:     atrasoGrupoView(disciplina, criterioId),
+      rodada:     'final',
+      statusCorrecao: status === null ? calcStatusCorrecao(notaIni, notaAtual, notaMax) : status,
+      statusOverride: status !== null,
+    })
+  }
+
+  function handleEditBase(discId, criterioId, nome, max) {    setBaseOverrides(prev => ({
       ...prev,
       [`${discId}-${criterioId}`]: { nome, max }
     }))
@@ -1335,7 +1424,7 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
   }
 
   const disc = DISCIPLINAS.find(d => d.id === discAtiva)
-  const total = totalDisciplina(discAtiva)
+  const total = totalDisciplina(discAtiva, rodadaVigente)
 
   // Sensors para drag and drop — declarados aqui para respeitar regras de hooks
   const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
@@ -1359,7 +1448,7 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
         {/* ── Totais — scroll horizontal em telas pequenas */}
         <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
           {DISCIPLINAS.map(d => {
-            const t = totalDisciplina(d.id)
+            const t = totalDisciplina(d.id, rodadaVigente)
             return (
              <div key={d.id} style={{ width: 155, flexShrink: 0, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: `1px solid ${d.cor}40`, background: `${d.cor}0d` }}>
                 <div style={{ fontSize: 9, letterSpacing: '0.18em', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 4 }}>{d.id.toUpperCase()} — {d.nome.split(' ')[0]}</div>
@@ -1396,12 +1485,28 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
 
         {/* ── Topbar */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
             {[['grupo', <Users size={12} />], ['individual', <User size={12} />]].map(([m, icon]) => (
               <button key={m} type="button" onClick={() => setModo(m)} style={{ padding: '6px 14px', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', background: modo === m ? 'var(--red-dim)' : 'transparent', color: modo === m ? 'var(--red)' : 'var(--text-dim)', borderRight: m === 'grupo' ? '1px solid var(--border)' : 'none', border: m === 'grupo' ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
                 {icon} {m}
               </button>
             ))}
+          </div>
+          {modo === 'grupo' && (
+            <div title="primeira avaliação (suas impressões) × avaliação final (após conferir as correções)"
+              style={{ display: 'flex', gap: 0, border: `1px solid ${rodadaView === 'final' ? 'var(--border-red)' : 'var(--border)'}`, borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+              {[['inicial', '1ª impressão'], ['final', 'avaliação final']].map(([r, lbl], i) => (
+                <button key={r} type="button" onClick={() => setRodadaView(r)}
+                  style={{ padding: '6px 14px', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer',
+                    background: rodadaView === r ? (r === 'final' ? 'var(--red-dim)' : 'var(--surface)') : 'transparent',
+                    color: rodadaView === r ? (r === 'final' ? 'var(--red)' : 'var(--text)') : 'var(--text-dim)',
+                    border: 'none', borderRight: i === 0 ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+          )}
           </div>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             {saving && <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>›_ salvando...</span>}
@@ -1509,7 +1614,7 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
                 ? [...ordemCrit.map(id => criteriosFaseRaw.find(cr => cr.id === id)).filter(Boolean),
                    ...criteriosFaseRaw.filter(cr => !ordemCrit.includes(cr.id))]
                 : criteriosFaseRaw
-              const totalFase = criteriosFase.reduce((a, cr) => a + (notaGrupo(discAtiva, cr.id) ?? 0), 0)
+              const totalFase = criteriosFase.reduce((a, cr) => a + (notaGrupoView(discAtiva, cr.id) ?? 0), 0)
               const maxFase = criteriosFase.reduce((a, cr) => a + cr.max, 0) || fase.total || 1
               const nomeExibido = faseNomeEdit[fase.nome] ?? fase.nome
 
@@ -1558,6 +1663,23 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
                       <span style={{ fontSize: 11, color: disc.cor, fontWeight: 600, whiteSpace: 'nowrap' }}>
                         {totalFase.toFixed(2).replace('.', ',')} / {maxFase.toFixed(2).replace('.', ',')} pts
                       </span>
+                      {modo === 'grupo' && (() => {
+                        const vig = rodadaVigenteDe(discAtiva, fase.nome)
+                        return (
+                          <div onClick={e => e.stopPropagation()} title="qual rodada conta no total do card desta fase: 1ª impressão ou avaliação final"
+                            style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden', flexShrink: 0 }}>
+                            {[['inicial', '1ª'], ['final', 'fin']].map(([r, lbl], i) => (
+                              <button key={r} type="button"
+                                onClick={e => { e.stopPropagation(); updateRodadaVigente(discAtiva, fase.nome, r) }}
+                                style={{ padding: '2px 7px', ...mono, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', border: 'none', borderRight: i === 0 ? '1px solid var(--border)' : 'none',
+                                  background: vig === r ? (r === 'final' ? 'var(--red-dim)' : disc.corBg) : 'transparent',
+                                  color: vig === r ? (r === 'final' ? 'var(--red)' : disc.cor) : 'var(--text-dim)' }}>
+                                {lbl}
+                              </button>
+                            ))}
+                          </div>
+                        )
+                      })()}
                       <button type="button"
                         onClick={e => { e.stopPropagation(); setDevolutivaTarget({ discId: discAtiva, faseNome: fase.nome }) }}
                         title={`Devolutiva PDF — ${fase.nome}`}
@@ -1635,9 +1757,9 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
                   <div style={{ paddingLeft: editMode ? 18 : 0 }}>
                   {criteriosFase.map(cr => (
                     <SortableItem key={cr.id} id={cr.id} editMode={editMode}>
-                    <CriterioRow key={cr.id}
+                    <CriterioRow key={`${cr.id}-${rodadaView}`}
                       cr={cr} discId={discAtiva} faseNome={fase.nome}
-                      notaGrupo={notaGrupo} nivelGrupo={nivelGrupo} atrasoGrupo={atrasoGrupo}
+                      notaGrupo={notaGrupoView} nivelGrupo={nivelGrupoView} atrasoGrupo={atrasoGrupoView}
                       onSave={autoSave} editMode={editMode}
                       onRemoveCustom={crud.removerCriterio}
                       onEditCustom={(dbId, changes) => crud.editarCriterio(dbId, changes)}
@@ -1648,6 +1770,11 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
                       etapas={etapas} setEtapas={setEtapas}
                       itemOverrides={itemOverrides} setItemOverrides={setItemOverrides}
                       niveisCustom={niveisCustom}
+                      rodadaView={rodadaView}
+                      notaAntes={avGrupo.notaGrupo(discAtiva, cr.id, 'inicial')}
+                      statusSalvo={avGrupo.statusGrupo(discAtiva, cr.id)}
+                      statusOverrideSalvo={avGrupo.statusOverride(discAtiva, cr.id)}
+                      onCycleStatus={(st) => setStatusManual(discAtiva, fase.nome, cr.id, cr.max, st)}
                     />
                     </SortableItem>
                   ))}
