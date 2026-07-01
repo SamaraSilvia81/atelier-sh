@@ -928,7 +928,7 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
   let totalInd = 0
   for (const disc of DISCIPLINAS) {
     for (const fase of disc.fases) {
-      const nf = fase.criterios.filter(c2 => !c2.isExtra).reduce((a, cr) => a + (notaGrupo(disc.id, cr.id) ?? 0), 0)
+      const nf = fase.criterios.filter(c2 => !c2.isExtra).reduce((a, cr) => a + (notaGrupo(disc.id, cr.id, fase.nome) ?? 0), 0)
       totalInd += getNotaIndividual(membroAtivo, disc.id, fase.nome, nf) || 0
     }
   }
@@ -951,7 +951,7 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
           let tot = 0
           for (const disc of DISCIPLINAS) {
             for (const fase of disc.fases) {
-              const nf = fase.criterios.filter(c2 => !c2.isExtra).reduce((a, cr) => a + (notaGrupo(disc.id, cr.id) ?? 0), 0)
+              const nf = fase.criterios.filter(c2 => !c2.isExtra).reduce((a, cr) => a + (notaGrupo(disc.id, cr.id, fase.nome) ?? 0), 0)
               tot += getNotaIndividual(m.id, disc.id, fase.nome, nf) || 0
             }
           }
@@ -989,7 +989,7 @@ function IndividualPanel({ members, notaGrupo, hooks, editMode, fatoresCustom, s
                 <span style={{ ...mono, fontSize: 10, color: disc.cor, letterSpacing: '0.15em', textTransform: 'uppercase' }}>{disc.id} — {disc.nome}</span>
               </div>
               {disc.fases.map(fase => {
-                const notaFase = fase.criterios.filter(c2 => !c2.isExtra).reduce((a, cr) => a + (notaGrupo(disc.id, cr.id) ?? 0), 0)
+                const notaFase = fase.criterios.filter(c2 => !c2.isExtra).reduce((a, cr) => a + (notaGrupo(disc.id, cr.id, fase.nome) ?? 0), 0)
                 const fatorAtual = getFator(membroAtivo, disc.id, fase.nome)
                 const notaInd = getNotaIndividual(membroAtivo, disc.id, fase.nome, notaFase)
 
@@ -1302,6 +1302,19 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
     if (rodadaView === 'final') {
       const f = avGrupo.notaGrupo(d, c, 'final')
       return f !== null ? f : avGrupo.notaGrupo(d, c, 'inicial')
+    }
+    return avGrupo.notaGrupo(d, c, 'inicial')
+  }
+
+  // Leitor usado pela aba INDIVIDUAL: respeita a rodada VIGENTE por fase
+  // (o mesmo mapa que decide o total dos cards DT/DCU/PI), e não o toggle
+  // de visualização (rodadaView), que é só pra tela de grupo. Sem isso,
+  // a nota individual ficava presa na 1ª impressão mesmo com a fase
+  // marcada como "avaliação final".
+  const notaGrupoVigente = (d, c, faseNome) => {
+    const vigente = rodadaVigente[`${d}::${faseNome}`] || 'inicial'
+    if (vigente === 'final' && avGrupo.temFinal(d, c)) {
+      return avGrupo.notaGrupo(d, c, 'final')
     }
     return avGrupo.notaGrupo(d, c, 'inicial')
   }
@@ -1916,7 +1929,7 @@ export default function AvaliacaoTab({ group, orgId: orgIdProp, org }) {
         {/* ── INDIVIDUAL */}
         {modo === 'individual' && (
           <IndividualPanel
-            members={members} notaGrupo={notaGrupo}
+            members={members} notaGrupo={notaGrupoVigente}
             hooks={avInd} editMode={editMode}
             fatoresCustom={fatoresCustom} setFatoresCustom={setFatoresCustom}
             editandoFator={editandoFator} setEditandoFator={setEditandoFator}
